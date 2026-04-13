@@ -22,6 +22,7 @@ const ICONS: Record<string, React.ElementType> = {
   "nova-rag": Bot,
   "restaurant-os": UtensilsCrossed,
   healthtech: HeartPulse,
+  jarvis: Bot,
 }
 
 // ── Parse a result string into { value, label } ─────────────────────────────

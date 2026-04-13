@@ -334,4 +334,33 @@ export const caseStudyTranslations = {
       ],
     },
   },
+  "jarvis": {
+    title: { en: "Jarvis — Hybrid AI Orchestrator", es: "Jarvis — Orquestador AI Híbrido" },
+    tagline: {
+      en: "Local GPU + Cloud AI, voice I/O, autonomous worker",
+      es: "GPU local + AI en la nube, voz, worker autónomo",
+    },
+    problem: {
+      en: "AI API costs explode when you use the best model for everything. Needed a system that uses the cheapest model capable of each task — from free local GPU to expensive cloud reasoning.",
+      es: "Los costos de API de AI explotan cuando usás el mejor modelo para todo. Necesitaba un sistema que use el modelo más barato capaz de cada tarea — desde GPU local gratis hasta razonamiento cloud caro.",
+    },
+    solution: {
+      en: "Built a 4-tier AI workforce: Gemma 4 (local GPU, free, 63 tok/s) for bulk tasks like tests and docs, Haiku for chat and triage, Sonnet for multi-file code and features, Opus only as advisor when stuck. Auto-routes by complexity. Voice I/O in Spanish, autonomous overnight worker, budget tracking, computer use.",
+      es: "Construí un workforce AI de 4 niveles: Gemma 4 (GPU local, gratis, 63 tok/s) para tareas masivas como tests y docs, Haiku para chat y triage, Sonnet para código multi-archivo y features, Opus solo como advisor cuando se traba. Ruteo automático por complejidad. Voz en español, worker autónomo nocturno, tracking de presupuesto, computer use.",
+    },
+    results: {
+      en: [
+        "Local AI: $0 cost, 63 tok/s",
+        "4-tier model routing system",
+        "Autonomous overnight worker",
+        "Voice I/O in Spanish + English",
+      ],
+      es: [
+        "AI local: $0 costo, 63 tok/s",
+        "Sistema de ruteo de 4 niveles",
+        "Worker autónomo nocturno",
+        "Voz en español e inglés",
+      ],
+    },
+  },
 }

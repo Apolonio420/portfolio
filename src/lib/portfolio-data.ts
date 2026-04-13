@@ -85,6 +85,23 @@ export const caseStudies = [
     stack: ["Next.js", "PostgreSQL", "Docker", "Playwright"],
     color: "#06b6d4",
   },
+  {
+    id: "jarvis",
+    title: "Jarvis — Hybrid AI Orchestrator",
+    tagline: "Local GPU + Cloud AI, voice I/O, autonomous worker",
+    problem:
+      "AI API costs explode when you use the best model for everything. Needed a system that uses the cheapest model capable of each task — from free local GPU to expensive cloud reasoning.",
+    solution:
+      "Built a 4-tier AI workforce: Gemma 4 (local GPU, free, 63 tok/s) for bulk tasks like tests and docs, Haiku for chat and triage, Sonnet for multi-file code and features, Opus only as advisor when stuck. Tasks auto-route by complexity. Includes voice I/O in Spanish, autonomous overnight worker that grinds task queues while sleeping, budget tracking, and computer use capabilities.",
+    results: [
+      "Local AI: $0 cost, 63 tok/s",
+      "4-tier model routing system",
+      "Autonomous overnight worker",
+      "Voice I/O in Spanish + English",
+    ],
+    stack: ["Python", "Gemma 4 E4B", "Claude Code", "Flask"],
+    color: "#eab308",
+  },
 ];
 
 // ── Tools by Category ──
