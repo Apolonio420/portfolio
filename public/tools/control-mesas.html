@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Mesas — Novamente Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #0a1512; color: #f1f5f9; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #111; }
+  ::-webkit-scrollbar-thumb { background: #2d4a44; border-radius: 3px; }
+
+  .table-cell {
+    aspect-ratio: 1;
+    cursor: pointer;
+    transition: all .2s ease;
+    position: relative;
+  }
+  .table-cell:hover { transform: scale(1.04); z-index: 10; }
+
+  /* Status styles */
+  .status-libre     { background: #052e16; border: 2px solid #16a34a; }
+  .status-libre .table-num { color: #4ade80; }
+  .status-ocupada   { background: #422006; border: 2px solid #d97706; }
+  .status-ocupada .table-num { color: #fbbf24; }
+  .status-reservada { background: #0c2a4a; border: 2px solid #3b82f6; }
+  .status-reservada .table-num { color: #93c5fd; }
+  .status-limpiar   { background: #2d0a0a; border: 2px solid #dc2626; }
+  .status-limpiar .table-num { color: #f87171; }
+
+  .status-dot-libre     { background: #16a34a; }
+  .status-dot-ocupada   { background: #d97706; }
+  .status-dot-reservada { background: #3b82f6; }
+  .status-dot-limpiar   { background: #dc2626; }
+
+  .teal-btn { background: #0d9488; color: white; transition: background .2s; }
+  .teal-btn:hover { background: #0f766e; }
+  .btn-ghost { background: transparent; border: 1px solid #2d4a44; color: #94a3b8; transition: all .2s; }
+  .btn-ghost:hover { border-color: #0d9488; color: #0d9488; }
+
+  .modal-overlay { background: rgba(0,0,0,.75); backdrop-filter: blur(4px); }
+
+  .timer-normal { color: #94a3b8; }
+  .timer-long   { color: #f59e0b; }
+  .timer-vlong  { color: #dc2626; }
+
+  @media print {
+    body { background: white; color: black; }
+    header, .right-panel, .add-res-btn { display: none !important; }
+    .floor-grid { grid-template-columns: repeat(5, 1fr); }
+    .table-cell { border: 2px solid #333 !important; background: white !important; }
+    .table-num { color: black !important; }
+  }
+
+  @media (max-width: 768px) {
+    .right-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="border-b border-teal-900/50 bg-black/50 sticky top-0 z-30 backdrop-blur-md">
+  <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-base">🍽️</div>
+      <div>
+        <h1 class="font-bold text-white text-sm leading-none">Control de Mesas</h1>
+        <p class="text-xs text-slate-400 leading-none mt-0.5">Plano del restaurante en tiempo real</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="openAddReservation()" class="teal-btn text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5">
+        <span>+</span> Reservación
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Stats bar -->
+<div class="border-b border-teal-900/30 bg-black/30">
+  <div class="max-w-screen-2xl mx-auto px-4 py-2 flex items-center gap-5 overflow-x-auto">
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2.5 h-2.5 rounded-full status-dot-libre inline-block"></span>
+      <span class="text-slate-400">Libres:</span>
+      <span id="stat-libre" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2.5 h-2.5 rounded-full status-dot-ocupada inline-block"></span>
+      <span class="text-slate-400">Ocupadas:</span>
+      <span id="stat-ocupada" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2.5 h-2.5 rounded-full status-dot-reservada inline-block"></span>
+      <span class="text-slate-400">Reservadas:</span>
+      <span id="stat-reservada" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2.5 h-2.5 rounded-full status-dot-limpiar inline-block"></span>
+      <span class="text-slate-400">Por limpiar:</span>
+      <span id="stat-limpiar" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap ml-auto">
+      <span class="text-slate-400">Ocupación:</span>
+      <span id="stat-pct" class="font-bold text-teal-400">0%</span>
+    </div>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div class="max-w-screen-2xl mx-auto px-4 py-4 flex gap-4">
+
+  <!-- Floor Plan -->
+  <div class="flex-1">
+    <div class="bg-neutral-900/40 border border-teal-900/30 rounded-2xl p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-sm text-slate-300">Plano del Restaurante</h2>
+        <div class="flex items-center gap-3 text-xs text-slate-500">
+          <span>Toca una mesa para gestionar</span>
+        </div>
+      </div>
+
+      <!-- Zone label -->
+      <div class="text-xs text-slate-600 mb-2 font-medium uppercase tracking-wider">Salón Principal</div>
+      <div id="floor-grid" class="floor-grid grid gap-2" style="grid-template-columns: repeat(5, 1fr)"></div>
+
+      <!-- Legend -->
+      <div class="mt-4 flex flex-wrap gap-3">
+        <div class="flex items-center gap-1.5 text-xs text-slate-500"><span class="w-3 h-3 rounded status-dot-libre inline-block"></span> Libre</div>
+        <div class="flex items-center gap-1.5 text-xs text-slate-500"><span class="w-3 h-3 rounded status-dot-ocupada inline-block"></span> Ocupada</div>
+        <div class="flex items-center gap-1.5 text-xs text-slate-500"><span class="w-3 h-3 rounded status-dot-reservada inline-block"></span> Reservada</div>
+        <div class="flex items-center gap-1.5 text-xs text-slate-500"><span class="w-3 h-3 rounded status-dot-limpiar inline-block"></span> Por limpiar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel w-72 flex-shrink-0 space-y-4">
+
+    <!-- Upcoming Reservations -->
+    <div class="bg-neutral-900/40 border border-teal-900/30 rounded-2xl p-4">
+      <h3 class="font-semibold text-sm text-slate-300 mb-3 flex items-center gap-2">
+        <span>📅</span> Reservaciones de Hoy
+      </h3>
+      <div id="reservations-list" class="space-y-2"></div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="bg-neutral-900/40 border border-teal-900/30 rounded-2xl p-4">
+      <h3 class="font-semibold text-sm text-slate-300 mb-3">Estadísticas</h3>
+      <div class="space-y-2">
+        <div class="flex justify-between text-xs">
+          <span class="text-slate-400">Rotación hoy</span>
+          <span id="stat-rotacion" class="text-white font-medium">—</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-slate-400">Tiempo prom. mesa</span>
+          <span id="stat-avg-time" class="text-white font-medium">—</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-slate-400">Mesa más ocupada</span>
+          <span id="stat-busiest" class="text-teal-400 font-medium">—</span>
+        </div>
+        <div class="mt-3">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-400">Ocupación actual</span>
+            <span id="stat-occ-pct" class="text-white font-medium">0%</span>
+          </div>
+          <div class="w-full bg-neutral-800 rounded-full h-2">
+            <div id="occ-bar" class="bg-teal-500 h-2 rounded-full transition-all" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Table Modal -->
+<div id="modal-table" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-teal-800/40 rounded-2xl w-full max-w-sm shadow-2xl">
+    <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+      <h2 id="modal-table-title" class="font-bold text-white">Mesa —</h2>
+      <button onclick="closeModal('modal-table')" class="text-slate-400 hover:text-white w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-lg">✕</button>
+    </div>
+    <div id="modal-table-body" class="px-5 py-4 space-y-3"></div>
+  </div>
+</div>
+
+<!-- Add Reservation Modal -->
+<div id="modal-reservation" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-teal-800/40 rounded-2xl w-full max-w-sm shadow-2xl">
+    <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+      <h2 class="font-bold text-white">Nueva Reservación</h2>
+      <button onclick="closeModal('modal-reservation')" class="text-slate-400 hover:text-white w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-lg">✕</button>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      <div>
+        <label class="text-xs text-slate-400 font-medium mb-1 block">Nombre</label>
+        <input id="res-name" type="text" placeholder="Nombre del cliente" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Personas</label>
+          <input id="res-persons" type="number" min="1" max="20" value="2" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-teal-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Hora</label>
+          <input id="res-time" type="time" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-teal-500 focus:outline-none">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 font-medium mb-1 block">Mesa (opcional)</label>
+        <select id="res-table" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-teal-500 focus:outline-none">
+          <option value="">Auto-asignar</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 font-medium mb-1 block">Teléfono (WhatsApp)</label>
+        <input id="res-phone" type="tel" placeholder="+52 55 0000 0000" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 font-medium mb-1 block">Notas</label>
+        <input id="res-notes" type="text" placeholder="Cumpleaños, silla de ruedas, preferencias..." class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none">
+      </div>
+    </div>
+    <div class="px-5 py-4 border-t border-white/10 flex gap-2 justify-end">
+      <button onclick="closeModal('modal-reservation')" class="btn-ghost text-xs font-semibold px-4 py-2 rounded-lg">Cancelar</button>
+      <button onclick="submitReservation()" class="teal-btn text-xs font-semibold px-4 py-2 rounded-lg">Guardar Reservación</button>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="border-t border-teal-900/20 py-4 text-center mt-4">
+  <p class="text-xs text-slate-600">Powered by <span class="text-slate-500 font-medium">Novamente Studio</span> · <span id="footer-year"></span></p>
+</footer>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'mesas_v2';
+const CAPACITIES = { 1:2, 2:2, 3:4, 4:4, 5:6, 6:4, 7:2, 8:4, 9:6, 10:8, 11:4, 12:4, 13:2, 14:4, 15:6, 16:4, 17:2, 18:4, 19:6, 20:8 };
+
+let state = {
+  tables: {},
+  reservations: [],
+  rotaciones: 0,
+};
+
+let selectedTable = null;
+let timerInterval = null;
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try { state = JSON.parse(raw); } catch(e) {}
+    // Ensure all tables exist
+    for (let i = 1; i <= 20; i++) {
+      if (!state.tables[i]) state.tables[i] = { id: i, status: 'libre', party: null, phone: null, persons: 0, seatedAt: null, notes: '', capacity: CAPACITIES[i] || 4 };
+    }
+  } else {
+    seedDemoData();
+  }
+  // Populate res-table select
+  const sel = document.getElementById('res-table');
+  sel.innerHTML = '<option value="">Auto-asignar</option>';
+  for (let i = 1; i <= 20; i++) {
+    sel.innerHTML += `<option value="${i}">Mesa ${i} (${CAPACITIES[i]||4} personas)</option>`;
+  }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function seedDemoData() {
+  const now = Date.now();
+  const min = 60000;
+  for (let i = 1; i <= 20; i++) {
+    state.tables[i] = { id: i, status: 'libre', party: null, phone: null, persons: 0, seatedAt: null, notes: '', capacity: CAPACITIES[i] || 4 };
+  }
+  // 8 occupied
+  const occupied = [
+    { id:1, party:'Familia García', phone:'+525512345678', persons:4, seatedAt: now - 65*min, notes:'Cumpleaños de la abuela' },
+    { id:3, party:'Sr. Martínez', phone:'+525598765432', persons:2, seatedAt: now - 30*min, notes:'' },
+    { id:5, party:'Mesa corporativa', phone:'+525511112222', persons:6, seatedAt: now - 45*min, notes:'Tarjeta de crédito' },
+    { id:8, party:'Familia López', phone:'+525533334444', persons:4, seatedAt: now - 20*min, notes:'' },
+    { id:10, party:'Sr. Hernández', phone:'+525555556666', persons:2, seatedAt: now - 80*min, notes:'Alergia al mariscos' },
+    { id:12, party:'Pareja Rodríguez', phone:'+525577778888', persons:2, seatedAt: now - 15*min, notes:'' },
+    { id:15, party:'Grupo Ramírez', phone:'+525599990000', persons:6, seatedAt: now - 55*min, notes:'Evento especial' },
+    { id:17, party:'Sra. Torres', phone:'+525511223344', persons:2, seatedAt: now - 10*min, notes:'' },
+  ];
+  occupied.forEach(t => {
+    state.tables[t.id] = { ...state.tables[t.id], status: 'ocupada', party: t.party, phone: t.phone, persons: t.persons, seatedAt: t.seatedAt, notes: t.notes };
+  });
+  // 4 reserved
+  [2, 7, 13, 19].forEach(id => { state.tables[id].status = 'reservada'; });
+  // 3 por limpiar
+  [4, 9, 16].forEach(id => { state.tables[id].status = 'limpiar'; });
+
+  // Reservations
+  state.reservations = [
+    { id: 1, name: 'Familia Pérez', persons: 4, time: '13:00', table: 2, phone: '+525555551234', notes: 'Silla de bebé', status: 'pendiente' },
+    { id: 2, name: 'Sr. Guzmán', persons: 2, time: '14:30', table: 7, phone: '+525555555678', notes: '', status: 'pendiente' },
+    { id: 3, name: 'Cumpleaños Vargas', persons: 8, time: '15:00', table: 19, phone: '+525555559012', notes: 'Pastel incluido', status: 'pendiente' },
+    { id: 4, name: 'Mesa Jiménez', persons: 4, time: '19:00', table: 13, phone: '+525555553456', notes: '', status: 'pendiente' },
+  ];
+  state.rotaciones = 5;
+  saveState();
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────────
+function statusLabel(s) {
+  return { libre:'Libre', ocupada:'Ocupada', reservada:'Reservada', limpiar:'Por limpiar' }[s] || s;
+}
+
+function formatElapsed(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m%60}min`;
+}
+
+function renderFloor() {
+  const grid = document.getElementById('floor-grid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= 20; i++) {
+    const t = state.tables[i];
+    const el = document.createElement('div');
+    el.className = `table-cell status-${t.status} rounded-xl flex flex-col items-center justify-center p-1`;
+    el.onclick = () => openTableModal(i);
+
+    const elapsed = t.seatedAt ? Date.now() - t.seatedAt : 0;
+    const elapsedStr = t.status === 'ocupada' && t.seatedAt ? formatElapsed(elapsed) : '';
+    const timerClass = elapsed > 90*60000 ? 'text-red-400' : elapsed > 60*60000 ? 'text-amber-400' : 'text-slate-400';
+
+    el.innerHTML = `
+      <span class="table-num font-black text-lg leading-none">${i}</span>
+      <span class="text-slate-500 text-xs leading-none mt-0.5">${CAPACITIES[i]||4}p</span>
+      ${elapsedStr ? `<span class="text-xs leading-none mt-1 ${timerClass}" data-table-timer="${i}">${elapsedStr}</span>` : ''}
+      ${t.status === 'ocupada' && t.party ? `<span class="text-xs leading-none mt-0.5 text-slate-400 truncate w-full text-center px-1" style="font-size:9px">${t.party.split(' ')[0]}</span>` : ''}
+    `;
+    grid.appendChild(el);
+  }
+}
+
+function renderStats() {
+  const counts = { libre:0, ocupada:0, reservada:0, limpiar:0 };
+  Object.values(state.tables).forEach(t => { if(counts[t.status]!==undefined) counts[t.status]++; });
+  document.getElementById('stat-libre').textContent = counts.libre;
+  document.getElementById('stat-ocupada').textContent = counts.ocupada;
+  document.getElementById('stat-reservada').textContent = counts.reservada;
+  document.getElementById('stat-limpiar').textContent = counts.limpiar;
+  const pct = Math.round((counts.ocupada / 20) * 100);
+  document.getElementById('stat-pct').textContent = `${pct}%`;
+  document.getElementById('stat-occ-pct').textContent = `${pct}%`;
+  document.getElementById('occ-bar').style.width = `${pct}%`;
+  document.getElementById('stat-rotacion').textContent = `${state.rotaciones} mesas`;
+  document.getElementById('stat-avg-time').textContent = '48 min';
+  const busiest = Object.values(state.tables).filter(t=>t.status==='ocupada').sort((a,b)=>(a.seatedAt||0)-(b.seatedAt||0))[0];
+  document.getElementById('stat-busiest').textContent = busiest ? `Mesa ${busiest.id}` : '—';
+}
+
+function renderReservations() {
+  const list = document.getElementById('reservations-list');
+  if (!state.reservations.length) {
+    list.innerHTML = '<p class="text-xs text-slate-600 text-center py-3">Sin reservaciones</p>';
+    return;
+  }
+  list.innerHTML = state.reservations.filter(r=>r.status==='pendiente').map(r => `
+    <div class="bg-neutral-800/60 border border-teal-900/30 rounded-xl p-2.5">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-semibold text-white">${r.name}</span>
+        <span class="text-xs text-teal-400 font-bold">${r.time}</span>
+      </div>
+      <div class="flex items-center gap-2 mt-1">
+        <span class="text-xs text-slate-400">${r.persons} personas · Mesa ${r.table}</span>
+      </div>
+      ${r.notes ? `<p class="text-xs text-slate-500 mt-0.5">${r.notes}</p>` : ''}
+      <div class="flex gap-1.5 mt-2">
+        <button onclick="seatReservation(${r.id})" class="flex-1 bg-teal-700 hover:bg-teal-600 text-white text-xs font-medium py-1 rounded-lg transition-colors">Sentar</button>
+        ${r.phone ? `<a href="https://wa.me/${r.phone.replace(/\D/g,'')}?text=${encodeURIComponent('¡Hola '+r.name+'! Le recordamos su reservación a las '+r.time+' en nuestro restaurante. ¡Los esperamos!')}" target="_blank" class="bg-green-700 hover:bg-green-600 text-white text-xs font-medium py-1 px-2 rounded-lg transition-colors flex items-center">📲</a>` : ''}
+      </div>
+    </div>
+  `).join('') || '<p class="text-xs text-slate-600 text-center py-3">Sin reservaciones pendientes</p>';
+}
+
+function render() {
+  renderFloor();
+  renderStats();
+  renderReservations();
+}
+
+// ─── Table Modal ──────────────────────────────────────────────────────────────
+function openTableModal(tableId) {
+  selectedTable = tableId;
+  const t = state.tables[tableId];
+  document.getElementById('modal-table-title').textContent = `Mesa ${tableId} · ${CAPACITIES[tableId]||4} personas`;
+
+  const body = document.getElementById('modal-table-body');
+  const elapsed = t.seatedAt ? Date.now() - t.seatedAt : 0;
+
+  let html = `
+    <div class="flex items-center gap-2 mb-1">
+      <span class="w-3 h-3 rounded-full status-dot-${t.status} inline-block"></span>
+      <span class="text-sm font-semibold text-white">${statusLabel(t.status)}</span>
+    </div>
+  `;
+
+  if (t.status === 'ocupada' && t.party) {
+    html += `
+      <div class="bg-neutral-800 rounded-xl p-3 space-y-1.5">
+        <div class="flex justify-between text-xs">
+          <span class="text-slate-400">Cliente</span>
+          <span class="text-white font-medium">${t.party}</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-slate-400">Personas</span>
+          <span class="text-white font-medium">${t.persons}</span>
+        </div>
+        <div class="flex justify-between text-xs">
+          <span class="text-slate-400">Tiempo sentados</span>
+          <span class="text-amber-400 font-medium">${formatElapsed(elapsed)}</span>
+        </div>
+        ${t.notes ? `<div class="flex justify-between text-xs"><span class="text-slate-400">Notas</span><span class="text-slate-300">${t.notes}</span></div>` : ''}
+      </div>
+    `;
+    if (t.phone) {
+      const msg = encodeURIComponent(`Hola ${t.party}, gracias por visitarnos. ¿Todo ha sido de su agrado?`);
+      html += `<a href="https://wa.me/${t.phone.replace(/\D/g,'')}?text=${msg}" target="_blank" class="flex items-center justify-center gap-2 w-full bg-green-700 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">📲 Contactar por WhatsApp</a>`;
+    }
+    html += `
+      <button onclick="setTableStatus(${tableId},'limpiar')" class="w-full bg-red-800 hover:bg-red-700 text-white text-xs font-semibold py-2 rounded-lg transition-colors">🧹 Marcar "Por Limpiar"</button>
+    `;
+  } else if (t.status === 'libre' || t.status === 'limpiar') {
+    if (t.status === 'limpiar') {
+      html += `<button onclick="setTableStatus(${tableId},'libre')" class="w-full bg-green-700 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">✓ Marcar como Libre</button>`;
+    }
+    if (t.status === 'libre') {
+      html += `
+        <div class="space-y-2">
+          <div>
+            <label class="text-xs text-slate-400 font-medium mb-1 block">Nombre del cliente</label>
+            <input id="seat-name" type="text" placeholder="Nombre de la mesa" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs text-slate-400 font-medium mb-1 block">Personas</label>
+              <input id="seat-persons" type="number" min="1" max="${CAPACITIES[tableId]||4}" value="2" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-teal-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 font-medium mb-1 block">Teléfono</label>
+              <input id="seat-phone" type="tel" placeholder="+52..." class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-400 font-medium mb-1 block">Notas</label>
+            <input id="seat-notes" type="text" placeholder="Alergias, evento, preferencias..." class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none">
+          </div>
+          <button onclick="seatGuest(${tableId})" class="w-full teal-btn text-xs font-semibold py-2 rounded-lg">🪑 Sentar Mesa</button>
+        </div>
+      `;
+    }
+  } else if (t.status === 'reservada') {
+    const res = state.reservations.find(r => r.table == tableId);
+    if (res) {
+      html += `
+        <div class="bg-neutral-800 rounded-xl p-3 space-y-1.5 mb-2">
+          <div class="flex justify-between text-xs"><span class="text-slate-400">Reserva</span><span class="text-white font-medium">${res.name}</span></div>
+          <div class="flex justify-between text-xs"><span class="text-slate-400">Hora</span><span class="text-blue-400 font-bold">${res.time}</span></div>
+          <div class="flex justify-between text-xs"><span class="text-slate-400">Personas</span><span class="text-white font-medium">${res.persons}</span></div>
+          ${res.notes ? `<div class="flex justify-between text-xs"><span class="text-slate-400">Notas</span><span class="text-slate-300">${res.notes}</span></div>` : ''}
+        </div>
+        <button onclick="seatReservation(${res.id})" class="w-full teal-btn text-xs font-semibold py-2 rounded-lg">🪑 Sentar Reservación</button>
+        <button onclick="setTableStatus(${tableId},'libre')" class="w-full btn-ghost text-xs font-semibold py-2 rounded-lg mt-2">Cancelar Reserva</button>
+      `;
+    }
+  }
+
+  body.innerHTML = html;
+  document.getElementById('modal-table').classList.remove('hidden');
+}
+
+function seatGuest(tableId) {
+  const name = document.getElementById('seat-name').value.trim() || 'Sin nombre';
+  const persons = parseInt(document.getElementById('seat-persons').value) || 2;
+  const phone = document.getElementById('seat-phone').value.trim();
+  const notes = document.getElementById('seat-notes').value.trim();
+  state.tables[tableId] = { ...state.tables[tableId], status: 'ocupada', party: name, persons, phone, notes, seatedAt: Date.now() };
+  saveState();
+  render();
+  closeModal('modal-table');
+}
+
+function seatReservation(resId) {
+  const res = state.reservations.find(r => r.id === resId);
+  if (!res) return;
+  const tableId = res.table;
+  state.tables[tableId] = { ...state.tables[tableId], status: 'ocupada', party: res.name, persons: res.persons, phone: res.phone, notes: res.notes, seatedAt: Date.now() };
+  res.status = 'sentado';
+  saveState();
+  render();
+  closeModal('modal-table');
+}
+
+function setTableStatus(tableId, status) {
+  const t = state.tables[tableId];
+  if (status === 'libre' && t.status === 'limpiar') state.rotaciones++;
+  state.tables[tableId] = { ...t, status, party: null, phone: null, persons: 0, seatedAt: null, notes: '' };
+  saveState();
+  render();
+  closeModal('modal-table');
+}
+
+// ─── Add Reservation ──────────────────────────────────────────────────────────
+function openAddReservation() {
+  const now = new Date();
+  document.getElementById('res-time').value = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('modal-reservation').classList.remove('hidden');
+}
+
+function submitReservation() {
+  const name = document.getElementById('res-name').value.trim();
+  const persons = parseInt(document.getElementById('res-persons').value) || 2;
+  const time = document.getElementById('res-time').value;
+  const phone = document.getElementById('res-phone').value.trim();
+  const notes = document.getElementById('res-notes').value.trim();
+  let tableId = parseInt(document.getElementById('res-table').value) || 0;
+
+  if (!name || !time) { alert('Nombre y hora son requeridos'); return; }
+
+  if (!tableId) {
+    // Auto-assign libre table
+    const libre = Object.values(state.tables).find(t => t.status === 'libre');
+    if (libre) tableId = libre.id;
+    else { alert('No hay mesas libres disponibles'); return; }
+  }
+
+  state.tables[tableId].status = 'reservada';
+  const res = { id: Date.now(), name, persons, time, table: tableId, phone, notes, status: 'pendiente' };
+  state.reservations.unshift(res);
+  saveState();
+  render();
+  closeModal('modal-reservation');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+loadState();
+render();
+setInterval(render, 30000); // Update timers every 30s
+
+['modal-table','modal-reservation'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal(id);
+  });
+});
+</script>
+</body>
+</html>

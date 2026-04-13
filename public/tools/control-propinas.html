@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Propinas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .accent { color: #b45309; }
+  .accent-bg { background-color: #b45309; }
+  .accent-light { background-color: #fffbeb; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06); }
+  .kpi-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06); padding: 20px; }
+  .tab-btn.active { background:#b45309; color:#fff; }
+  .tab-btn { border-radius:8px; padding:8px 18px; font-weight:600; font-size:14px; transition:all 0.15s; color:#92400e; background:#fef3c7; }
+  .sign-btn { border: 2px solid #d97706; border-radius:10px; padding:8px 14px; font-size:13px; font-weight:600; color:#92400e; background:#fffbeb; transition:all 0.15s; cursor:pointer; }
+  .sign-btn.signed { background:#d97706; color:#fff; border-color:#b45309; }
+  ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#f1f5f9; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+  .role-badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; }
+  .role-mesero { background:#dbeafe; color:#1e40af; }
+  .role-garrotero { background:#d1fae5; color:#065f46; }
+  .role-bartender { background:#ede9fe; color:#4c1d95; }
+  .role-hostess { background:#fce7f3; color:#831843; }
+  @media print {
+    .no-print { display:none !important; }
+    .card,.kpi-card { box-shadow:none; border:1px solid #e2e8f0; }
+    canvas { max-width:100%; }
+    body { background:white !important; }
+  }
+</style>
+</head>
+<body class="bg-amber-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="accent-bg text-white no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div>
+      <p class="text-amber-200 text-xs font-medium uppercase tracking-widest">Restaurante</p>
+      <h1 class="text-xl font-bold">Control de Propinas</h1>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="window.print()" class="bg-white text-amber-800 text-sm px-4 py-2 rounded-lg font-medium hover:bg-amber-50 transition">⎙ Imprimir</button>
+    </div>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="max-w-7xl mx-auto px-4 mt-5 flex gap-2 no-print">
+  <button class="tab-btn active" onclick="switchTab('registro',this)">Registro Diario</button>
+  <button class="tab-btn" onclick="switchTab('distribucion',this)">Distribución</button>
+  <button class="tab-btn" onclick="switchTab('historial',this)">Historial</button>
+  <button class="tab-btn" onclick="switchTab('reporte',this)">Reporte Quincenal</button>
+</div>
+
+<!-- ── TAB: REGISTRO ──────────────────────────────────────────────────── -->
+<div id="tab-registro" class="tab-panel max-w-7xl mx-auto px-4 mt-4">
+
+  <!-- KPI Row -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+    <div class="kpi-card">
+      <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Total Esta Semana</p>
+      <p class="text-2xl font-bold mt-1" style="color:#b45309" id="kpi-week">$0</p>
+    </div>
+    <div class="kpi-card">
+      <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Total Este Mes</p>
+      <p class="text-2xl font-bold text-slate-800 mt-1" id="kpi-month">$0</p>
+    </div>
+    <div class="kpi-card">
+      <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Promedio por Turno</p>
+      <p class="text-2xl font-bold text-slate-800 mt-1" id="kpi-avg-shift">$0</p>
+    </div>
+    <div class="kpi-card">
+      <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Mejor Día</p>
+      <p class="text-lg font-bold text-slate-800 mt-1" id="kpi-best-day">—</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Entry form -->
+    <div class="card p-5">
+      <h3 class="font-semibold text-slate-700 mb-4">Registrar Propinas del Turno</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Fecha</label>
+          <input type="date" id="entry-date" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Turno</label>
+          <select id="entry-shift" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm">
+            <option value="Comida">Comida (12:00-17:00)</option>
+            <option value="Cena">Cena (18:00-23:00)</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Propinas en Efectivo (MXN)</label>
+          <input type="number" id="entry-cash" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" placeholder="0.00" min="0" step="10">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Propinas con Tarjeta (MXN)</label>
+          <input type="number" id="entry-card" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" placeholder="0.00" min="0" step="10">
+        </div>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <p class="text-xs text-amber-700 font-medium">Total del turno</p>
+          <p class="text-2xl font-bold text-amber-800" id="entry-total">$0</p>
+        </div>
+        <button onclick="addTipEntry()" class="w-full accent-bg text-white py-3 rounded-xl font-semibold text-sm hover:bg-amber-700 transition">Registrar Propinas</button>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="lg:col-span-2 flex flex-col gap-4">
+      <div class="card p-5">
+        <h3 class="font-semibold text-slate-700 mb-3">Propinas por Día de la Semana</h3>
+        <canvas id="chartByDow" height="160"></canvas>
+      </div>
+      <div class="card p-5">
+        <h3 class="font-semibold text-slate-700 mb-3">Tendencia Diaria — Últimos 14 días</h3>
+        <canvas id="chartTrend" height="140"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent entries table -->
+  <div class="card p-5 mt-4">
+    <h3 class="font-semibold text-slate-700 mb-4">Registros Recientes</h3>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-slate-500 border-b border-slate-100">
+          <th class="pb-3 font-semibold">Fecha</th>
+          <th class="pb-3 font-semibold">Turno</th>
+          <th class="pb-3 font-semibold text-right">Efectivo</th>
+          <th class="pb-3 font-semibold text-right">Tarjeta</th>
+          <th class="pb-3 font-semibold text-right">Total</th>
+          <th class="pb-3 font-semibold text-center no-print">Acciones</th>
+        </tr></thead>
+        <tbody id="entries-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: DISTRIBUCIÓN ──────────────────────────────────────────────── -->
+<div id="tab-distribucion" class="tab-panel hidden max-w-7xl mx-auto px-4 mt-4">
+
+  <!-- Method selector + hours -->
+  <div class="card p-5 mb-4">
+    <h3 class="font-semibold text-slate-700 mb-4">Configurar Distribución</h3>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div>
+        <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2 block">Método de Distribución</label>
+        <div class="space-y-2">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="radio" name="method" value="equal" onchange="setMethod('equal')" class="w-4 h-4 accent-checkbox">
+            <span class="text-sm font-medium text-slate-700">Partes iguales</span>
+          </label>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="radio" name="method" value="hours" onchange="setMethod('hours')" class="w-4 h-4">
+            <span class="text-sm font-medium text-slate-700">Por horas trabajadas</span>
+          </label>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="radio" name="method" value="role" onchange="setMethod('role')" checked class="w-4 h-4">
+            <span class="text-sm font-medium text-slate-700">Por rol (Mesero 40% · Garrotero 25% · Bartender 20% · Hostess 15%)</span>
+          </label>
+        </div>
+        <div class="mt-4">
+          <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Turno a distribuir</label>
+          <div class="flex gap-2 mt-1">
+            <input type="date" id="dist-date" class="border border-slate-200 rounded-xl px-3 py-2.5 text-sm flex-1">
+            <select id="dist-shift" class="border border-slate-200 rounded-xl px-3 py-2.5 text-sm">
+              <option>Comida</option>
+              <option>Cena</option>
+            </select>
+            <button onclick="calculateDistribution()" class="accent-bg text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-amber-700 transition">Calcular</button>
+          </div>
+        </div>
+      </div>
+      <div id="dist-result-box" class="bg-amber-50 border border-amber-200 rounded-xl p-4 hidden">
+        <p class="text-sm font-semibold text-amber-800 mb-2" id="dist-total-label">—</p>
+        <div id="dist-result-list" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Staff roster with hours -->
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-slate-700">Personal en Turno</h3>
+      <p class="text-xs text-slate-400">Ajusta horas para distribución proporcional</p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-slate-500 border-b border-slate-100">
+          <th class="pb-3 font-semibold">Empleado</th>
+          <th class="pb-3 font-semibold">Rol</th>
+          <th class="pb-3 font-semibold text-center">En turno</th>
+          <th class="pb-3 font-semibold text-center">Horas hoy</th>
+          <th class="pb-3 font-semibold text-right">Share estimado</th>
+        </tr></thead>
+        <tbody id="staff-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: HISTORIAL ─────────────────────────────────────────────────── -->
+<div id="tab-historial" class="tab-panel hidden max-w-7xl mx-auto px-4 mt-4">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+    <div class="lg:col-span-2 card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-slate-700">Historial por Empleado</h3>
+        <select id="history-employee" onchange="renderEmployeeHistory()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </select>
+      </div>
+      <canvas id="chartEmployee" height="200"></canvas>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-semibold text-slate-700 mb-4">Resumen Empleado</h3>
+      <div id="emp-summary" class="space-y-3"></div>
+      <button id="wa-share-btn" onclick="shareEmployeeWA()" class="mt-4 w-full bg-green-500 hover:bg-green-400 text-white py-2 rounded-xl text-sm font-semibold transition hidden no-print">📲 Enviar resumen por WhatsApp</button>
+    </div>
+  </div>
+
+  <!-- Sign-off table -->
+  <div class="card p-5">
+    <h3 class="font-semibold text-slate-700 mb-4">Confirmación de Recepción — Turno Actual</h3>
+    <div id="signoff-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"></div>
+  </div>
+</div>
+
+<!-- ── TAB: REPORTE ───────────────────────────────────────────────────── -->
+<div id="tab-reporte" class="tab-panel hidden max-w-7xl mx-auto px-4 mt-4 mb-8">
+  <div class="card p-6">
+    <div class="flex items-center justify-between mb-6 no-print">
+      <h3 class="font-semibold text-slate-700">Reporte Quincenal de Propinas</h3>
+      <div class="flex gap-2">
+        <select id="report-period" onchange="renderReport()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+          <option value="0">Quincena actual (últimos 14 días)</option>
+          <option value="1">Quincena anterior</option>
+        </select>
+        <button onclick="window.print()" class="accent-bg text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-amber-700 transition">⎙ Imprimir</button>
+      </div>
+    </div>
+    <!-- Print header (only shows on print) -->
+    <div class="hidden print:block mb-6">
+      <h2 class="text-2xl font-bold text-slate-800">Reporte Quincenal de Propinas</h2>
+      <p class="text-slate-500" id="report-print-period">—</p>
+    </div>
+    <div id="report-container"></div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 mb-4"></div>
+<footer class="text-center py-6 text-slate-400 text-xs no-print">
+  Powered by <span class="font-semibold text-slate-600">Novamente Studio</span> &copy; <span id="footer-year"></span>
+</footer>
+
+<script>
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+// ── STAFF DATA ────────────────────────────────────────────────────────────
+const STAFF = [
+  {id:1,name:'Carlos Hernández',role:'mesero',phone:'5215512345678',active:true,hoursToday:8},
+  {id:2,name:'María López',role:'mesero',phone:'5215523456789',active:true,hoursToday:8},
+  {id:3,name:'Alejandro Ruiz',role:'mesero',phone:'5215534567890',active:true,hoursToday:8},
+  {id:4,name:'Sofía Martínez',role:'mesero',phone:'5215545678901',active:true,hoursToday:5},
+  {id:5,name:'Diego Torres',role:'mesero',phone:'5215556789012',active:true,hoursToday:8},
+  {id:6,name:'Valentina Gómez',role:'garrotero',phone:'5215567890123',active:true,hoursToday:8},
+  {id:7,name:'Andrés Castillo',role:'garrotero',phone:'5215578901234',active:true,hoursToday:8},
+  {id:8,name:'Isabella Morales',role:'garrotero',phone:'5215589012345',active:true,hoursToday:5},
+  {id:9,name:'Sebastián Jiménez',role:'garrotero',phone:'5215590123456',active:false,hoursToday:0},
+  {id:10,name:'Camila Díaz',role:'bartender',phone:'5215501234567',active:true,hoursToday:8},
+  {id:11,name:'Ricardo Vázquez',role:'bartender',phone:'5215512345679',active:true,hoursToday:8},
+  {id:12,name:'Fernanda Reyes',role:'hostess',phone:'5215523456780',active:true,hoursToday:8},
+  {id:13,name:'Paulina Soto',role:'hostess',phone:'5215534567891',active:true,hoursToday:5},
+  {id:14,name:'Miguel Ángel Núñez',role:'mesero',phone:'5215545678902',active:true,hoursToday:8},
+  {id:15,name:'Gabriela Flores',role:'garrotero',phone:'5215556789013',active:true,hoursToday:8},
+];
+
+const ROLE_SHARE = {mesero:0.40,garrotero:0.25,bartender:0.20,hostess:0.15};
+const ROLE_TOTAL_BY_TYPE = {mesero:5,garrotero:4,bartender:2,hostess:2};
+
+// ── TIP ENTRIES (generate 14 days) ───────────────────────────────────────
+const DOW_MULT=[0.75,0.80,0.85,0.90,1.35,1.55,1.10];
+function rand(a,b){return Math.random()*(b-a)+a;}
+function randInt(a,b){return Math.floor(rand(a,b+1));}
+
+function generateEntries(){
+  const entries=[];
+  const today=new Date();
+  for(let d=13;d>=0;d--){
+    const dt=new Date(today);dt.setDate(dt.getDate()-d);
+    const dow=(dt.getDay()+6)%7;
+    const mult=DOW_MULT[dow];
+    ['Comida','Cena'].forEach(shift=>{
+      const shiftMult=shift==='Comida'?1.05:0.95;
+      const base=rand(1800,4200)*mult*shiftMult;
+      const cash=Math.round(base*rand(0.5,0.7)/10)*10;
+      const card=Math.round(base*rand(0.3,0.5)/10)*10;
+      entries.push({id:d*2+(shift==='Cena'?1:0),date:dt.toISOString().slice(0,10),shift,cash,card,total:cash+card,distributed:true});
+    });
+  }
+  return entries;
+}
+
+const LS_KEY='propinas-data-v2';
+let DATA;
+try{const s=localStorage.getItem(LS_KEY);if(s)DATA=JSON.parse(s);}catch(e){}
+if(!DATA){
+  DATA={entries:generateEntries(),staff:STAFF,method:'role',signoffs:{},nextId:100};
+  localStorage.setItem(LS_KEY,JSON.stringify(DATA));
+}
+function save(){localStorage.setItem(LS_KEY,JSON.stringify(DATA));}
+
+// ── TABS ─────────────────────────────────────────────────────────────────
+function switchTab(id,btn){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('hidden'));
+  document.getElementById('tab-'+id).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(id==='registro')renderRegistro();
+  if(id==='distribucion')renderDistribution();
+  if(id==='historial')renderHistorial();
+  if(id==='reporte')renderReport();
+}
+
+// ── REGISTRATION TAB ─────────────────────────────────────────────────────
+document.getElementById('entry-date').value=new Date().toISOString().slice(0,10);
+['entry-cash','entry-card'].forEach(id=>document.getElementById(id).addEventListener('input',updateEntryTotal));
+
+function updateEntryTotal(){
+  const cash=parseFloat(document.getElementById('entry-cash').value)||0;
+  const card=parseFloat(document.getElementById('entry-card').value)||0;
+  document.getElementById('entry-total').textContent='$'+(cash+card).toLocaleString('es-MX',{minimumFractionDigits:0});
+}
+
+function addTipEntry(){
+  const date=document.getElementById('entry-date').value;
+  const shift=document.getElementById('entry-shift').value;
+  const cash=parseFloat(document.getElementById('entry-cash').value)||0;
+  const card=parseFloat(document.getElementById('entry-card').value)||0;
+  if(!date||(cash+card)<=0){alert('Ingresa fecha y monto de propinas.');return;}
+  DATA.entries.unshift({id:DATA.nextId++,date,shift,cash,card,total:cash+card,distributed:false});
+  save();
+  document.getElementById('entry-cash').value='';
+  document.getElementById('entry-card').value='';
+  updateEntryTotal();
+  renderRegistro();
+}
+
+function deleteEntry(id){
+  if(!confirm('¿Eliminar registro?'))return;
+  DATA.entries=DATA.entries.filter(e=>e.id!==id);
+  save();
+  renderRegistro();
+}
+
+function fmt(n){return '$'+n.toLocaleString('es-MX',{minimumFractionDigits:0});}
+
+let charts={};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function renderRegistro(){
+  const today=new Date();
+  const weekAgo=new Date(today);weekAgo.setDate(today.getDate()-6);
+  const monthAgo=new Date(today);monthAgo.setDate(today.getDate()-29);
+  const weekEntries=DATA.entries.filter(e=>new Date(e.date)>=weekAgo);
+  const monthEntries=DATA.entries.filter(e=>new Date(e.date)>=monthAgo);
+  const weekTotal=weekEntries.reduce((a,b)=>a+b.total,0);
+  const monthTotal=monthEntries.reduce((a,b)=>a+b.total,0);
+  const avgShift=DATA.entries.length>0?DATA.entries.reduce((a,b)=>a+b.total,0)/DATA.entries.length:0;
+  const bestDay=DATA.entries.reduce((best,e)=>e.total>best.total?e:best,{total:0,date:'—'});
+  document.getElementById('kpi-week').textContent=fmt(weekTotal);
+  document.getElementById('kpi-month').textContent=fmt(monthTotal);
+  document.getElementById('kpi-avg-shift').textContent=fmt(avgShift);
+  document.getElementById('kpi-best-day').textContent=bestDay.date!=='—'?bestDay.date+' ('+fmt(bestDay.total)+')':'—';
+
+  // DOW chart
+  const dowTotals=[0,0,0,0,0,0,0];
+  const dowCounts=[0,0,0,0,0,0,0];
+  DATA.entries.forEach(e=>{const d=(new Date(e.date).getDay()+6)%7;dowTotals[d]+=e.total;dowCounts[d]++;});
+  const dowAvgs=dowTotals.map((v,i)=>dowCounts[i]?Math.round(v/dowCounts[i]):0);
+  destroyChart('byDow');
+  charts.byDow=new Chart(document.getElementById('chartByDow'),{
+    type:'bar',
+    data:{labels:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'],datasets:[{
+      label:'Propinas promedio',data:dowAvgs,
+      backgroundColor:dowAvgs.map(v=>v===Math.max(...dowAvgs)?'#b45309':'#fbbf24'),
+      borderRadius:6,borderSkipped:false
+    }]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString('es-MX')},grid:{color:'#fef3c7'}},x:{grid:{display:false}}}}
+  });
+
+  // Trend
+  const last14=[];const now=new Date();
+  for(let i=13;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-i);last14.push(d.toISOString().slice(0,10));}
+  const dailyMap={};
+  DATA.entries.forEach(e=>{dailyMap[e.date]=(dailyMap[e.date]||0)+e.total;});
+  const trendData=last14.map(d=>dailyMap[d]||0);
+  destroyChart('trend');
+  charts.trend=new Chart(document.getElementById('chartTrend'),{
+    type:'line',
+    data:{labels:last14.map(d=>d.slice(5)),datasets:[{
+      label:'Propinas',data:trendData,borderColor:'#b45309',backgroundColor:'rgba(180,83,9,0.08)',fill:true,tension:0.4,pointRadius:3
+    }]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString('es-MX')},grid:{color:'#fef3c7'}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}
+  });
+
+  // Table
+  document.getElementById('entries-table').innerHTML=DATA.entries.slice(0,20).map(e=>`
+    <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+      <td class="py-3 font-medium text-slate-800">${e.date}</td>
+      <td class="py-3"><span class="text-xs font-semibold px-2 py-0.5 rounded-full ${e.shift==='Comida'?'bg-orange-100 text-orange-700':'bg-indigo-100 text-indigo-700'}">${e.shift}</span></td>
+      <td class="py-3 text-right">${fmt(e.cash)}</td>
+      <td class="py-3 text-right">${fmt(e.card)}</td>
+      <td class="py-3 text-right font-bold text-amber-800">${fmt(e.total)}</td>
+      <td class="py-3 text-center no-print">
+        <button onclick="deleteEntry(${e.id})" class="text-red-400 hover:text-red-600 text-xs font-semibold">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+// ── DISTRIBUTION TAB ──────────────────────────────────────────────────────
+let distMethod='role';
+function setMethod(m){distMethod=m;}
+document.getElementById('dist-date').value=new Date().toISOString().slice(0,10);
+
+function renderDistribution(){
+  renderStaffTable();
+}
+
+function renderStaffTable(shiftTotal){
+  const activeStaff=DATA.staff.filter(s=>s.active);
+  const totalHours=activeStaff.reduce((a,b)=>a+b.hoursToday,0);
+  const total=shiftTotal||DATA.entries.filter(e=>e.date===new Date().toISOString().slice(0,10)).reduce((a,b)=>a+b.total,0)||3200;
+  document.getElementById('staff-table').innerHTML=activeStaff.map(s=>{
+    let share=0;
+    if(distMethod==='equal') share=total/activeStaff.length;
+    else if(distMethod==='hours') share=totalHours>0?(s.hoursToday/totalHours)*total:0;
+    else {
+      const roleTotal=activeStaff.filter(x=>x.role===s.role).reduce((a,b)=>a+b.hoursToday,0);
+      const roleShare=ROLE_SHARE[s.role]||0.1;
+      share=roleTotal>0?(s.hoursToday/roleTotal)*roleShare*total:0;
+    }
+    const roleCls={mesero:'role-mesero',garrotero:'role-garrotero',bartender:'role-bartender',hostess:'role-hostess'}[s.role]||'bg-slate-100 text-slate-600';
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+      <td class="py-3 font-medium text-slate-800">${s.name}</td>
+      <td class="py-3"><span class="role-badge ${roleCls}">${s.role}</span></td>
+      <td class="py-3 text-center">
+        <input type="checkbox" ${s.active?'checked':''} onchange="toggleStaff(${s.id},this.checked)" class="w-4 h-4 accent-checkbox">
+      </td>
+      <td class="py-3 text-center">
+        <input type="number" value="${s.hoursToday}" min="0" max="12" step="0.5" onchange="updateHours(${s.id},this.value)" class="w-16 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center">
+      </td>
+      <td class="py-3 text-right font-bold text-amber-800">${fmt(Math.round(share))}</td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleStaff(id,val){
+  const s=DATA.staff.find(x=>x.id===id);if(s)s.active=val;
+  save();renderStaffTable();
+}
+function updateHours(id,val){
+  const s=DATA.staff.find(x=>x.id===id);if(s)s.hoursToday=parseFloat(val)||0;
+  save();renderStaffTable();
+}
+
+function calculateDistribution(){
+  const date=document.getElementById('dist-date').value;
+  const shift=document.getElementById('dist-shift').value;
+  const entry=DATA.entries.find(e=>e.date===date&&e.shift===shift);
+  if(!entry){alert('No hay registro de propinas para esa fecha y turno.');return;}
+  const total=entry.total;
+  const activeStaff=DATA.staff.filter(s=>s.active);
+  const totalHours=activeStaff.reduce((a,b)=>a+b.hoursToday,0);
+  document.getElementById('dist-total-box').classList?.remove('hidden');
+  document.getElementById('dist-result-box').classList.remove('hidden');
+  document.getElementById('dist-total-label').textContent=`Total a distribuir: ${fmt(total)} — ${date} ${shift}`;
+  document.getElementById('dist-result-list').innerHTML=activeStaff.map(s=>{
+    let share=0;
+    if(distMethod==='equal') share=total/activeStaff.length;
+    else if(distMethod==='hours') share=totalHours>0?(s.hoursToday/totalHours)*total:0;
+    else {
+      const roleTotal=activeStaff.filter(x=>x.role===s.role).reduce((a,b)=>a+b.hoursToday,0);
+      const roleShare=ROLE_SHARE[s.role]||0.1;
+      share=roleTotal>0?(s.hoursToday/roleTotal)*roleShare*total:0;
+    }
+    return `<div class="flex justify-between items-center text-sm">
+      <span class="text-slate-700 font-medium">${s.name}</span>
+      <span class="font-bold text-amber-800">${fmt(Math.round(share))}</span>
+    </div>`;
+  }).join('');
+  renderStaffTable(total);
+}
+
+// ── HISTORIAL TAB ─────────────────────────────────────────────────────────
+function renderHistorial(){
+  const sel=document.getElementById('history-employee');
+  sel.innerHTML=DATA.staff.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  renderEmployeeHistory();
+  renderSignoffs();
+}
+
+let empChart=null;
+function renderEmployeeHistory(){
+  const id=parseInt(document.getElementById('history-employee').value);
+  const staff=DATA.staff.find(s=>s.id===id);
+  if(!staff)return;
+  const last14=[];const now=new Date();
+  for(let i=13;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-i);last14.push(d.toISOString().slice(0,10));}
+  // Estimate per-employee share from daily totals
+  const shares=last14.map(date=>{
+    const dayEntries=DATA.entries.filter(e=>e.date===date);
+    const dayTotal=dayEntries.reduce((a,b)=>a+b.total,0);
+    const activeCount=DATA.staff.filter(s=>s.active).length||1;
+    let share=0;
+    const totalHours=DATA.staff.filter(s=>s.active).reduce((a,b)=>a+b.hoursToday,0)||1;
+    if(distMethod==='equal') share=dayTotal/activeCount;
+    else if(distMethod==='hours') share=(staff.hoursToday/totalHours)*dayTotal;
+    else {
+      const rolePeers=DATA.staff.filter(s=>s.active&&s.role===staff.role);
+      const roleHours=rolePeers.reduce((a,b)=>a+b.hoursToday,0)||1;
+      share=(staff.hoursToday/roleHours)*(ROLE_SHARE[staff.role]||0.1)*dayTotal;
+    }
+    return Math.round(share);
+  });
+  const weekTotal=shares.slice(7).reduce((a,b)=>a+b,0);
+  const monthTotal=shares.reduce((a,b)=>a+b,0);
+  const roleCls={mesero:'role-mesero',garrotero:'role-garrotero',bartender:'role-bartender',hostess:'role-hostess'}[staff.role]||'bg-slate-100 text-slate-600';
+  document.getElementById('emp-summary').innerHTML=`
+    <div class="flex items-center gap-2">
+      <div class="w-10 h-10 rounded-full accent-bg flex items-center justify-center text-white font-bold text-lg">${staff.name[0]}</div>
+      <div><p class="font-bold text-slate-800">${staff.name}</p><span class="role-badge ${roleCls}">${staff.role}</span></div>
+    </div>
+    <div class="grid grid-cols-2 gap-2 mt-2">
+      <div class="bg-amber-50 rounded-xl p-3"><p class="text-xs text-amber-700">Esta semana</p><p class="font-bold text-amber-800">${fmt(weekTotal)}</p></div>
+      <div class="bg-amber-50 rounded-xl p-3"><p class="text-xs text-amber-700">Este mes</p><p class="font-bold text-amber-800">${fmt(monthTotal)}</p></div>
+    </div>`;
+  document.getElementById('wa-share-btn').classList.remove('hidden');
+  window._currentEmpSummary={name:staff.name,phone:staff.phone,weekTotal,monthTotal};
+  if(empChart)empChart.destroy();
+  empChart=new Chart(document.getElementById('chartEmployee'),{
+    type:'bar',
+    data:{labels:last14.map(d=>d.slice(5)),datasets:[{
+      label:'Propinas',data:shares,backgroundColor:'rgba(180,83,9,0.6)',borderRadius:6,borderSkipped:false
+    }]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString('es-MX')},grid:{color:'#fef3c7'}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}
+  });
+}
+
+function shareEmployeeWA(){
+  const s=window._currentEmpSummary;
+  if(!s)return;
+  const msg=`💰 *Resumen de Propinas — ${s.name}*\n📅 Esta semana: ${fmt(s.weekTotal)}\n📆 Este mes: ${fmt(s.monthTotal)}\n\nPowered by Novamente Studio`;
+  window.open(`https://wa.me/${s.phone}?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+function renderSignoffs(){
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('signoff-grid').innerHTML=DATA.staff.filter(s=>s.active).map(s=>{
+    const key=`${today}-${s.id}`;
+    const signed=DATA.signoffs[key];
+    const roleCls={mesero:'role-mesero',garrotero:'role-garrotero',bartender:'role-bartender',hostess:'role-hostess'}[s.role]||'';
+    return `<div class="bg-slate-50 rounded-xl p-3 flex flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-full accent-bg flex items-center justify-center text-white font-bold text-sm flex-shrink-0">${s.name[0]}</div>
+        <div class="min-w-0"><p class="font-semibold text-slate-800 text-sm truncate">${s.name}</p><span class="role-badge ${roleCls}">${s.role}</span></div>
+      </div>
+      <button onclick="toggleSignoff('${key}')" class="sign-btn ${signed?'signed':''}">${signed?'✓ Confirmado':'Tocar para confirmar'}</button>
+      ${signed?`<p class="text-xs text-slate-400">Firmado: ${signed}</p>`:''}
+    </div>`;
+  }).join('');
+}
+
+function toggleSignoff(key){
+  if(DATA.signoffs[key]){delete DATA.signoffs[key];}
+  else{DATA.signoffs[key]=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});}
+  save();renderSignoffs();
+}
+
+// ── REPORT TAB ────────────────────────────────────────────────────────────
+function renderReport(){
+  const period=parseInt(document.getElementById('report-period').value);
+  const today=new Date();
+  const endDate=new Date(today);if(period>0)endDate.setDate(endDate.getDate()-14*period);
+  const startDate=new Date(endDate);startDate.setDate(endDate.getDate()-13);
+  const start=startDate.toISOString().slice(0,10);
+  const end=endDate.toISOString().slice(0,10);
+  document.getElementById('report-print-period').textContent=`Período: ${start} al ${end}`;
+  const entries=DATA.entries.filter(e=>e.date>=start&&e.date<=end);
+  const grandTotal=entries.reduce((a,b)=>a+b.total,0);
+  const totalHours=DATA.staff.filter(s=>s.active).reduce((a,b)=>a+b.hoursToday,0)||1;
+  const rows=DATA.staff.map(s=>{
+    let total=0;
+    entries.forEach(e=>{
+      const rolePeers=DATA.staff.filter(x=>x.active&&x.role===s.role);
+      const roleHours=rolePeers.reduce((a,b)=>a+b.hoursToday,0)||1;
+      total+=(s.hoursToday/roleHours)*(ROLE_SHARE[s.role]||0.1)*e.total;
+    });
+    return {name:s.name,role:s.role,total:Math.round(total)};
+  }).sort((a,b)=>b.total-a.total);
+  document.getElementById('report-container').innerHTML=`
+    <div class="mb-4 flex flex-wrap gap-4 text-sm text-slate-600">
+      <span>Período: <strong>${start}</strong> al <strong>${end}</strong></span>
+      <span>Total propinas: <strong class="text-amber-800">${fmt(grandTotal)}</strong></span>
+      <span>Turnos: <strong>${entries.length}</strong></span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-slate-500 border-b-2 border-slate-200">
+          <th class="pb-3 font-semibold">#</th>
+          <th class="pb-3 font-semibold">Empleado</th>
+          <th class="pb-3 font-semibold">Rol</th>
+          <th class="pb-3 font-semibold text-right">Propinas Quincena</th>
+          <th class="pb-3 font-semibold text-right no-print">Acción</th>
+        </tr></thead>
+        <tbody>${rows.map((r,i)=>`
+          <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+            <td class="py-4 text-slate-400 text-xs">${i+1}</td>
+            <td class="py-4 font-semibold text-slate-800">${r.name}</td>
+            <td class="py-4"><span class="role-badge ${{mesero:'role-mesero',garrotero:'role-garrotero',bartender:'role-bartender',hostess:'role-hostess'}[r.role]||''}">${r.role}</span></td>
+            <td class="py-4 text-right font-bold text-xl text-amber-800">${fmt(r.total)}</td>
+            <td class="py-4 text-right no-print">
+              <button onclick="shareReportWA('${r.name}',${r.total},'${start}','${end}')" class="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition">📲 WA</button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot><tr class="border-t-2 border-slate-300">
+          <td colspan="3" class="pt-4 font-bold text-slate-800">TOTAL</td>
+          <td class="pt-4 text-right font-bold text-2xl text-amber-800">${fmt(grandTotal)}</td>
+          <td class="no-print"></td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+function shareReportWA(name,total,start,end){
+  const msg=`💰 *Reporte Quincenal de Propinas*\nEmpleado: ${name}\nPeríodo: ${start} al ${end}\nTotal a recibir: ${fmt(total)}\n\nPowered by Novamente Studio`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+renderRegistro();
+</script>
+</body>
+</html>

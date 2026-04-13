@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM de Clientes | Bufete Ríos & Asociados</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: {
+            colors: { primary: '#4f46e5', 'primary-dark': '#4338ca', 'primary-light': '#eef2ff', secondary: '#0f172a', accent: '#f59e0b' },
+            fontFamily: { sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'] }
+        }}}
+    </script>
+    <style>
+        * { scroll-behavior: smooth; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
+        .kanban-col { min-height: 400px; }
+        .kanban-card { cursor: grab; transition: all 0.15s; }
+        .kanban-card:active { cursor: grabbing; opacity: 0.8; transform: scale(0.98); }
+        .kanban-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .kanban-col.drag-over { background: #eef2ff; border-color: #4f46e5; }
+        .priority-high { border-left: 3px solid #dc2626; }
+        .priority-medium { border-left: 3px solid #f59e0b; }
+        .priority-low { border-left: 3px solid #22c55e; }
+        .tab-active { border-bottom: 3px solid #4f46e5; color: #4f46e5; font-weight: 700; }
+        @media print { .no-print{display:none!important} }
+        .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+    </style>
+</head>
+<body class="font-sans bg-gray-50 text-secondary min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-white border-b shadow-sm sticky top-0 z-40 no-print">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/></svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold" id="biz-name">Bufete Ríos & Asociados</h1>
+                <p class="text-xs text-gray-500">CRM de Clientes</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="addClient()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary-dark">+ Nuevo Cliente</button>
+        </div>
+    </div>
+</header>
+
+<!-- TABS -->
+<div class="bg-white border-b no-print">
+    <div class="max-w-7xl mx-auto px-4 flex gap-6">
+        <button onclick="showTab('kanban')" class="py-3 text-sm tab-active" data-tab="kanban">Pipeline</button>
+        <button onclick="showTab('list')" class="py-3 text-sm text-gray-500" data-tab="list">Lista</button>
+        <button onclick="showTab('followups')" class="py-3 text-sm text-gray-500" data-tab="followups">Seguimientos</button>
+        <button onclick="showTab('dashboard')" class="py-3 text-sm text-gray-500" data-tab="dashboard">Dashboard</button>
+        <button onclick="showTab('settings')" class="py-3 text-sm text-gray-500" data-tab="settings">Config</button>
+    </div>
+</div>
+
+<!-- ═══ KANBAN ═══ -->
+<div id="tab-kanban" class="max-w-7xl mx-auto px-4 py-6 fade-in">
+    <div class="flex gap-4 overflow-x-auto pb-4" id="kanban-board"></div>
+</div>
+
+<!-- ═══ LIST ═══ -->
+<div id="tab-list" class="hidden max-w-6xl mx-auto px-4 py-6 fade-in">
+    <div class="flex justify-between items-center mb-4">
+        <div class="flex gap-2">
+            <input type="text" id="list-search" placeholder="Buscar cliente..." oninput="renderList()" class="border rounded-xl px-4 py-2 text-sm w-64 outline-none focus:ring-2 focus:ring-primary">
+            <select id="list-filter" onchange="renderList()" class="border rounded-xl px-3 py-2 text-sm">
+                <option value="">Todos</option>
+            </select>
+        </div>
+        <button onclick="exportCSV()" class="border px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-50">Exportar CSV</button>
+    </div>
+    <div id="list-table" class="bg-white rounded-2xl border overflow-hidden"></div>
+</div>
+
+<!-- ═══ FOLLOWUPS ═══ -->
+<div id="tab-followups" class="hidden max-w-4xl mx-auto px-4 py-6 fade-in">
+    <h2 class="text-xl font-bold mb-4">Seguimientos pendientes</h2>
+    <div id="followups-list"></div>
+</div>
+
+<!-- ═══ DASHBOARD ═══ -->
+<div id="tab-dashboard" class="hidden max-w-6xl mx-auto px-4 py-6 fade-in">
+    <h2 class="text-xl font-bold mb-4">Dashboard</h2>
+    <div class="grid sm:grid-cols-4 gap-3 mb-6" id="dash-cards"></div>
+    <div class="grid sm:grid-cols-2 gap-4">
+        <div class="bg-white rounded-2xl border p-4"><canvas id="chart-pipeline"></canvas></div>
+        <div class="bg-white rounded-2xl border p-4"><canvas id="chart-monthly"></canvas></div>
+    </div>
+</div>
+
+<!-- ═══ SETTINGS ═══ -->
+<div id="tab-settings" class="hidden max-w-md mx-auto px-4 py-6 fade-in">
+    <h2 class="text-xl font-bold mb-4">Configuración</h2>
+    <div class="bg-white rounded-2xl border p-6 space-y-4">
+        <div><label class="text-sm font-semibold">Nombre del despacho</label><input type="text" id="s-name" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+        <div><label class="text-sm font-semibold">WhatsApp</label><input type="text" id="s-phone" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+        <div>
+            <label class="text-sm font-semibold">Tipos de caso (uno por línea)</label>
+            <textarea id="s-types" rows="5" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none text-sm font-mono"></textarea>
+        </div>
+        <div>
+            <label class="text-sm font-semibold">Etapas del pipeline (uno por línea)</label>
+            <textarea id="s-stages" rows="5" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none text-sm font-mono"></textarea>
+        </div>
+        <button onclick="saveSettings()" class="bg-primary text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-primary-dark w-full">Guardar</button>
+    </div>
+</div>
+
+<!-- CLIENT MODAL -->
+<div id="modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-lg fade-in max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-bold mb-4" id="modal-title">Nuevo cliente</h3>
+        <div id="modal-body"></div>
+        <div class="flex gap-2 mt-4">
+            <button onclick="closeModal()" class="flex-1 border rounded-xl py-2.5 font-semibold hover:bg-gray-50">Cancelar</button>
+            <button onclick="modalSubmit()" id="modal-submit" class="flex-1 bg-primary text-white rounded-xl py-2.5 font-semibold hover:bg-primary-dark">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div id="detail-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center no-print">
+    <div class="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[85vh] overflow-y-auto fade-in" id="detail-body"></div>
+</div>
+
+<footer class="text-center py-4 text-xs text-gray-400 border-t mt-8 no-print">
+    <a href="https://novamentestudio.com" class="hover:text-gray-600">Powered by Novamente Studio</a>
+</footer>
+
+<script>
+// ═══ DATA ═══
+const DEF = {
+    config: { name: "Bufete Ríos & Asociados", phone: "5215512345678",
+        caseTypes: ["Divorcio", "Herencia/Sucesión", "Laboral (despido)", "Mercantil", "Penal", "Propiedad", "Familia (custodia)", "Asesoría empresarial"],
+        stages: ["Prospecto", "Consulta inicial", "En proceso", "Cerrado ganado", "Cerrado perdido"]
+    },
+    clients: [
+        { id:1, name:"María García López", phone:"5551234567", email:"maria@mail.com", company:"", caseType:"Divorcio", stage:"En proceso", priority:"high", value:25000, notes:[{date:"2026-04-01",text:"Primera consulta. Divorcio de mutuo acuerdo. Hay 2 hijos menores."},{date:"2026-04-05",text:"Revisión de documentos. Falta acta de matrimonio."}], followUp:"2026-04-15", tags:["urgente"], created:"2026-03-28" },
+        { id:2, name:"Roberto Hernández Díaz", phone:"5559876543", email:"rob@empresa.mx", company:"Constructora HyD", caseType:"Mercantil", stage:"Consulta inicial", priority:"medium", value:50000, notes:[{date:"2026-04-06",text:"Quiere constituir SA de CV. Tiene 2 socios."}], followUp:"2026-04-10", tags:["empresa"], created:"2026-04-06" },
+        { id:3, name:"Ana Martínez Ruiz", phone:"5554567890", email:"", company:"", caseType:"Laboral (despido)", stage:"En proceso", priority:"high", value:35000, notes:[{date:"2026-03-20",text:"Despido injustificado. 8 años en la empresa. Salario $18,000/mes."},{date:"2026-03-28",text:"Se presentó demanda ante la JFCA."},{date:"2026-04-03",text:"Audiencia programada para el 20 de abril."}], followUp:"2026-04-18", tags:["urgente","demanda"], created:"2026-03-20" },
+        { id:4, name:"Carlos Morales Vega", phone:"5557654321", email:"carlos@gmail.com", company:"", caseType:"Herencia/Sucesión", stage:"Prospecto", priority:"low", value:15000, notes:[{date:"2026-04-07",text:"Llamó preguntando por sucesión testamentaria. Padre falleció hace 2 meses."}], followUp:"2026-04-09", tags:[], created:"2026-04-07" },
+        { id:5, name:"Empresa Tekton SA", phone:"5553456789", email:"legal@tekton.mx", company:"Tekton SA de CV", caseType:"Asesoría empresarial", stage:"Cerrado ganado", priority:"medium", value:80000, notes:[{date:"2026-02-15",text:"Contrato de asesoría mensual. Revisión de contratos laborales y mercantiles."},{date:"2026-03-15",text:"Renovación trimestral confirmada."}], followUp:"", tags:["empresa","recurrente"], created:"2026-02-10" },
+        { id:6, name:"Patricia Sánchez Olmedo", phone:"5552345678", email:"", company:"", caseType:"Familia (custodia)", stage:"En proceso", priority:"high", value:30000, notes:[{date:"2026-03-25",text:"Demanda de custodia. Ex-esposo no cumple régimen de visitas."}], followUp:"2026-04-12", tags:["urgente"], created:"2026-03-25" },
+        { id:7, name:"Fernando López", phone:"5556789012", email:"flopez@mail.com", company:"", caseType:"Propiedad", stage:"Consulta inicial", priority:"medium", value:20000, notes:[{date:"2026-04-05",text:"Problema con escrituras de un terreno en Estado de México."}], followUp:"2026-04-11", tags:[], created:"2026-04-05" },
+        { id:8, name:"Laura Díaz Méndez", phone:"5558901234", email:"", company:"", caseType:"Divorcio", stage:"Cerrado perdido", priority:"low", value:0, notes:[{date:"2026-03-01",text:"Consulta inicial."},{date:"2026-03-10",text:"Decidió no proceder. Reconciliación."}], followUp:"", tags:[], created:"2026-03-01" },
+    ]
+};
+
+let cfg = JSON.parse(localStorage.getItem('crm_config')) || DEF.config;
+let clients = JSON.parse(localStorage.getItem('crm_clients')) || DEF.clients;
+let modalAction = null;
+let draggedId = null;
+
+function save() { localStorage.setItem('crm_config', JSON.stringify(cfg)); localStorage.setItem('crm_clients', JSON.stringify(clients)); }
+function nextId() { return clients.length ? Math.max(...clients.map(c=>c.id))+1 : 1; }
+function today() { return new Date().toISOString().split('T')[0]; }
+function fmtDate(d) { if(!d) return ''; return new Date(d+'T12:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'}); }
+
+const STAGE_COLORS = { "Prospecto":"#6366f1", "Consulta inicial":"#f59e0b", "En proceso":"#3b82f6", "Cerrado ganado":"#16a34a", "Cerrado perdido":"#94a3b8" };
+const PRIORITY_LABELS = { high:"Alta", medium:"Media", low:"Baja" };
+
+// ═══ TABS ═══
+function showTab(tab) {
+    ['kanban','list','followups','dashboard','settings'].forEach(t => {
+        document.getElementById('tab-'+t)?.classList.toggle('hidden', t!==tab);
+        document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('tab-active', t===tab);
+        document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('text-gray-500', t!==tab);
+    });
+    if (tab==='kanban') renderKanban();
+    if (tab==='list') renderList();
+    if (tab==='followups') renderFollowups();
+    if (tab==='dashboard') renderDashboard();
+    if (tab==='settings') loadSettings();
+}
+
+// ═══ KANBAN ═══
+function renderKanban() {
+    const board = document.getElementById('kanban-board');
+    board.innerHTML = cfg.stages.map(stage => {
+        const stageClients = clients.filter(c => c.stage === stage);
+        const total = stageClients.reduce((s,c)=>s+c.value,0);
+        return `<div class="kanban-col flex-shrink-0 w-72 bg-gray-100 rounded-2xl p-3" data-stage="${stage}"
+            ondragover="event.preventDefault();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="dropCard(event,'${stage}');this.classList.remove('drag-over')">
+            <div class="flex justify-between items-center mb-3 px-1">
+                <div>
+                    <span class="font-bold text-sm">${stage}</span>
+                    <span class="text-xs text-gray-400 ml-1">(${stageClients.length})</span>
+                </div>
+                <span class="text-xs font-semibold" style="color:${STAGE_COLORS[stage]||'#666'}">$${(total/1000).toFixed(0)}K</span>
+            </div>
+            <div class="space-y-2">
+                ${stageClients.map(c => renderCard(c)).join('')}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderCard(c) {
+    const dueClass = c.followUp && c.followUp <= today() ? 'ring-2 ring-red-400' : '';
+    return `<div class="kanban-card bg-white rounded-xl p-3 border priority-${c.priority} ${dueClass}"
+        draggable="true" ondragstart="draggedId=${c.id}" onclick="showDetail(${c.id})">
+        <div class="flex justify-between items-start mb-1">
+            <span class="font-semibold text-sm">${c.name}</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold" style="background:${STAGE_COLORS[c.stage]||'#eee'}20;color:${STAGE_COLORS[c.stage]||'#666'}">${PRIORITY_LABELS[c.priority]}</span>
+        </div>
+        <div class="text-xs text-gray-500">${c.caseType}</div>
+        ${c.value ? `<div class="text-xs font-semibold text-primary mt-1">$${c.value.toLocaleString()}</div>` : ''}
+        ${c.followUp ? `<div class="text-[10px] mt-1 ${c.followUp<=today()?'text-red-500 font-bold':'text-gray-400'}">📅 Seguimiento: ${fmtDate(c.followUp)}</div>` : ''}
+        ${c.tags.length ? `<div class="flex gap-1 mt-1">${c.tags.map(t=>`<span class="tag bg-primary-light text-primary">${t}</span>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+function dropCard(e, newStage) {
+    e.preventDefault();
+    if (!draggedId) return;
+    const c = clients.find(x=>x.id===draggedId);
+    if (c) {
+        c.stage = newStage;
+        c.notes.push({ date: today(), text: `Movido a: ${newStage}` });
+        save(); renderKanban();
+    }
+    draggedId = null;
+}
+
+// ═══ DETAIL ═══
+function showDetail(id) {
+    const c = clients.find(x=>x.id===id);
+    if (!c) return;
+    const modal = document.getElementById('detail-modal');
+    document.getElementById('detail-body').innerHTML = `
+        <div class="p-6">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h2 class="text-xl font-bold">${c.name}</h2>
+                    <p class="text-sm text-gray-500">${c.caseType} · ${c.stage}</p>
+                    ${c.company ? `<p class="text-sm text-gray-400">${c.company}</p>` : ''}
+                </div>
+                <button onclick="closeDetail()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
+                <div class="bg-gray-50 rounded-xl p-3"><span class="text-gray-500">Teléfono:</span><br><a href="tel:${c.phone}" class="font-semibold">${c.phone}</a></div>
+                <div class="bg-gray-50 rounded-xl p-3"><span class="text-gray-500">Email:</span><br><span class="font-semibold">${c.email||'—'}</span></div>
+                <div class="bg-gray-50 rounded-xl p-3"><span class="text-gray-500">Valor:</span><br><span class="font-semibold text-primary">$${c.value.toLocaleString()}</span></div>
+                <div class="bg-gray-50 rounded-xl p-3"><span class="text-gray-500">Prioridad:</span><br><span class="font-semibold">${PRIORITY_LABELS[c.priority]}</span></div>
+            </div>
+
+            <div class="flex gap-2 mb-4">
+                <select onchange="if(this.value){moveToStage(${c.id},this.value);this.value=''}" class="border rounded-xl px-3 py-2 text-sm flex-1">
+                    <option value="">Mover a...</option>
+                    ${cfg.stages.map(s=>`<option value="${s}" ${c.stage===s?'disabled':''}>${s}</option>`).join('')}
+                </select>
+                <button onclick="sendWA(${c.id})" class="bg-[#25D366] text-white px-4 py-2 rounded-xl text-sm font-semibold">WhatsApp</button>
+                <button onclick="editClient(${c.id})" class="border px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-50">Editar</button>
+            </div>
+
+            ${c.followUp ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm ${c.followUp<=today()?'ring-2 ring-red-400':''}">
+                📅 Próximo seguimiento: <strong>${fmtDate(c.followUp)}</strong> ${c.followUp<=today()?'<span class="text-red-500 font-bold">(¡VENCIDO!)</span>':''}
+                <button onclick="updateFollowUp(${c.id})" class="ml-2 text-primary text-xs hover:underline">Cambiar</button>
+            </div>` : `<button onclick="updateFollowUp(${c.id})" class="text-sm text-primary hover:underline mb-4 block">+ Agendar seguimiento</button>`}
+
+            <div class="mb-4">
+                <h3 class="font-bold text-sm mb-2">Historial de notas</h3>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    ${c.notes.sort((a,b)=>b.date.localeCompare(a.date)).map(n => `
+                        <div class="bg-gray-50 rounded-lg p-2 text-sm"><span class="text-xs text-gray-400">${fmtDate(n.date)}</span><br>${n.text}</div>
+                    `).join('')}
+                </div>
+                <div class="flex gap-2 mt-2">
+                    <input type="text" id="new-note-${c.id}" placeholder="Agregar nota..." class="flex-1 border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary">
+                    <button onclick="addNote(${c.id})" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold">+</button>
+                </div>
+            </div>
+
+            ${c.tags.length ? `<div class="flex gap-1 flex-wrap">${c.tags.map(t=>`<span class="tag bg-primary-light text-primary">${t}</span>`).join('')}</div>` : ''}
+        </div>`;
+    modal.classList.remove('hidden');
+}
+
+function closeDetail() { document.getElementById('detail-modal').classList.add('hidden'); }
+function moveToStage(id, stage) { const c=clients.find(x=>x.id===id); if(c){c.stage=stage;c.notes.push({date:today(),text:`Movido a: ${stage}`});save();closeDetail();renderKanban();} }
+function addNote(id) { const input=document.getElementById(`new-note-${id}`); const text=input.value.trim(); if(!text) return; const c=clients.find(x=>x.id===id); if(c){c.notes.push({date:today(),text});save();showDetail(id);} }
+function updateFollowUp(id) { const d=prompt('Fecha de seguimiento (YYYY-MM-DD):',today()); if(d){const c=clients.find(x=>x.id===id);if(c){c.followUp=d;save();showDetail(id);}} }
+function sendWA(id) { const c=clients.find(x=>x.id===id); if(!c)return; window.open(`https://wa.me/52${c.phone}?text=${encodeURIComponent(`Hola ${c.name.split(' ')[0]}, le escribo del ${cfg.name} respecto a su caso de ${c.caseType}. ¿Tiene un momento para platicar?`)}`, '_blank'); }
+
+// ═══ ADD/EDIT CLIENT ═══
+function addClient() {
+    openModal('Nuevo cliente', `<div class="space-y-3">
+        <input type="text" id="c-name" placeholder="Nombre completo" class="w-full border rounded-xl px-4 py-2 outline-none">
+        <div class="grid grid-cols-2 gap-3">
+            <input type="tel" id="c-phone" placeholder="Teléfono" class="border rounded-xl px-4 py-2 outline-none">
+            <input type="email" id="c-email" placeholder="Email" class="border rounded-xl px-4 py-2 outline-none">
+        </div>
+        <input type="text" id="c-company" placeholder="Empresa (opcional)" class="w-full border rounded-xl px-4 py-2 outline-none">
+        <div class="grid grid-cols-2 gap-3">
+            <select id="c-type" class="border rounded-xl px-3 py-2">${cfg.caseTypes.map(t=>`<option>${t}</option>`).join('')}</select>
+            <select id="c-priority" class="border rounded-xl px-3 py-2"><option value="high">Alta</option><option value="medium" selected>Media</option><option value="low">Baja</option></select>
+        </div>
+        <input type="number" id="c-value" placeholder="Valor estimado ($)" class="w-full border rounded-xl px-4 py-2 outline-none">
+        <input type="date" id="c-followup" class="w-full border rounded-xl px-4 py-2 outline-none">
+        <textarea id="c-notes" placeholder="Notas iniciales" rows="2" class="w-full border rounded-xl px-4 py-2 outline-none"></textarea>
+    </div>`, () => {
+        const name = document.getElementById('c-name').value.trim(); if(!name) return alert('Nombre requerido');
+        clients.push({
+            id: nextId(), name, phone: document.getElementById('c-phone').value.trim(),
+            email: document.getElementById('c-email').value.trim(),
+            company: document.getElementById('c-company').value.trim(),
+            caseType: document.getElementById('c-type').value,
+            stage: cfg.stages[0], priority: document.getElementById('c-priority').value,
+            value: parseInt(document.getElementById('c-value').value)||0,
+            notes: document.getElementById('c-notes').value.trim() ? [{date:today(),text:document.getElementById('c-notes').value.trim()}] : [],
+            followUp: document.getElementById('c-followup').value, tags: [], created: today()
+        });
+        save(); closeModal(); renderKanban();
+    });
+}
+
+function editClient(id) {
+    const c = clients.find(x=>x.id===id);
+    openModal('Editar cliente', `<div class="space-y-3">
+        <input type="text" id="c-name" value="${c.name}" class="w-full border rounded-xl px-4 py-2 outline-none">
+        <div class="grid grid-cols-2 gap-3">
+            <input type="tel" id="c-phone" value="${c.phone}" class="border rounded-xl px-4 py-2 outline-none">
+            <input type="email" id="c-email" value="${c.email}" class="border rounded-xl px-4 py-2 outline-none">
+        </div>
+        <input type="text" id="c-company" value="${c.company}" class="w-full border rounded-xl px-4 py-2 outline-none">
+        <div class="grid grid-cols-2 gap-3">
+            <select id="c-type" class="border rounded-xl px-3 py-2">${cfg.caseTypes.map(t=>`<option ${c.caseType===t?'selected':''}>${t}</option>`).join('')}</select>
+            <select id="c-priority" class="border rounded-xl px-3 py-2"><option value="high" ${c.priority==='high'?'selected':''}>Alta</option><option value="medium" ${c.priority==='medium'?'selected':''}>Media</option><option value="low" ${c.priority==='low'?'selected':''}>Baja</option></select>
+        </div>
+        <input type="number" id="c-value" value="${c.value}" class="w-full border rounded-xl px-4 py-2 outline-none">
+        <input type="date" id="c-followup" value="${c.followUp}" class="w-full border rounded-xl px-4 py-2 outline-none">
+        <button onclick="deleteClient(${c.id})" class="text-red-500 text-sm hover:underline">Eliminar cliente</button>
+    </div>`, () => {
+        c.name = document.getElementById('c-name').value; c.phone = document.getElementById('c-phone').value;
+        c.email = document.getElementById('c-email').value; c.company = document.getElementById('c-company').value;
+        c.caseType = document.getElementById('c-type').value; c.priority = document.getElementById('c-priority').value;
+        c.value = parseInt(document.getElementById('c-value').value)||0; c.followUp = document.getElementById('c-followup').value;
+        save(); closeModal(); closeDetail(); renderKanban();
+    });
+}
+
+function deleteClient(id) { if(!confirm('¿Eliminar?')) return; clients=clients.filter(c=>c.id!==id); save(); closeModal(); closeDetail(); renderKanban(); }
+
+// ═══ LIST ═══
+function renderList() {
+    const search = (document.getElementById('list-search')?.value||'').toLowerCase();
+    const filter = document.getElementById('list-filter')?.value||'';
+    document.getElementById('list-filter').innerHTML = '<option value="">Todos</option>'+cfg.stages.map(s=>`<option value="${s}" ${filter===s?'selected':''}>${s}</option>`).join('');
+
+    let list = clients;
+    if (search) list = list.filter(c => c.name.toLowerCase().includes(search) || c.phone.includes(search) || c.caseType.toLowerCase().includes(search));
+    if (filter) list = list.filter(c => c.stage === filter);
+    list.sort((a,b) => {const p={high:0,medium:1,low:2}; return p[a.priority]-p[b.priority];});
+
+    document.getElementById('list-table').innerHTML = list.length ? `<table class="w-full text-sm"><thead><tr class="bg-gray-50 text-gray-500 text-xs uppercase">
+        <th class="p-3 text-left">Cliente</th><th class="p-3 text-left">Tipo</th><th class="p-3 text-left">Etapa</th><th class="p-3 text-left">Prioridad</th><th class="p-3 text-right">Valor</th><th class="p-3 text-left">Seguimiento</th>
+    </tr></thead><tbody>${list.map(c=>`<tr class="border-t hover:bg-gray-50 cursor-pointer" onclick="showDetail(${c.id})">
+        <td class="p-3"><div class="font-semibold">${c.name}</div><div class="text-xs text-gray-400">${c.phone}</div></td>
+        <td class="p-3">${c.caseType}</td>
+        <td class="p-3"><span class="text-xs px-2 py-1 rounded-full font-semibold" style="background:${STAGE_COLORS[c.stage]||'#eee'}20;color:${STAGE_COLORS[c.stage]||'#666'}">${c.stage}</span></td>
+        <td class="p-3"><span class="priority-${c.priority} pl-2 text-xs font-semibold">${PRIORITY_LABELS[c.priority]}</span></td>
+        <td class="p-3 text-right font-semibold">$${c.value.toLocaleString()}</td>
+        <td class="p-3 ${c.followUp&&c.followUp<=today()?'text-red-500 font-bold':''}">${c.followUp?fmtDate(c.followUp):'—'}</td>
+    </tr>`).join('')}</tbody></table>` : '<div class="text-center py-8 text-gray-400">No hay clientes</div>';
+}
+
+function exportCSV() {
+    const rows = [['Nombre','Teléfono','Email','Empresa','Tipo','Etapa','Prioridad','Valor','Seguimiento','Creado']];
+    clients.forEach(c => rows.push([c.name,c.phone,c.email,c.company,c.caseType,c.stage,c.priority,c.value,c.followUp,c.created]));
+    const csv = rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+    const blob = new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=`clientes_${today()}.csv`; a.click();
+}
+
+// ═══ FOLLOWUPS ═══
+function renderFollowups() {
+    const due = clients.filter(c => c.followUp && c.followUp <= today() && !['Cerrado ganado','Cerrado perdido'].includes(c.stage)).sort((a,b)=>a.followUp.localeCompare(b.followUp));
+    const upcoming = clients.filter(c => c.followUp && c.followUp > today() && !['Cerrado ganado','Cerrado perdido'].includes(c.stage)).sort((a,b)=>a.followUp.localeCompare(b.followUp)).slice(0,10);
+
+    document.getElementById('followups-list').innerHTML = `
+        ${due.length ? `<h3 class="text-red-600 font-bold mb-2">⚠️ Vencidos (${due.length})</h3>
+        ${due.map(c=>`<div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-2 flex justify-between items-center cursor-pointer" onclick="showDetail(${c.id})">
+            <div><div class="font-semibold">${c.name}</div><div class="text-sm text-gray-500">${c.caseType} · ${fmtDate(c.followUp)}</div></div>
+            <div class="flex gap-2"><button onclick="event.stopPropagation();sendWA(${c.id})" class="text-xs bg-[#25D366] text-white px-3 py-1.5 rounded-lg">WA</button></div>
+        </div>`).join('')}` : '<div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 text-green-700 text-sm font-semibold">✅ No hay seguimientos vencidos</div>'}
+        ${upcoming.length ? `<h3 class="font-bold mb-2 mt-4">Próximos</h3>
+        ${upcoming.map(c=>`<div class="bg-white border rounded-xl p-4 mb-2 flex justify-between items-center cursor-pointer" onclick="showDetail(${c.id})">
+            <div><div class="font-semibold">${c.name}</div><div class="text-sm text-gray-500">${c.caseType}</div></div>
+            <span class="text-sm text-gray-400">${fmtDate(c.followUp)}</span>
+        </div>`).join('')}` : ''}
+    `;
+}
+
+// ═══ DASHBOARD ═══
+function renderDashboard() {
+    const active = clients.filter(c=>!['Cerrado ganado','Cerrado perdido'].includes(c.stage));
+    const won = clients.filter(c=>c.stage==='Cerrado ganado');
+    const pipeline = active.reduce((s,c)=>s+c.value,0);
+    const revenue = won.reduce((s,c)=>s+c.value,0);
+    const dueToday = clients.filter(c=>c.followUp&&c.followUp<=today()&&!['Cerrado ganado','Cerrado perdido'].includes(c.stage)).length;
+
+    document.getElementById('dash-cards').innerHTML = `
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold text-primary">${active.length}</div><div class="text-xs text-gray-500">Casos activos</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold text-accent">$${(pipeline/1000).toFixed(0)}K</div><div class="text-xs text-gray-500">Pipeline</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold text-green-600">$${(revenue/1000).toFixed(0)}K</div><div class="text-xs text-gray-500">Facturado</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold ${dueToday?'text-red-500':'text-gray-400'}">${dueToday}</div><div class="text-xs text-gray-500">Seguimientos hoy</div></div>
+    `;
+
+    // Pipeline chart
+    const stageData = cfg.stages.map(s => clients.filter(c=>c.stage===s).length);
+    const ctx1 = document.getElementById('chart-pipeline');
+    if(window._cp) window._cp.destroy();
+    window._cp = new Chart(ctx1, {
+        type: 'bar', data: {
+            labels: cfg.stages, datasets: [{
+                label: 'Clientes', data: stageData,
+                backgroundColor: cfg.stages.map(s => (STAGE_COLORS[s]||'#666')+'44'),
+                borderColor: cfg.stages.map(s => STAGE_COLORS[s]||'#666'), borderWidth: 1
+            }]
+        }, options: { responsive:true, plugins: { legend:{display:false}, title:{display:true,text:'Clientes por etapa'} }, scales: { y:{beginAtZero:true,ticks:{stepSize:1}} } }
+    });
+
+    // Monthly chart (fake data based on created dates)
+    const months = {};
+    clients.forEach(c => { const m = c.created?.slice(0,7); if(m) months[m]=(months[m]||0)+1; });
+    const mLabels = Object.keys(months).sort();
+    const ctx2 = document.getElementById('chart-monthly');
+    if(window._cm) window._cm.destroy();
+    window._cm = new Chart(ctx2, {
+        type: 'line', data: {
+            labels: mLabels, datasets: [{ label:'Nuevos clientes', data: mLabels.map(m=>months[m]), borderColor:'#4f46e5', backgroundColor:'#4f46e544', fill:true, tension:0.3 }]
+        }, options: { responsive:true, plugins: { title:{display:true,text:'Clientes por mes'} }, scales: { y:{beginAtZero:true,ticks:{stepSize:1}} } }
+    });
+}
+
+// ═══ SETTINGS ═══
+function loadSettings() {
+    document.getElementById('s-name').value = cfg.name;
+    document.getElementById('s-phone').value = cfg.phone;
+    document.getElementById('s-types').value = cfg.caseTypes.join('\n');
+    document.getElementById('s-stages').value = cfg.stages.join('\n');
+}
+
+function saveSettings() {
+    cfg.name = document.getElementById('s-name').value;
+    cfg.phone = document.getElementById('s-phone').value;
+    cfg.caseTypes = document.getElementById('s-types').value.trim().split('\n').filter(Boolean);
+    cfg.stages = document.getElementById('s-stages').value.trim().split('\n').filter(Boolean);
+    save(); document.getElementById('biz-name').textContent = cfg.name; alert('Guardado');
+}
+
+// ═══ MODAL ═══
+function openModal(title, body, onSubmit) { document.getElementById('modal-title').textContent=title; document.getElementById('modal-body').innerHTML=body; modalAction=onSubmit; document.getElementById('modal').classList.remove('hidden'); }
+function closeModal() { document.getElementById('modal').classList.add('hidden'); modalAction=null; }
+function modalSubmit() { if(modalAction) modalAction(); }
+
+// INIT
+renderKanban();
+</script>
+</body>
+</html>

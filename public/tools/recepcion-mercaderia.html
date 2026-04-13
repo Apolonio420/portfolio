@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recepción de Mercadería</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .accent { color: #059669; }
+  .accent-bg { background: #059669; }
+  .accent-bg-light { background: #d1fae5; }
+  .accent-border { border-color: #059669; }
+  .tab-active { background: #059669; color: white; }
+  .tab-inactive { background: white; color: #374151; }
+  .quality-bueno { background:#dcfce7; color:#166534; border-color:#86efac; }
+  .quality-regular { background:#fef9c3; color:#854d0e; border-color:#fde047; }
+  .quality-malo { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+  .disc-ok { color:#059669; }
+  .disc-warn { color:#d97706; }
+  .disc-bad { color:#dc2626; }
+  .temp-ok { background:#dcfce7; color:#166534; }
+  .temp-warn { background:#fee2e2; color:#991b1b; }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal { background:white; border-radius:16px; max-width:700px; width:100%; max-height:92vh; overflow-y:auto; }
+  .item-row { transition: background 0.15s; }
+  .item-row:hover { background:#f0fdf4; }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:white; font-size:12px; }
+    .print-section { page-break-inside:avoid; }
+    .modal-backdrop { display:none !important; }
+    #printArea { display:block !important; }
+  }
+  #printArea { display:none; }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:#f3f4f6; }
+  ::-webkit-scrollbar-thumb { background:#6ee7b7; border-radius:3px; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Header -->
+<header class="accent-bg text-white shadow-lg no-print">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold">Recepción de Mercadería</h1>
+      <p class="text-emerald-200 text-sm">Verificación · Calidad · Temperatura</p>
+    </div>
+    <button onclick="openModal('modalNuevaRecepcion')" class="bg-white text-emerald-700 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-emerald-50 transition">+ Nueva Recepción</button>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="no-print bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+  <div class="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto py-2">
+    <button onclick="setTab('resumen')" id="tab-resumen" class="tab-btn tab-active px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Resumen</button>
+    <button onclick="setTab('historial')" id="tab-historial" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Historial</button>
+    <button onclick="setTab('estadisticas')" id="tab-estadisticas" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Estadísticas</button>
+  </div>
+</nav>
+
+<main class="max-w-6xl mx-auto px-4 py-6">
+
+<!-- TAB: RESUMEN -->
+<div id="view-resumen">
+  <div id="statsCards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+  <div id="ultimasRecepciones"></div>
+</div>
+
+<!-- TAB: HISTORIAL -->
+<div id="view-historial" class="hidden">
+  <div class="flex flex-wrap gap-2 mb-4 no-print">
+    <input id="buscarHistorial" oninput="renderHistorial()" placeholder="Buscar por proveedor o producto..." class="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-48 focus:outline-none focus:border-emerald-400">
+    <input type="date" id="filtroFecha" onchange="renderHistorial()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+    <button onclick="window.print()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition">🖨️ Imprimir</button>
+  </div>
+  <div id="listaHistorial" class="space-y-3"></div>
+</div>
+
+<!-- TAB: ESTADÍSTICAS -->
+<div id="view-estadisticas" class="hidden">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <h3 class="font-bold text-gray-800 mb-3">Tasa de rechazo por proveedor</h3>
+      <canvas id="chartRechazo" height="200"></canvas>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <h3 class="font-bold text-gray-800 mb-3">Discrepancias más frecuentes</h3>
+      <canvas id="chartDisc" height="200"></canvas>
+    </div>
+  </div>
+  <div id="tablaProblemas" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5"></div>
+</div>
+
+</main>
+
+<!-- PRINT AREA -->
+<div id="printArea" class="p-8">
+  <div id="printContent"></div>
+</div>
+
+<!-- MODAL: NUEVA RECEPCIÓN -->
+<div id="modalNuevaRecepcion" class="modal-backdrop hidden">
+  <div class="modal p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-800">Nueva Recepción de Mercadería</h2>
+      <button onclick="closeModal('modalNuevaRecepcion')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+
+    <!-- Step 1: Info básica -->
+    <div id="step1" class="">
+      <h3 class="font-semibold text-emerald-700 mb-3">Paso 1: Información general</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Proveedor *</label>
+          <select id="recProveedor" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+            <option value="">Seleccionar...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Recibido por *</label>
+          <input id="recRecibidoPor" list="empleadosList" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400" placeholder="Nombre del empleado">
+          <datalist id="empleadosList">
+            <option>Chef Carlos</option><option>Aux. Cocina Ana</option><option>Encargado Luis</option><option>Gerente Sofía</option>
+          </datalist>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Fecha</label>
+          <input type="date" id="recFecha" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Hora</label>
+          <input type="time" id="recHora" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-400">
+        </div>
+      </div>
+      <button onclick="irStep2()" class="accent-bg text-white font-semibold px-5 py-2 rounded-lg text-sm hover:bg-emerald-700 transition">Siguiente →</button>
+    </div>
+
+    <!-- Step 2: Items -->
+    <div id="step2" class="hidden">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-emerald-700">Paso 2: Verificar productos</h3>
+        <button onclick="irStep1()" class="text-sm text-gray-500 hover:text-gray-700">← Volver</button>
+      </div>
+      <div id="listaItemsRecepcion" class="space-y-3 mb-4 max-h-80 overflow-y-auto pr-1"></div>
+      <button onclick="agregarItemRecepcion()" class="w-full border-2 border-dashed border-emerald-300 text-emerald-600 font-semibold py-2 rounded-xl text-sm hover:bg-emerald-50 transition mb-4">+ Agregar producto</button>
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeModal('modalNuevaRecepcion')" class="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+        <button onclick="guardarRecepcion()" class="accent-bg text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-emerald-700">Guardar Recepción</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: VER RECEPCIÓN -->
+<div id="modalVerRecepcion" class="modal-backdrop hidden">
+  <div class="modal p-6" id="contenidoVerRecepcion"></div>
+</div>
+
+<footer class="text-center py-6 text-gray-400 text-xs no-print mt-8">
+  Powered by <span class="font-semibold text-emerald-400">Novamente Studio</span> · <span id="footerYear"></span>
+</footer>
+
+<script>
+const STORAGE_KEY = 'recepcion_merch_v1';
+let data = { recepciones: [], proveedores: [] };
+let itemsTemp = [];
+let chartRechazoInst = null, chartDiscInst = null;
+
+function loadData(){
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved){ data = JSON.parse(saved); }
+  else { seedDemoData(); saveData(); }
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+function seedDemoData(){
+  data.proveedores = [
+    {id:'p1', nombre:'Carnicería Don Beto', whatsapp:'5215587342291'},
+    {id:'p2', nombre:'Lácteos La Castellana', whatsapp:'5215523418800'},
+    {id:'p3', nombre:'Central de Abastos', whatsapp:'5215556349010'},
+    {id:'p4', nombre:'Costco Empresarial', whatsapp:'5215580081000'},
+    {id:'p5', nombre:'Bebidas del Norte', whatsapp:'5215544117620'},
+    {id:'p6', nombre:'Tortillería Doña Concha', whatsapp:'5215566773344'},
+    {id:'p7', nombre:'Limpieza Pro', whatsapp:'5215533904455'},
+    {id:'p8', nombre:'Desechables RestaurMax', whatsapp:'5215599881122'}
+  ];
+
+  const baseDate = new Date('2025-03-28');
+  const recepciones = [
+    {
+      id:'r1', proveedorId:'p1', proveedorNombre:'Carnicería Don Beto',
+      fecha:'2025-03-28', hora:'09:15', recibidoPor:'Chef Carlos',
+      items:[
+        {nombre:'Pechuga de pollo', pedido:10, recibido:10, unidad:'kg', calidad:'Bueno', calNota:'', temp:3, tempOk:true, vencimiento:'2025-04-04', aceptado:true},
+        {nombre:'Pierna de pollo', pedido:15, recibido:14, unidad:'kg', calidad:'Bueno', calNota:'', temp:3, tempOk:true, vencimiento:'2025-04-04', aceptado:true},
+        {nombre:'Res molida', pedido:8, recibido:8, unidad:'kg', calidad:'Bueno', calNota:'', temp:2, tempOk:true, vencimiento:'2025-04-03', aceptado:true}
+      ]
+    },
+    {
+      id:'r2', proveedorId:'p2', proveedorNombre:'Lácteos La Castellana',
+      fecha:'2025-03-28', hora:'10:30', recibidoPor:'Aux. Cocina Ana',
+      items:[
+        {nombre:'Queso panela', pedido:5, recibido:5, unidad:'kg', calidad:'Bueno', calNota:'', temp:6, tempOk:true, vencimiento:'2025-04-10', aceptado:true},
+        {nombre:'Crema ácida', pedido:8, recibido:6, unidad:'lt', calidad:'Bueno', calNota:'', temp:5, tempOk:true, vencimiento:'2025-04-12', aceptado:true},
+        {nombre:'Leche entera', pedido:20, recibido:20, unidad:'lt', calidad:'Bueno', calNota:'', temp:5, tempOk:true, vencimiento:'2025-04-05', aceptado:true}
+      ]
+    },
+    {
+      id:'r3', proveedorId:'p3', proveedorNombre:'Central de Abastos',
+      fecha:'2025-03-29', hora:'07:45', recibidoPor:'Chef Carlos',
+      items:[
+        {nombre:'Jitomate', pedido:20, recibido:18, unidad:'kg', calidad:'Regular', calNota:'Algunos con golpes', temp:null, tempOk:true, vencimiento:'2025-04-03', aceptado:true},
+        {nombre:'Chile serrano', pedido:3, recibido:3, unidad:'kg', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2025-04-07', aceptado:true},
+        {nombre:'Aguacate', pedido:50, recibido:45, unidad:'pza', calidad:'Regular', calNota:'5 piezas muy maduras', temp:null, tempOk:true, vencimiento:'2025-04-02', aceptado:true}
+      ]
+    },
+    {
+      id:'r4', proveedorId:'p1', proveedorNombre:'Carnicería Don Beto',
+      fecha:'2025-03-31', hora:'09:00', recibidoPor:'Encargado Luis',
+      items:[
+        {nombre:'Milanesa de res', pedido:5, recibido:5, unidad:'kg', calidad:'Malo', calNota:'Mal olor, posible mal manejo en transporte', temp:12, tempOk:false, vencimiento:'2025-04-01', aceptado:false},
+        {nombre:'Chorizo', pedido:4, recibido:4, unidad:'kg', calidad:'Bueno', calNota:'', temp:3, tempOk:true, vencimiento:'2025-04-10', aceptado:true}
+      ]
+    },
+    {
+      id:'r5', proveedorId:'p4', proveedorNombre:'Costco Empresarial',
+      fecha:'2025-04-01', hora:'11:00', recibidoPor:'Gerente Sofía',
+      items:[
+        {nombre:'Aceite vegetal', pedido:12, recibido:12, unidad:'lt', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2026-01-15', aceptado:true},
+        {nombre:'Arroz', pedido:25, recibido:25, unidad:'kg', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2026-03-01', aceptado:true},
+        {nombre:'Frijol negro', pedido:15, recibido:12, unidad:'kg', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2026-06-01', aceptado:true}
+      ]
+    },
+    {
+      id:'r6', proveedorId:'p5', proveedorNombre:'Bebidas del Norte',
+      fecha:'2025-04-02', hora:'14:30', recibidoPor:'Aux. Cocina Ana',
+      items:[
+        {nombre:'Refresco cola caja 24', pedido:5, recibido:5, unidad:'caja', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2025-12-01', aceptado:true},
+        {nombre:'Agua natural 600ml caja', pedido:10, recibido:10, unidad:'caja', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2026-01-01', aceptado:true}
+      ]
+    },
+    {
+      id:'r7', proveedorId:'p6', proveedorNombre:'Tortillería Doña Concha',
+      fecha:'2025-04-03', hora:'07:00', recibidoPor:'Chef Carlos',
+      items:[
+        {nombre:'Tortilla blanca', pedido:30, recibido:30, unidad:'kg', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2025-04-05', aceptado:true},
+        {nombre:'Tortilla azul', pedido:10, recibido:10, unidad:'kg', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2025-04-05', aceptado:true}
+      ]
+    },
+    {
+      id:'r8', proveedorId:'p3', proveedorNombre:'Central de Abastos',
+      fecha:'2025-04-04', hora:'08:00', recibidoPor:'Aux. Cocina Ana',
+      items:[
+        {nombre:'Cebolla', pedido:10, recibido:10, unidad:'kg', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2025-04-20', aceptado:true},
+        {nombre:'Limón', pedido:10, recibido:8, unidad:'kg', calidad:'Regular', calNota:'Algunos secos', temp:null, tempOk:true, vencimiento:'2025-04-15', aceptado:true},
+        {nombre:'Lechuga', pedido:12, recibido:12, unidad:'pza', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2025-04-10', aceptado:true}
+      ]
+    },
+    {
+      id:'r9', proveedorId:'p7', proveedorNombre:'Limpieza Pro',
+      fecha:'2025-04-07', hora:'12:00', recibidoPor:'Gerente Sofía',
+      items:[
+        {nombre:'Desengrasante galón', pedido:4, recibido:4, unidad:'galón', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2026-04-01', aceptado:true},
+        {nombre:'Cloro galón', pedido:6, recibido:6, unidad:'galón', calidad:'Bueno', calNota:'', temp:null, tempOk:true, vencimiento:'2026-03-01', aceptado:true}
+      ]
+    },
+    {
+      id:'r10', proveedorId:'p2', proveedorNombre:'Lácteos La Castellana',
+      fecha:'2025-04-09', hora:'09:45', recibidoPor:'Chef Carlos',
+      items:[
+        {nombre:'Mantequilla', pedido:3, recibido:3, unidad:'kg', calidad:'Bueno', calNota:'', temp:4, tempOk:true, vencimiento:'2025-05-01', aceptado:true},
+        {nombre:'Jocoque', pedido:4, recibido:4, unidad:'lt', calidad:'Bueno', calNota:'', temp:4, tempOk:true, vencimiento:'2025-04-20', aceptado:true},
+        {nombre:'Crema ácida', pedido:6, recibido:6, unidad:'lt', calidad:'Bueno', calNota:'', temp:4, tempOk:true, vencimiento:'2025-04-25', aceptado:true}
+      ]
+    }
+  ];
+  data.recepciones = recepciones;
+}
+
+function setTab(tab){
+  ['resumen','historial','estadisticas'].forEach(t => {
+    document.getElementById('view-'+t).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById('tab-'+t);
+    btn.classList.toggle('tab-active', t === tab);
+    btn.classList.toggle('tab-inactive', t !== tab);
+  });
+  if(tab === 'resumen') renderResumen();
+  if(tab === 'historial') renderHistorial();
+  if(tab === 'estadisticas') renderEstadisticas();
+}
+
+function openModal(id){
+  document.getElementById(id).classList.remove('hidden');
+  if(id === 'modalNuevaRecepcion') initNuevaRecepcion();
+}
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+function initNuevaRecepcion(){
+  const sel = document.getElementById('recProveedor');
+  sel.innerHTML = '<option value="">Seleccionar...</option>' + data.proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+  const now = new Date();
+  document.getElementById('recFecha').value = now.toISOString().split('T')[0];
+  document.getElementById('recHora').value = now.toTimeString().substring(0,5);
+  document.getElementById('recRecibidoPor').value = '';
+  itemsTemp = [];
+  document.getElementById('step1').classList.remove('hidden');
+  document.getElementById('step2').classList.add('hidden');
+}
+
+function irStep1(){
+  document.getElementById('step1').classList.remove('hidden');
+  document.getElementById('step2').classList.add('hidden');
+}
+
+function irStep2(){
+  const provId = document.getElementById('recProveedor').value;
+  const recibidoPor = document.getElementById('recRecibidoPor').value.trim();
+  if(!provId || !recibidoPor){ alert('Completa todos los campos requeridos'); return; }
+  if(!itemsTemp.length) agregarItemRecepcion();
+  renderItemsRecepcion();
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+}
+
+function agregarItemRecepcion(){
+  itemsTemp.push({nombre:'', pedido:0, recibido:0, unidad:'kg', calidad:'Bueno', calNota:'', temp:'', vencimiento:'', aceptado:true});
+  renderItemsRecepcion();
+}
+
+function renderItemsRecepcion(){
+  const container = document.getElementById('listaItemsRecepcion');
+  container.innerHTML = itemsTemp.map((item, i) => `
+    <div class="border border-gray-200 rounded-xl p-3 bg-gray-50 item-row" id="itemRow${i}">
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <div class="col-span-2">
+          <label class="text-xs font-semibold text-gray-500">Producto</label>
+          <input value="${item.nombre}" oninput="updateItem(${i},'nombre',this.value)" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white" placeholder="Nombre del producto">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Pedido</label>
+          <input type="number" value="${item.pedido}" oninput="updateItem(${i},'pedido',parseFloat(this.value)||0)" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Recibido</label>
+          <div class="flex gap-1">
+            <input type="number" value="${item.recibido}" oninput="updateItem(${i},'recibido',parseFloat(this.value)||0)" class="w-full border ${item.pedido > 0 && item.recibido < item.pedido ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-white'} rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400">
+            <select oninput="updateItem(${i},'unidad',this.value)" class="border border-gray-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
+              ${['kg','pza','lt','caja','galón','paq','rollo'].map(u => `<option ${item.unidad===u?'selected':''}>${u}</option>`).join('')}
+            </select>
+          </div>
+          ${item.pedido > 0 && item.recibido < item.pedido ? `<p class="text-xs text-orange-500 mt-0.5">⚠ Discrepancia: ${item.pedido - item.recibido} ${item.unidad} faltante(s)</p>` : ''}
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Calidad</label>
+          <select onchange="updateItem(${i},'calidad',this.value)" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white">
+            ${['Bueno','Regular','Malo'].map(q => `<option ${item.calidad===q?'selected':''}>${q}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Temperatura (°C)</label>
+          <input type="number" value="${item.temp}" oninput="updateItem(${i},'temp',this.value)" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white" placeholder="Ej: 3">
+        </div>
+        ${item.calidad !== 'Bueno' ? `<div class="col-span-2"><label class="text-xs font-semibold text-gray-500">Nota sobre calidad</label><input value="${item.calNota}" oninput="updateItem(${i},'calNota',this.value)" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white" placeholder="Describir problema..."></div>` : ''}
+        <div>
+          <label class="text-xs font-semibold text-gray-500">Fecha de vencimiento</label>
+          <input type="date" value="${item.vencimiento}" oninput="updateItem(${i},'vencimiento',this.value)" class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-400 bg-white">
+        </div>
+        <div class="flex items-end gap-2">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" ${item.aceptado?'checked':''} onchange="updateItem(${i},'aceptado',this.checked)" class="w-4 h-4">
+            <span class="text-sm font-semibold ${item.aceptado ? 'text-emerald-600' : 'text-red-600'}">${item.aceptado ? '✓ Aceptar' : '✗ Rechazar'}</span>
+          </label>
+          <button onclick="removeItem(${i})" class="text-red-400 hover:text-red-600 text-lg ml-auto">🗑️</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateItem(i, field, value){
+  itemsTemp[i][field] = value;
+  if(field === 'calidad' || field === 'pedido' || field === 'recibido' || field === 'aceptado') renderItemsRecepcion();
+}
+
+function removeItem(i){
+  itemsTemp.splice(i, 1);
+  renderItemsRecepcion();
+}
+
+function guardarRecepcion(){
+  const provId = document.getElementById('recProveedor').value;
+  const prov = data.proveedores.find(p => p.id === provId);
+  if(!prov) return;
+  const items = itemsTemp.filter(it => it.nombre.trim());
+  if(!items.length){ alert('Agrega al menos un producto'); return; }
+  const rec = {
+    id: 'r' + Date.now(),
+    proveedorId: prov.id,
+    proveedorNombre: prov.nombre,
+    fecha: document.getElementById('recFecha').value,
+    hora: document.getElementById('recHora').value,
+    recibidoPor: document.getElementById('recRecibidoPor').value,
+    items: JSON.parse(JSON.stringify(itemsTemp.filter(it => it.nombre.trim())))
+  };
+  data.recepciones.unshift(rec);
+  saveData();
+  closeModal('modalNuevaRecepcion');
+  renderResumen();
+  alert('Recepción guardada correctamente');
+}
+
+function verRecepcion(id){
+  const r = data.recepciones.find(x => x.id === id);
+  if(!r) return;
+  const prov = data.proveedores.find(p => p.id === r.proveedorId) || {};
+  const rechazados = r.items.filter(it => !it.aceptado);
+  const discrepancias = r.items.filter(it => it.pedido > 0 && it.recibido < it.pedido);
+
+  document.getElementById('contenidoVerRecepcion').innerHTML = `
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">Nota de Recepción</h2>
+        <p class="text-sm text-gray-500">${r.fecha} ${r.hora} · Recibió: ${r.recibidoPor}</p>
+      </div>
+      <button onclick="closeModal('modalVerRecepcion')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div class="bg-emerald-50 rounded-xl p-4 mb-4 flex gap-4 flex-wrap">
+      <div><p class="text-xs text-emerald-600">Proveedor</p><p class="font-bold text-gray-800">${r.proveedorNombre}</p></div>
+      <div><p class="text-xs text-emerald-600">Total ítems</p><p class="font-bold text-gray-800">${r.items.length}</p></div>
+      <div><p class="text-xs text-emerald-600">Rechazados</p><p class="font-bold ${rechazados.length > 0 ? 'text-red-600' : 'text-gray-800'}">${rechazados.length}</p></div>
+      <div><p class="text-xs text-emerald-600">Discrepancias</p><p class="font-bold ${discrepancias.length > 0 ? 'text-orange-600' : 'text-gray-800'}">${discrepancias.length}</p></div>
+    </div>
+    <div class="overflow-x-auto rounded-xl border border-gray-100 mb-4">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50"><tr>
+          <th class="text-left px-3 py-2 text-gray-500 font-semibold">Producto</th>
+          <th class="text-center px-3 py-2 text-gray-500 font-semibold">Ped</th>
+          <th class="text-center px-3 py-2 text-gray-500 font-semibold">Rec</th>
+          <th class="text-center px-3 py-2 text-gray-500 font-semibold">Calidad</th>
+          <th class="text-center px-3 py-2 text-gray-500 font-semibold hidden sm:table-cell">Temp</th>
+          <th class="text-center px-3 py-2 text-gray-500 font-semibold hidden sm:table-cell">Vence</th>
+          <th class="text-center px-3 py-2 text-gray-500 font-semibold">Estado</th>
+        </tr></thead>
+        <tbody>${r.items.map((it,i) => {
+          const discClass = it.pedido > 0 && it.recibido < it.pedido ? 'text-orange-500' : 'text-gray-800';
+          const qualClass = it.calidad === 'Bueno' ? 'quality-bueno' : it.calidad === 'Regular' ? 'quality-regular' : 'quality-malo';
+          const tempDisp = it.temp !== '' && it.temp !== null ? `<span class="text-xs px-2 py-0.5 rounded-full ${it.tempOk !== false ? 'temp-ok' : 'temp-warn'}">${it.temp}°C</span>` : '—';
+          return `<tr class="${i%2===0?'bg-white':'bg-gray-50'}">
+            <td class="px-3 py-2 font-semibold">${it.nombre}${it.calNota ? `<br><span class="text-xs text-gray-500">${it.calNota}</span>` : ''}</td>
+            <td class="px-3 py-2 text-center">${it.pedido} ${it.unidad}</td>
+            <td class="px-3 py-2 text-center font-semibold ${discClass}">${it.recibido} ${it.unidad}</td>
+            <td class="px-3 py-2 text-center"><span class="text-xs font-semibold px-2 py-0.5 rounded-full border ${qualClass}">${it.calidad}</span></td>
+            <td class="px-3 py-2 text-center hidden sm:table-cell">${tempDisp}</td>
+            <td class="px-3 py-2 text-center hidden sm:table-cell text-xs">${it.vencimiento || '—'}</td>
+            <td class="px-3 py-2 text-center"><span class="text-xs font-bold ${it.aceptado ? 'text-emerald-600' : 'text-red-600'}">${it.aceptado ? '✓ OK' : '✗ Rech'}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
+    <div class="flex flex-wrap gap-2 justify-end">
+      <button onclick="imprimirRecepcion('${r.id}')" class="border border-gray-200 text-gray-600 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition">🖨️ Imprimir nota</button>
+      ${rechazados.length > 0 && prov.whatsapp ? `<button onclick="enviarQuejaWA('${r.id}')" class="bg-red-500 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-red-600 transition">📱 Queja por WhatsApp</button>` : ''}
+    </div>
+  `;
+  openModal('modalVerRecepcion');
+}
+
+function imprimirRecepcion(id){
+  const r = data.recepciones.find(x => x.id === id);
+  if(!r) return;
+  document.getElementById('printContent').innerHTML = `
+    <h1 style="font-size:20px;font-weight:bold;margin-bottom:8px;">NOTA DE RECEPCIÓN</h1>
+    <p><b>Proveedor:</b> ${r.proveedorNombre}</p>
+    <p><b>Fecha:</b> ${r.fecha} ${r.hora}</p>
+    <p><b>Recibido por:</b> ${r.recibidoPor}</p>
+    <br>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:#d1fae5">
+        <th style="border:1px solid #ccc;padding:6px;text-align:left">Producto</th>
+        <th style="border:1px solid #ccc;padding:6px">Pedido</th>
+        <th style="border:1px solid #ccc;padding:6px">Recibido</th>
+        <th style="border:1px solid #ccc;padding:6px">Calidad</th>
+        <th style="border:1px solid #ccc;padding:6px">Temp.</th>
+        <th style="border:1px solid #ccc;padding:6px">Vence</th>
+        <th style="border:1px solid #ccc;padding:6px">Estado</th>
+      </tr></thead>
+      <tbody>${r.items.map(it => `<tr>
+        <td style="border:1px solid #ccc;padding:6px">${it.nombre}</td>
+        <td style="border:1px solid #ccc;padding:6px;text-align:center">${it.pedido} ${it.unidad}</td>
+        <td style="border:1px solid #ccc;padding:6px;text-align:center">${it.recibido} ${it.unidad}</td>
+        <td style="border:1px solid #ccc;padding:6px;text-align:center">${it.calidad}</td>
+        <td style="border:1px solid #ccc;padding:6px;text-align:center">${it.temp !== '' ? it.temp+'°C' : '—'}</td>
+        <td style="border:1px solid #ccc;padding:6px;text-align:center">${it.vencimiento || '—'}</td>
+        <td style="border:1px solid #ccc;padding:6px;text-align:center;font-weight:bold;color:${it.aceptado?'#059669':'#dc2626'}">${it.aceptado ? 'ACEPTADO' : 'RECHAZADO'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <br><p style="font-size:11px;color:#666">Firma: _________________________ · Powered by Novamente Studio</p>
+  `;
+  window.print();
+}
+
+function enviarQuejaWA(id){
+  const r = data.recepciones.find(x => x.id === id);
+  const prov = data.proveedores.find(p => p.id === r.proveedorId);
+  if(!prov?.whatsapp) return;
+  const rechazados = r.items.filter(it => !it.aceptado);
+  let msg = `*RECHAZO DE MERCADERÍA — ${r.fecha}*\n\nHola ${r.proveedorNombre},\n\nEl día ${r.fecha} recibimos su pedido y los siguientes artículos fueron *rechazados*:\n\n`;
+  rechazados.forEach(it => msg += `• *${it.nombre}* — ${it.calidad}${it.calNota ? ': '+it.calNota : ''}${it.temp && !it.tempOk ? ` (Temp: ${it.temp}°C fuera de rango)` : ''}\n`);
+  msg += '\nSolicitamos reposición o nota de crédito. Favor de contactarnos a la brevedad.\n\nGracias.';
+  window.open('https://wa.me/' + prov.whatsapp + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function renderResumen(){
+  const total = data.recepciones.length;
+  const rechazos = data.recepciones.reduce((s,r) => s + r.items.filter(it => !it.aceptado).length, 0);
+  const discrepancias = data.recepciones.reduce((s,r) => s + r.items.filter(it => it.pedido > 0 && it.recibido < it.pedido).length, 0);
+  const totalItems = data.recepciones.reduce((s,r) => s + r.items.length, 0);
+
+  document.getElementById('statsCards').innerHTML = `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4"><p class="text-xs text-gray-500 mb-1">Total recepciones</p><p class="text-3xl font-bold accent">${total}</p></div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4"><p class="text-xs text-gray-500 mb-1">Ítems recibidos</p><p class="text-3xl font-bold text-gray-800">${totalItems}</p></div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4"><p class="text-xs text-gray-500 mb-1">Discrepancias</p><p class="text-3xl font-bold text-orange-500">${discrepancias}</p></div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4"><p class="text-xs text-gray-500 mb-1">Rechazados</p><p class="text-3xl font-bold text-red-500">${rechazos}</p></div>
+  `;
+
+  const ultimas = data.recepciones.slice(0, 5);
+  document.getElementById('ultimasRecepciones').innerHTML = `
+    <h2 class="text-lg font-bold text-gray-800 mb-3">Últimas recepciones</h2>
+    <div class="space-y-3">${ultimas.map(r => {
+      const rechazados = r.items.filter(it => !it.aceptado).length;
+      const disc = r.items.filter(it => it.pedido > 0 && it.recibido < it.pedido).length;
+      return `<div onclick="verRecepcion('${r.id}')" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md hover:border-emerald-200 transition flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl accent-bg-light flex items-center justify-center text-2xl">📦</div>
+        <div class="flex-1 min-w-0">
+          <p class="font-bold text-gray-800 text-sm truncate">${r.proveedorNombre}</p>
+          <p class="text-xs text-gray-500">${r.fecha} ${r.hora} · ${r.recibidoPor}</p>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-700 font-semibold px-2 py-1 rounded-full">${r.items.length} ítems</span>
+          ${disc > 0 ? `<span class="bg-orange-100 text-orange-700 font-semibold px-2 py-1 rounded-full">${disc} disc</span>` : ''}
+          ${rechazados > 0 ? `<span class="bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-full">${rechazados} rech</span>` : ''}
+        </div>
+      </div>`;
+    }).join('')}</div>
+  `;
+}
+
+function renderHistorial(){
+  const q = (document.getElementById('buscarHistorial').value || '').toLowerCase();
+  const fecha = document.getElementById('filtroFecha').value;
+  const filtered = data.recepciones.filter(r =>
+    (!q || r.proveedorNombre.toLowerCase().includes(q) || r.items.some(it => it.nombre.toLowerCase().includes(q)) || r.recibidoPor.toLowerCase().includes(q)) &&
+    (!fecha || r.fecha === fecha)
+  );
+  document.getElementById('listaHistorial').innerHTML = filtered.length === 0
+    ? '<p class="text-gray-400 text-center py-12 bg-white rounded-2xl border border-gray-100">No se encontraron recepciones</p>'
+    : filtered.map(r => {
+      const rechazados = r.items.filter(it => !it.aceptado).length;
+      const disc = r.items.filter(it => it.pedido > 0 && it.recibido < it.pedido).length;
+      const calidades = r.items.map(it => it.calidad);
+      const hayMalo = calidades.includes('Malo');
+      const hayRegular = calidades.includes('Regular');
+      return `<div onclick="verRecepcion('${r.id}')" class="bg-white rounded-2xl shadow-sm border ${hayMalo ? 'border-red-200' : hayRegular ? 'border-orange-200' : 'border-gray-100'} p-4 cursor-pointer hover:shadow-md transition print-section">
+        <div class="flex items-start justify-between mb-2">
+          <div>
+            <p class="font-bold text-gray-800">${r.proveedorNombre}</p>
+            <p class="text-xs text-gray-500">${r.fecha} ${r.hora} · Recibió: ${r.recibidoPor}</p>
+          </div>
+          <div class="flex flex-col gap-1 items-end">
+            ${rechazados > 0 ? `<span class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">⚠ ${rechazados} rechazado(s)</span>` : ''}
+            ${disc > 0 ? `<span class="text-xs bg-orange-100 text-orange-700 font-semibold px-2 py-0.5 rounded-full">📉 ${disc} discrepancia(s)</span>` : ''}
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1">${r.items.slice(0,5).map(it => `<span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${it.nombre}</span>`).join('')}${r.items.length > 5 ? `<span class="text-xs text-gray-400">+${r.items.length-5} más</span>` : ''}</div>
+      </div>`;
+    }).join('');
+}
+
+let chartRechazoInstance = null, chartDiscInstance2 = null;
+function renderEstadisticas(){
+  // Rejection rate by supplier
+  const rechazoPorProv = {};
+  const totalPorProv = {};
+  data.recepciones.forEach(r => {
+    if(!rechazoPorProv[r.proveedorNombre]) { rechazoPorProv[r.proveedorNombre]=0; totalPorProv[r.proveedorNombre]=0; }
+    r.items.forEach(it => {
+      totalPorProv[r.proveedorNombre]++;
+      if(!it.aceptado) rechazoPorProv[r.proveedorNombre]++;
+    });
+  });
+  const provs = Object.keys(rechazoPorProv);
+  const tasas = provs.map(p => totalPorProv[p] > 0 ? Math.round(rechazoPorProv[p]/totalPorProv[p]*100) : 0);
+
+  if(chartRechazoInstance) chartRechazoInstance.destroy();
+  chartRechazoInstance = new Chart(document.getElementById('chartRechazo').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: provs.map(p => p.length > 15 ? p.substring(0,15)+'…' : p),
+      datasets: [{ label: '% Rechazo', data: tasas, backgroundColor: '#fca5a5', borderColor: '#dc2626', borderWidth:2, borderRadius:8 }]
+    },
+    options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v => v+'%'}, max:100}} }
+  });
+
+  // Discrepancy products
+  const discPorProd = {};
+  data.recepciones.forEach(r => {
+    r.items.forEach(it => {
+      if(it.pedido > 0 && it.recibido < it.pedido){
+        discPorProd[it.nombre] = (discPorProd[it.nombre]||0) + 1;
+      }
+    });
+  });
+  const prods = Object.keys(discPorProd).sort((a,b) => discPorProd[b]-discPorProd[a]).slice(0,6);
+
+  if(chartDiscInstance2) chartDiscInstance2.destroy();
+  chartDiscInstance2 = new Chart(document.getElementById('chartDisc').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: prods,
+      datasets: [{ label: 'Discrepancias', data: prods.map(p => discPorProd[p]), backgroundColor: '#fed7aa', borderColor: '#ea580c', borderWidth:2, borderRadius:8 }]
+    },
+    options: { responsive:true, plugins:{legend:{display:false}}, indexAxis:'y' }
+  });
+
+  // Tabla problemática
+  const problemData = provs.map(p => ({
+    nombre: p,
+    total: totalPorProv[p],
+    rechazos: rechazoPorProv[p],
+    tasa: totalPorProv[p] > 0 ? (rechazoPorProv[p]/totalPorProv[p]*100).toFixed(1) : '0.0'
+  })).sort((a,b) => parseFloat(b.tasa)-parseFloat(a.tasa));
+
+  document.getElementById('tablaProblemas').innerHTML = `
+    <h3 class="font-bold text-gray-800 mb-3">Resumen por proveedor</h3>
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50"><tr>
+        <th class="text-left px-4 py-2 text-gray-500 font-semibold">Proveedor</th>
+        <th class="text-center px-4 py-2 text-gray-500 font-semibold">Ítems recibidos</th>
+        <th class="text-center px-4 py-2 text-gray-500 font-semibold">Rechazados</th>
+        <th class="text-center px-4 py-2 text-gray-500 font-semibold">Tasa de rechazo</th>
+      </tr></thead>
+      <tbody>${problemData.map((p,i) => `<tr class="${i%2===0?'bg-white':'bg-gray-50'}">
+        <td class="px-4 py-2 font-semibold">${p.nombre}</td>
+        <td class="px-4 py-2 text-center">${p.total}</td>
+        <td class="px-4 py-2 text-center text-red-600 font-bold">${p.rechazos}</td>
+        <td class="px-4 py-2 text-center"><span class="text-xs font-semibold px-2 py-1 rounded-full ${parseFloat(p.tasa) > 10 ? 'bg-red-100 text-red-700' : parseFloat(p.tasa) > 0 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}">${p.tasa}%</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  `;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('footerYear').textContent = new Date().getFullYear();
+  loadData();
+  renderResumen();
+  document.querySelectorAll('.modal-backdrop').forEach(m => m.addEventListener('click', e => { if(e.target === m) m.classList.add('hidden'); }));
+});
+</script>
+</body>
+</html>

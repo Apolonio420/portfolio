@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Valuacion de Propiedades — Novamente Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { font-family: 'Plus Jakarta Sans', sans-serif; }
+.blue-grad { background: linear-gradient(135deg, #1e40af, #1d4ed8); }
+.gold-grad { background: linear-gradient(135deg, #92400e, #d97706); }
+.card-hover { transition: all .2s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(30,64,175,.15); }
+.range-input { -webkit-appearance:none; width:100%; height:6px; border-radius:3px; background:#dbeafe; outline:none; }
+.range-input::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:#1e40af; cursor:pointer; }
+@media print {
+  .no-print { display:none!important; }
+  .print-only { display:block!important; }
+  body { background:white!important; font-size:12px; }
+  .print-page { page-break-inside:avoid; }
+}
+.print-only { display:none; }
+</style>
+</head>
+<body class="bg-blue-50 min-h-screen">
+
+<header class="blue-grad text-white shadow-lg no-print">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <div class="bg-white/20 rounded-xl p-2">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold">Valuacion de Propiedades</h1>
+        <p class="text-blue-100 text-xs">Avaluo inmobiliario — Ciudad de Mexico</p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="showCalculator()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all">Nueva Valuacion</button>
+      <button onclick="showConfig()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all">Config. Zonas</button>
+    </div>
+  </div>
+</header>
+
+<div class="bg-white border-b border-blue-100 no-print">
+  <div class="max-w-6xl mx-auto px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+    <div><div class="text-2xl font-bold text-blue-700" id="s-total">0</div><div class="text-xs text-gray-500">Valuaciones</div></div>
+    <div><div class="text-2xl font-bold text-amber-600" id="s-avg">$0</div><div class="text-xs text-gray-500">Valor promedio</div></div>
+    <div><div class="text-2xl font-bold text-green-600" id="s-max">$0</div><div class="text-xs text-gray-500">Valor maximo</div></div>
+    <div><div class="text-2xl font-bold text-blue-500" id="s-m2">$0</div><div class="text-xs text-gray-500">Precio prom. m2</div></div>
+  </div>
+</div>
+
+<div class="max-w-6xl mx-auto px-4 py-6 no-print">
+  <div id="hist-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+</div>
+
+<!-- Calculator Modal -->
+<div id="calc-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto no-print">
+  <div class="bg-white rounded-2xl w-full max-w-2xl my-4 shadow-2xl">
+    <div class="blue-grad text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
+      <h2 class="text-lg font-bold" id="calc-title">Nueva Valuacion</h2>
+      <button onclick="closeCalc()" class="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="p-5 max-h-[85vh] overflow-y-auto">
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Left: Inputs -->
+        <div class="space-y-3">
+          <div><label class="text-xs font-semibold text-gray-600 block mb-1">Colonia/Zona *</label>
+            <select id="v-zone" onchange="calcValuation()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" id="v-zone"></select></div>
+          <div><label class="text-xs font-semibold text-gray-600 block mb-1">Direccion / Referencia</label>
+            <input id="v-addr" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="Calle, numero, referencias"></div>
+          <div><label class="text-xs font-semibold text-gray-600 block mb-1">Superficie construida (m2) *</label>
+            <input id="v-m2" type="number" min="10" value="100" oninput="calcValuation()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"></div>
+          <div class="grid grid-cols-3 gap-2">
+            <div><label class="text-xs font-semibold text-gray-600 block mb-1">Recamaras</label>
+              <select id="v-rooms" onchange="calcValuation()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5+">5+</option>
+              </select></div>
+            <div><label class="text-xs font-semibold text-gray-600 block mb-1">Banos</label>
+              <select id="v-baths" onchange="calcValuation()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option>
+              </select></div>
+            <div><label class="text-xs font-semibold text-gray-600 block mb-1">Estacion.</label>
+              <select id="v-park" onchange="calcValuation()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="0">0</option><option value="1" selected>1</option><option value="2">2</option><option value="3+">3+</option>
+              </select></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div><label class="text-xs font-semibold text-gray-600 block mb-1">Anos de construccion</label>
+              <input id="v-age" type="number" min="0" max="80" value="10" oninput="calcValuation()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"></div>
+            <div><label class="text-xs font-semibold text-gray-600 block mb-1">Estado general</label>
+              <select id="v-cond" onchange="calcValuation()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="excelente">Excelente</option><option value="bueno" selected>Bueno</option><option value="regular">Regular</option><option value="malo">Necesita remodelacion</option>
+              </select></div>
+          </div>
+          <div><label class="text-xs font-semibold text-gray-600 block mb-1">Amenidades</label>
+            <div class="grid grid-cols-2 gap-1">
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" id="a-gym" onchange="calcValuation()" class="rounded text-blue-600"> Gimnasio</label>
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" id="a-pool" onchange="calcValuation()" class="rounded text-blue-600"> Alberca</label>
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" id="a-roof" onchange="calcValuation()" class="rounded text-blue-600"> Roof garden</label>
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" id="a-lobby" onchange="calcValuation()" class="rounded text-blue-600"> Lobby/Concierge</label>
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" id="a-seg" onchange="calcValuation()" class="rounded text-blue-600"> Seguridad 24h</label>
+              <label class="flex items-center gap-1.5 text-xs cursor-pointer"><input type="checkbox" id="a-bici" onchange="calcValuation()" class="rounded text-blue-600"> Estacionam. bici</label>
+            </div>
+          </div>
+          <div><label class="text-xs font-semibold text-gray-600 block mb-1">Tipo de operacion</label>
+            <select id="v-op" onchange="calcValuation()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="venta">Venta</option><option value="renta">Renta</option>
+            </select></div>
+          <div><label class="text-xs font-semibold text-gray-600 block mb-1">Nombre del perito / agente</label>
+            <input id="v-agent" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="Nombre del valuador"></div>
+        </div>
+        <!-- Right: Result -->
+        <div>
+          <div class="blue-grad text-white rounded-2xl p-4 mb-4 text-center">
+            <div class="text-xs text-blue-100 mb-1">Valor estimado de</div>
+            <div id="r-op" class="text-sm font-bold text-blue-200 mb-2">Venta</div>
+            <div id="r-low" class="text-blue-200 text-sm mb-1">Rango: $0 — $0 MXN</div>
+            <div id="r-val" class="text-3xl font-black mt-1">$0 MXN</div>
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between py-1.5 border-b border-gray-100"><span class="text-gray-500">Precio/m2 zona</span><span id="r-m2" class="font-semibold text-blue-700">$0</span></div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100"><span class="text-gray-500">Valor base (m2)</span><span id="r-base" class="font-semibold">$0</span></div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100"><span class="text-gray-500">Ajuste habitaciones</span><span id="r-adj-rooms" class="font-semibold text-green-600">+$0</span></div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100"><span class="text-gray-500">Ajuste edad/estado</span><span id="r-adj-age" class="font-semibold">$0</span></div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100"><span class="text-gray-500">Ajuste amenidades</span><span id="r-adj-am" class="font-semibold text-green-600">+$0</span></div>
+            <div class="flex justify-between py-1.5 border-b border-gray-100"><span class="text-gray-500">Ajuste estacionam.</span><span id="r-adj-park" class="font-semibold text-green-600">+$0</span></div>
+          </div>
+          <div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+            <p class="font-bold mb-1">Comparables de mercado (estimados)</p>
+            <div id="r-comps"></div>
+          </div>
+          <div class="mt-4 bg-blue-50 rounded-xl p-3 text-xs text-gray-600">
+            Esta valuacion es referencial. Los valores reales dependen de factores de mercado actuales, negociacion y condiciones especificas de la propiedad.
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5 flex-wrap">
+        <button onclick="saveValuation()" class="flex-1 blue-grad text-white py-2.5 rounded-xl font-semibold text-sm hover:opacity-90">Guardar Valuacion</button>
+        <button onclick="shareValuacionWA()" class="px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700">WhatsApp</button>
+        <button onclick="printReport()" class="px-4 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700">Imprimir</button>
+        <button onclick="closeCalc()" class="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Config Modal -->
+<div id="config-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto no-print">
+  <div class="bg-white rounded-2xl w-full max-w-lg my-4 shadow-2xl">
+    <div class="blue-grad text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
+      <h2 class="text-lg font-bold">Configuracion de Zonas</h2>
+      <button onclick="document.getElementById('config-modal').classList.add('hidden')" class="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="p-5 max-h-[80vh] overflow-y-auto">
+      <p class="text-xs text-gray-500 mb-3">Precio base por m2 en pesos MXN para cada zona/colonia</p>
+      <div id="zones-list" class="space-y-2"></div>
+      <button onclick="addZone()" class="mt-3 w-full border-2 border-dashed border-blue-300 text-blue-600 py-2 rounded-xl text-sm font-medium hover:bg-blue-50">+ Agregar Zona</button>
+      <button onclick="document.getElementById('config-modal').classList.add('hidden')" class="mt-3 w-full blue-grad text-white py-2.5 rounded-xl font-semibold text-sm hover:opacity-90">Guardar y Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print Area -->
+<div class="print-only p-8" id="print-area">
+  <div id="print-body"></div>
+  <div style="margin-top:32px;text-align:center;font-size:11px;color:#999;border-top:1px solid #ddd;padding-top:12px;">Powered by Novamente Studio — valuacion-propiedades.html</div>
+</div>
+
+<footer class="text-center py-6 text-xs text-blue-400/60 no-print">Powered by <span class="font-semibold text-blue-600">Novamente Studio</span></footer>
+
+<script>
+const SK = 'novadev_valuacion_v1', SKZ = 'novadev_valuacion_zones_v1';
+let valuations = [], zones = [], editId = null;
+
+const DEFAULT_ZONES = [
+  {id:'polanco', name:'Polanco', m2:85000},
+  {id:'condesa', name:'Condesa', m2:72000},
+  {id:'roma', name:'Roma Norte/Sur', m2:68000},
+  {id:'narvarte', name:'Narvarte', m2:52000},
+  {id:'del-valle', name:'Del Valle', m2:55000},
+  {id:'coyoacan', name:'Coyoacan', m2:50000},
+  {id:'sattelite', name:'Satelite/Echegaray', m2:42000},
+  {id:'xochimilco', name:'Xochimilco/Sur', m2:28000},
+  {id:'iztapalapa', name:'Iztapalapa/Oriente', m2:22000},
+  {id:'ecatepec', name:'Ecatepec/Estado', m2:18000}
+];
+
+const DEMO_VALS = [
+  {id:1,zone:'polanco',zoneName:'Polanco',addr:'Emilio Castelar 220, Polanco',m2:180,rooms:'3',baths:'3',park:'2',age:5,cond:'excelente',amenities:['gym','pool','lobby','seg'],op:'venta',agent:'Lic. Roberto Salinas',date:'2026-04-10',value:22800000,rentVal:0},
+  {id:2,zone:'condesa',zoneName:'Condesa',addr:'Av. Amsterdam 95, Condesa',m2:95,rooms:'2',baths:'2',park:'1',age:15,cond:'bueno',amenities:['roof','seg'],op:'venta',agent:'Arq. Ana Flores',date:'2026-04-08',value:9350000,rentVal:0},
+  {id:3,zone:'narvarte',zoneName:'Narvarte',addr:'Insurgentes Sur 890, Narvarte',m2:130,rooms:'3',baths:'2',park:'1',age:25,cond:'regular',amenities:[],op:'renta',agent:'Lic. Carlos Vega',date:'2026-04-05',value:0,rentVal:28000}
+];
+
+function load() {
+  const sv = localStorage.getItem(SK), sz = localStorage.getItem(SKZ);
+  valuations = sv ? JSON.parse(sv) : DEMO_VALS;
+  zones = sz ? JSON.parse(sz) : DEFAULT_ZONES;
+  if (!sv) saveAll();
+}
+function saveAll() { localStorage.setItem(SK, JSON.stringify(valuations)); localStorage.setItem(SKZ, JSON.stringify(zones)); }
+function mxn(n) { return '$' + Math.round(n).toLocaleString('es-MX'); }
+function mxnK(n) { return n>=1000000 ? '$' + (n/1000000).toFixed(2) + ' M' : '$' + Math.round(n).toLocaleString('es-MX'); }
+
+function calcValuation() {
+  const zoneId = document.getElementById('v-zone')?.value;
+  const zone = zones.find(z=>z.id===zoneId)||zones[0];
+  const m2 = parseFloat(document.getElementById('v-m2')?.value)||100;
+  const rooms = parseInt(document.getElementById('v-rooms')?.value)||3;
+  const baths = parseInt(document.getElementById('v-baths')?.value)||2;
+  const park = document.getElementById('v-park')?.value||'1';
+  const age = parseInt(document.getElementById('v-age')?.value)||10;
+  const cond = document.getElementById('v-cond')?.value||'bueno';
+  const op = document.getElementById('v-op')?.value||'venta';
+
+  const amenMap = {gym:'a-gym',pool:'a-pool',roof:'a-roof',lobby:'a-lobby',seg:'a-seg',bici:'a-bici'};
+  const amenities = Object.entries(amenMap).filter(([k,id])=>document.getElementById(id)?.checked).map(([k])=>k);
+
+  const base = zone.m2 * m2;
+
+  const condFactor = {excelente:1.12, bueno:1.0, regular:0.88, malo:0.75}[cond]||1;
+  const ageFactor = Math.max(0.5, 1 - (age * 0.008));
+  const adjAge = base * (condFactor * ageFactor - 1);
+
+  const adjRooms = (rooms - 2) * zone.m2 * 8;
+  const adjBaths = (baths - 2) * zone.m2 * 5;
+  const parkMap = {'0':0,'1':0,'2':zone.m2*15,'3+':zone.m2*25};
+  const adjPark = parkMap[park]||0;
+  const adjAm = amenities.length * zone.m2 * 3;
+
+  let total = base + adjAge + adjRooms + adjBaths + adjPark + adjAm;
+  if (total < 500000) total = 500000;
+
+  const low = total * 0.9, high = total * 1.1;
+  const rentVal = total * 0.004; // 0.4% monthly rent rule
+
+  document.getElementById('r-op').textContent = op==='venta'?'Venta':'Renta mensual';
+  document.getElementById('r-val').textContent = op==='venta'?mxn(total)+' MXN': mxn(rentVal)+'/mes';
+  document.getElementById('r-low').textContent = `Rango: ${mxn(low)} — ${mxn(high)}`;
+  document.getElementById('r-m2').textContent = mxn(zone.m2) + '/m2';
+  document.getElementById('r-base').textContent = mxn(base);
+  document.getElementById('r-adj-rooms').textContent = (adjRooms+adjBaths >= 0 ? '+' : '') + mxn(adjRooms+adjBaths);
+  document.getElementById('r-adj-age').textContent = (adjAge >= 0 ? '+' : '') + mxn(adjAge);
+  document.getElementById('r-adj-am').textContent = '+' + mxn(adjAm);
+  document.getElementById('r-adj-park').textContent = '+' + mxn(adjPark);
+
+  // Comparables
+  const comps = [
+    {desc:'Depto similar en zona', area:m2-15, price:total*0.93, op},
+    {desc:'Propiedad +recamara', area:m2+20, price:total*1.12, op},
+    {desc:'Con menos amenidades', area:m2, price:total*0.85, op}
+  ];
+  document.getElementById('r-comps').innerHTML = comps.map(c=>`<div class="flex justify-between mt-1"><span>${c.desc} (${c.area}m2)</span><span class="font-semibold">${mxn(op==='venta'?c.price:c.price*0.004)}</span></div>`).join('');
+
+  window._currentCalc = {zone:zoneId, zoneName:zone.name, m2, rooms, baths, park, age, cond, amenities, op, value:op==='venta'?total:0, rentVal:op==='renta'?rentVal:0};
+}
+
+function showCalculator(id=null) {
+  editId = id;
+  document.getElementById('calc-title').textContent = id ? 'Editar Valuacion' : 'Nueva Valuacion';
+  // Populate zones dropdown
+  const sel = document.getElementById('v-zone');
+  sel.innerHTML = zones.map(z=>`<option value="${z.id}">${z.name} — ${mxn(z.m2)}/m2</option>`).join('');
+  if (id) {
+    const v = valuations.find(x=>x.id===id);
+    if (v) {
+      sel.value = v.zone;
+      document.getElementById('v-addr').value = v.addr||'';
+      document.getElementById('v-m2').value = v.m2;
+      document.getElementById('v-rooms').value = v.rooms;
+      document.getElementById('v-baths').value = v.baths;
+      document.getElementById('v-park').value = v.park;
+      document.getElementById('v-age').value = v.age;
+      document.getElementById('v-cond').value = v.cond;
+      document.getElementById('v-op').value = v.op;
+      document.getElementById('v-agent').value = v.agent||'';
+      const amenMap = {gym:'a-gym',pool:'a-pool',roof:'a-roof',lobby:'a-lobby',seg:'a-seg',bici:'a-bici'};
+      Object.entries(amenMap).forEach(([k,el])=>{ document.getElementById(el).checked = v.amenities.includes(k); });
+    }
+  }
+  calcValuation();
+  document.getElementById('calc-modal').classList.remove('hidden');
+}
+function closeCalc() { document.getElementById('calc-modal').classList.add('hidden'); }
+
+function saveValuation() {
+  const c = window._currentCalc; if (!c) return;
+  const zone = zones.find(z=>z.id===c.zone);
+  const v = {
+    id: editId||Date.now(),
+    zone: c.zone, zoneName: zone?.name||c.zone,
+    addr: document.getElementById('v-addr').value.trim(),
+    m2: c.m2, rooms: c.rooms, baths: c.baths, park: c.park,
+    age: c.age, cond: c.cond, amenities: c.amenities, op: c.op,
+    agent: document.getElementById('v-agent').value.trim(),
+    date: new Date().toISOString().split('T')[0],
+    value: c.value, rentVal: c.rentVal
+  };
+  if (editId) { const i=valuations.findIndex(x=>x.id===editId); if(i>=0) valuations[i]=v; } else valuations.push(v);
+  saveAll(); closeCalc(); renderHist(); updateStats();
+}
+
+function printReport() {
+  const c = window._currentCalc; if (!c) return;
+  const zone = zones.find(z=>z.id===c.zone)||{name:c.zone,m2:0};
+  const val = c.op==='venta'?c.value:c.rentVal;
+  const fmtCond = {excelente:'Excelente',bueno:'Buena',regular:'Regular',malo:'Necesita remodelacion'}[c.cond];
+  document.getElementById('print-body').innerHTML = `
+    <div class="print-page">
+      <div style="background:linear-gradient(135deg,#1e40af,#1d4ed8);color:white;padding:20px;border-radius:8px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><h1 style="font-size:22px;font-weight:800;margin:0">REPORTE DE VALUACION</h1><p style="margin:4px 0 0;font-size:13px;opacity:.8">Inmobiliaria Premium — Ciudad de Mexico</p></div>
+          <div style="text-align:right;font-size:12px;opacity:.8"><div>Fecha: ${new Date().toLocaleDateString('es-MX')}</div><div>Valuador: ${document.getElementById('v-agent').value||'No especificado'}</div></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div style="border:1px solid #dbeafe;border-radius:8px;padding:16px;">
+          <h3 style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:12px;">DATOS DE LA PROPIEDAD</h3>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <tr><td style="padding:4px 0;color:#6b7280">Ubicacion:</td><td style="font-weight:600">${document.getElementById('v-addr').value||'Sin especificar'}</td></tr>
+            <tr><td style="padding:4px 0;color:#6b7280">Zona:</td><td style="font-weight:600">${zone.name}</td></tr>
+            <tr><td style="padding:4px 0;color:#6b7280">Superficie:</td><td style="font-weight:600">${c.m2} m2 construidos</td></tr>
+            <tr><td style="padding:4px 0;color:#6b7280">Recamaras:</td><td style="font-weight:600">${c.rooms}</td></tr>
+            <tr><td style="padding:4px 0;color:#6b7280">Banos:</td><td style="font-weight:600">${c.baths}</td></tr>
+            <tr><td style="padding:4px 0;color:#6b7280">Estacionamientos:</td><td style="font-weight:600">${c.park}</td></tr>
+            <tr><td style="padding:4px 0;color:#6b7280">Anos construccion:</td><td style="font-weight:600">${c.age} anos</td></tr>
+            <tr><td style="padding:4px 0;color:#6b7280">Estado:</td><td style="font-weight:600">${fmtCond}</td></tr>
+            <tr><td style="padding:4px 0;color:#6b7280">Amenidades:</td><td style="font-weight:600">${c.amenities.length ? c.amenities.join(', ') : 'Ninguna'}</td></tr>
+          </table>
+        </div>
+        <div style="border:2px solid #1e40af;border-radius:8px;padding:16px;text-align:center;background:#eff6ff;">
+          <div style="font-size:13px;color:#1e40af;font-weight:700;margin-bottom:4px;">VALOR ESTIMADO DE ${c.op==='venta'?'VENTA':'RENTA MENSUAL'}</div>
+          <div style="font-size:32px;font-weight:800;color:#1e40af;margin:8px 0">${mxn(val)}</div>
+          <div style="font-size:11px;color:#6b7280">Rango estimado</div>
+          <div style="font-size:13px;font-weight:600;color:#374151">${mxn(val*0.9)} — ${mxn(val*1.1)}</div>
+          <div style="margin-top:12px;font-size:11px;color:#6b7280">Precio por m2 en zona</div>
+          <div style="font-size:16px;font-weight:700;color:#1e40af">${mxn(zone.m2)}/m2</div>
+        </div>
+      </div>
+      <div style="border:1px solid #fde68a;background:#fffbeb;border-radius:8px;padding:12px;font-size:11px;color:#92400e;">
+        <strong>Nota importante:</strong> Esta valuacion es un estimado referencial basado en datos de mercado de la zona. El valor final puede variar segun condiciones especificas de la propiedad, negociacion entre partes y condiciones del mercado inmobiliario al momento de la operacion. Se recomienda verificar con peritos valuadores certificados (INDAABIN/SHF).
+      </div>
+    </div>`;
+  window.print();
+}
+
+function renderHist() {
+  const g = document.getElementById('hist-grid');
+  if (!valuations.length) { g.innerHTML='<div class="col-span-3 text-center py-16 text-gray-400"><div class="text-5xl mb-3">🏠</div><p>Sin valuaciones. Crea la primera.</p></div>'; return; }
+  g.innerHTML = valuations.map(v=>{
+    const val = v.op==='venta'?v.value:v.rentVal;
+    const condLabel = {excelente:'Excelente',bueno:'Bueno',regular:'Regular',malo:'Requiere remodelacion'}[v.cond]||v.cond;
+    return `<div class="bg-white rounded-2xl shadow-sm border border-blue-100 card-hover">
+      <div class="blue-grad text-white px-4 py-3 rounded-t-2xl">
+        <div class="flex justify-between items-start">
+          <div class="font-bold text-lg">${mxnK(val)}</div>
+          <span class="bg-white/20 text-xs px-2 py-0.5 rounded-full">${v.op==='venta'?'Venta':'Renta'}</span>
+        </div>
+        <p class="text-blue-100 text-xs mt-1 truncate">${v.addr||v.zoneName}</p>
+      </div>
+      <div class="p-4 space-y-2">
+        <div class="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+          <span class="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">${v.zoneName}</span>
+          <span>${v.m2}m2</span>
+          <span>${v.rooms} rec.</span>
+          <span>${v.baths} ban.</span>
+        </div>
+        <div class="text-xs text-gray-500 flex justify-between">
+          <span>Estado: ${condLabel}</span>
+          <span>${v.date||''}</span>
+        </div>
+        ${v.agent?`<div class="text-xs text-gray-500">Perito: ${v.agent}</div>`:''}
+        <div class="flex gap-2 mt-2">
+          <button onclick="showCalculator(${v.id})" class="flex-1 text-xs bg-blue-50 text-blue-700 py-1.5 rounded-lg hover:bg-blue-100 font-medium">Editar</button>
+          <button onclick="printValuation(${v.id})" class="text-xs bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-100 font-medium">Imprimir</button>
+          <button onclick="delVal(${v.id})" class="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-100 font-medium">x</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function printValuation(id) {
+  const v = valuations.find(x=>x.id===id); if (!v) return;
+  const val = v.op==='venta'?v.value:v.rentVal;
+  document.getElementById('print-body').innerHTML = `
+    <div>
+      <div style="background:linear-gradient(135deg,#1e40af,#1d4ed8);color:white;padding:20px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between">
+        <div><h1 style="margin:0;font-size:20px;font-weight:800">REPORTE DE VALUACION</h1><p style="margin:4px 0 0;font-size:12px;opacity:.8">${v.addr||v.zoneName}</p></div>
+        <div style="text-align:right;font-size:11px;opacity:.8"><div>${v.date}</div><div>${v.agent||''}</div></div>
+      </div>
+      <div style="display:flex;gap:16px;">
+        <div style="flex:1;border:1px solid #dbeafe;padding:12px;border-radius:8px;font-size:12px;">
+          <div style="font-weight:700;color:#1e40af;margin-bottom:8px">Datos de la propiedad</div>
+          <div>Zona: <b>${v.zoneName}</b></div>
+          <div>Superficie: <b>${v.m2} m2</b></div>
+          <div>Recamaras/Banos: <b>${v.rooms}/${v.baths}</b></div>
+          <div>Estacionamientos: <b>${v.park}</b></div>
+          <div>Anos construccion: <b>${v.age}</b></div>
+          <div>Estado: <b>${v.cond}</b></div>
+          <div>Amenidades: <b>${v.amenities.join(', ')||'Ninguna'}</b></div>
+        </div>
+        <div style="text-align:center;border:2px solid #1e40af;padding:16px;border-radius:8px;background:#eff6ff;min-width:180px">
+          <div style="font-size:11px;color:#1e40af;font-weight:700">VALOR ${v.op==='venta'?'VENTA':'RENTA/MES'}</div>
+          <div style="font-size:28px;font-weight:800;color:#1e40af;margin:8px 0">${mxn(val)}</div>
+          <div style="font-size:10px;color:#6b7280">Rango: ${mxn(val*0.9)} — ${mxn(val*1.1)}</div>
+        </div>
+      </div>
+    </div>`;
+  window.print();
+}
+
+function delVal(id) {
+  if (!confirm('Eliminar esta valuacion?')) return;
+  valuations = valuations.filter(v=>v.id!==id);
+  saveAll(); renderHist(); updateStats();
+}
+
+function updateStats() {
+  const vals = valuations.map(v=>v.op==='venta'?v.value:v.rentVal*200);
+  const avg = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+  const max = vals.length ? Math.max(...vals) : 0;
+  const avgM2 = valuations.length ? valuations.reduce((a,v)=>{
+    const z=zones.find(z=>z.id===v.zone); return a+(z?z.m2:0);
+  },0)/valuations.length : 0;
+  document.getElementById('s-total').textContent = valuations.length;
+  document.getElementById('s-avg').textContent = mxnK(avg);
+  document.getElementById('s-max').textContent = mxnK(max);
+  document.getElementById('s-m2').textContent = mxnK(avgM2)+'/m2';
+}
+
+function showConfig() {
+  renderZones();
+  document.getElementById('config-modal').classList.remove('hidden');
+}
+function renderZones() {
+  document.getElementById('zones-list').innerHTML = zones.map((z,i)=>`
+    <div class="flex items-center gap-2">
+      <input value="${z.name}" onchange="zones[${i}].name=this.value;saveAll()" class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+      <span class="text-gray-400 text-xs w-12 text-right">$</span>
+      <input type="number" value="${z.m2}" onchange="zones[${i}].m2=parseInt(this.value)||0;saveAll()" class="w-28 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 text-right">
+      <span class="text-gray-400 text-xs">/m2</span>
+      <button onclick="zones.splice(${i},1);saveAll();renderZones()" class="text-red-400 hover:text-red-600 font-bold">&times;</button>
+    </div>`).join('');
+}
+function addZone() {
+  zones.push({id:'zona-'+Date.now(),name:'Nueva Zona',m2:30000});
+  saveAll(); renderZones();
+}
+
+// ===================== WHATSAPP REPORTE =====================
+function shareValuacionWA() {
+  const c = window._currentCalc; if (!c) { alert('Primero calcula una valuacion'); return; }
+  const zone = zones.find(z=>z.id===c.zone)||{name:c.zone};
+  const val = c.op==='venta'?c.value:c.rentVal;
+  const addr = document.getElementById('v-addr')?.value||'Sin especificar';
+  const agent = document.getElementById('v-agent')?.value||'';
+  const msg = `*Reporte de Valuacion — Novamente Studio*\n\nPropiedad: ${addr}\nZona: ${zone.name}\nSuperficie: ${c.m2} m2\nRecamaras: ${c.rooms} | Banos: ${c.baths}\n\n*Valor estimado de ${c.op==='venta'?'VENTA':'RENTA MENSUAL'}:*\n${mxn(val)} MXN\n\nRango: ${mxn(val*0.9)} — ${mxn(val*1.1)}\n${agent?'Perito: '+agent:''}\n\n_Valuacion generada en Novamente Studio_`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+document.getElementById('calc-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCalc();});
+document.getElementById('config-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.add('hidden');});
+
+load(); renderHist(); updateStats();
+</script>
+</body>
+</html>

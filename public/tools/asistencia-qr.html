@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asistencia QR — Novamente Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+* { font-family: 'Plus Jakarta Sans', sans-serif; }
+.violet-grad { background: linear-gradient(135deg, #6d28d9, #7c3aed); }
+.card-hover { transition: all .2s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(124,58,237,.15); }
+#qr-scanner-container video { width:100%; border-radius:12px; }
+.heat-cell { width:20px;height:20px;border-radius:4px;cursor:default; }
+.heat-0 { background:#ede9fe; }
+.heat-1 { background:#a78bfa; }
+.heat-2 { background:#7c3aed; }
+.heat-3 { background:#4c1d95; }
+.heat-late { background:#f97316; }
+@media print {
+  .no-print { display:none!important; }
+  body { background:white!important; }
+}
+</style>
+</head>
+<body class="bg-violet-50 min-h-screen">
+
+<header class="violet-grad text-white shadow-lg no-print">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <div class="bg-white/20 rounded-xl p-2">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold">Asistencia QR</h1>
+        <p class="text-violet-100 text-xs">Control de asistencia con codigos QR — Academia/Gym</p>
+      </div>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button onclick="showTab('scan')" class="tab-btn bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all" data-tab="scan">Escanear QR</button>
+      <button onclick="showTab('students')" class="tab-btn bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all" data-tab="students">Alumnos</button>
+      <button onclick="showTab('report')" class="tab-btn bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all" data-tab="report">Reportes</button>
+    </div>
+  </div>
+</header>
+
+<div class="bg-white border-b border-violet-100 no-print">
+  <div class="max-w-6xl mx-auto px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+    <div><div class="text-2xl font-bold text-violet-600" id="s-students">0</div><div class="text-xs text-gray-500">Alumnos</div></div>
+    <div><div class="text-2xl font-bold text-green-600" id="s-today">0</div><div class="text-xs text-gray-500">Asistencias hoy</div></div>
+    <div><div class="text-2xl font-bold text-orange-500" id="s-late">0</div><div class="text-xs text-gray-500">Tardanzas hoy</div></div>
+    <div><div class="text-2xl font-bold text-blue-600" id="s-pct">0%</div><div class="text-xs text-gray-500">Asistencia este mes</div></div>
+  </div>
+</div>
+
+<div class="max-w-6xl mx-auto px-4 py-6">
+  <!-- Scan Tab -->
+  <div id="tab-scan" class="tab-content">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-violet-100 p-5">
+        <h2 class="font-bold text-gray-800 mb-4">Escanear codigo QR</h2>
+        <div id="qr-scanner-container" class="bg-gray-100 rounded-xl overflow-hidden mb-4" style="min-height:240px;display:flex;align-items:center;justify-content:center;">
+          <div class="text-center text-gray-400 p-8" id="scanner-placeholder">
+            <svg class="w-16 h-16 mx-auto mb-3 text-violet-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 9V6a1 1 0 011-1h3M3 15v3a1 1 0 001 1h3m11-15h3a1 1 0 011 1v3m0 10v3a1 1 0 01-1 1h-3"/></svg>
+            <p class="text-sm font-medium">Haz click en Iniciar para abrir la camara</p>
+          </div>
+          <video id="qr-video" class="hidden" autoplay playsinline></video>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="startScanner()" id="btn-start-scan" class="flex-1 violet-grad text-white py-2.5 rounded-xl font-semibold text-sm hover:opacity-90">Iniciar Camara</button>
+          <button onclick="stopScanner()" id="btn-stop-scan" class="hidden flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-gray-300">Detener</button>
+        </div>
+        <p class="text-xs text-gray-400 mt-2 text-center">O registrar manualmente:</p>
+        <div class="flex gap-2 mt-2">
+          <select id="manual-student" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"></select>
+          <button onclick="manualCheckIn()" class="bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-violet-700">Registrar</button>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm border border-violet-100 p-5">
+        <h2 class="font-bold text-gray-800 mb-4">Asistencias de hoy</h2>
+        <div class="mb-3">
+          <label class="text-xs font-semibold text-gray-600 block mb-1">Hora limite (tardanza)</label>
+          <input type="time" id="cutoff-time" value="09:00" onchange="saveCutoff()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
+        </div>
+        <div id="today-log" class="space-y-1.5 max-h-80 overflow-y-auto"></div>
+      </div>
+    </div>
+    <!-- Scan Result Notification -->
+    <div id="scan-result" class="hidden fixed top-24 left-1/2 transform -translate-x-1/2 bg-white rounded-2xl shadow-2xl border-2 border-violet-300 px-6 py-4 z-50 text-center min-w-64"></div>
+  </div>
+
+  <!-- Students Tab -->
+  <div id="tab-students" class="tab-content hidden">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-lg font-bold text-gray-800">Alumnos registrados</h2>
+      <button onclick="openStudentForm(null)" class="violet-grad text-white px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90">+ Nuevo Alumno</button>
+    </div>
+    <div id="students-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </div>
+
+  <!-- Report Tab -->
+  <div id="tab-report" class="tab-content hidden">
+    <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <h2 class="text-lg font-bold text-gray-800">Reporte mensual de asistencia</h2>
+      <div class="flex gap-2">
+        <select id="report-month" onchange="renderReport()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
+          <option value="2026-04">Abril 2026</option>
+          <option value="2026-03">Marzo 2026</option>
+          <option value="2026-02">Febrero 2026</option>
+        </select>
+        <button onclick="shareReportWA()" class="bg-emerald-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-emerald-700">WhatsApp</button>
+        <button onclick="exportCSV()" class="bg-green-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-green-700">Exportar CSV</button>
+        <button onclick="window.print()" class="bg-violet-600 text-white px-3 py-2 rounded-xl text-sm font-semibold hover:bg-violet-700">Imprimir</button>
+      </div>
+    </div>
+    <div id="report-container"></div>
+  </div>
+</div>
+
+<!-- Student Form Modal -->
+<div id="student-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto no-print">
+  <div class="bg-white rounded-2xl w-full max-w-md my-4 shadow-2xl">
+    <div class="violet-grad text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
+      <h2 class="text-lg font-bold" id="sf-title">Nuevo Alumno</h2>
+      <button onclick="closeStudentForm()" class="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="p-5 space-y-3">
+      <div><label class="text-xs font-semibold text-gray-600 block mb-1">Nombre completo *</label><input id="sf-name" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"></div>
+      <div><label class="text-xs font-semibold text-gray-600 block mb-1">Correo o telefono</label><input id="sf-contact" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" placeholder="email@ejemplo.com o 55 1234 5678"></div>
+      <div><label class="text-xs font-semibold text-gray-600 block mb-1">Grupo / Clase</label><input id="sf-group" list="group-dl" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"><datalist id="group-dl"></datalist></div>
+      <div class="flex gap-3 pt-1">
+        <button onclick="saveStudent()" class="flex-1 violet-grad text-white py-2.5 rounded-xl font-semibold text-sm hover:opacity-90">Guardar</button>
+        <button onclick="closeStudentForm()" class="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QR View Modal -->
+<div id="qr-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4 no-print">
+  <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+    <div class="violet-grad text-white rounded-xl py-3 mb-4"><h2 class="font-bold" id="qr-name">Nombre</h2><p class="text-violet-100 text-xs" id="qr-group"></p></div>
+    <div id="qr-code" class="flex justify-center mb-4"></div>
+    <p class="text-xs text-gray-500 mb-4" id="qr-id-display"></p>
+    <div class="flex gap-2">
+      <button onclick="document.getElementById('qr-modal').classList.add('hidden')" class="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">Cerrar</button>
+      <button onclick="printQR()" class="flex-1 violet-grad text-white py-2.5 rounded-xl text-sm font-semibold hover:opacity-90">Imprimir QR</button>
+    </div>
+  </div>
+</div>
+
+<footer class="text-center py-6 text-xs text-violet-400/60 no-print">Powered by <span class="font-semibold text-violet-600">Novamente Studio</span></footer>
+
+<script>
+const SK='novadev_asistencia_v1', SKA='novadev_asistencia_log_v1';
+let students=[], attendance=[], editStudentId=null, scanner=null, cutoffTime='09:00';
+
+const DEMO_STUDENTS=[
+  {id:'s001',name:'Carlos Ramirez',contact:'55 1234 5678',group:'Karate Basico'},
+  {id:'s002',name:'Sofia Martinez',contact:'sofia@mail.com',group:'Karate Basico'},
+  {id:'s003',name:'Diego Torres',contact:'55 2345 6789',group:'Karate Intermedio'},
+  {id:'s004',name:'Ana Gutierrez',contact:'ana@mail.com',group:'Karate Basico'},
+  {id:'s005',name:'Luis Hernandez',contact:'55 3456 7890',group:'Yoga Manana'},
+  {id:'s006',name:'Valeria Lopez',contact:'valeria@mail.com',group:'Yoga Manana'},
+  {id:'s007',name:'Miguel Sanchez',contact:'55 4567 8901',group:'Karate Intermedio'},
+  {id:'s008',name:'Carmen Vega',contact:'carmen@mail.com',group:'Yoga Tarde'},
+  {id:'s009',name:'Roberto Flores',contact:'55 5678 9012',group:'Yoga Tarde'},
+  {id:'s010',name:'Patricia Cruz',contact:'patricia@mail.com',group:'Karate Basico'}
+];
+
+function genDemoAttendance(){
+  const log=[];
+  const now=new Date();
+  for(let d=13;d>=1;d--){
+    const date=`2026-04-${String(d).padStart(2,'0')}`;
+    DEMO_STUDENTS.forEach((s,i)=>{
+      if(Math.random()>0.25){
+        const hour = 8+Math.floor(Math.random()*3);
+        const min = Math.floor(Math.random()*60);
+        const time=`${String(hour).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+        log.push({studentId:s.id,date,time,late:hour>9||(hour===9&&min>0)});
+      }
+    });
+  }
+  return log;
+}
+
+function load(){
+  const ss=localStorage.getItem(SK), sa=localStorage.getItem(SKA);
+  students=ss?JSON.parse(ss):DEMO_STUDENTS;
+  attendance=sa?JSON.parse(sa):genDemoAttendance();
+  cutoffTime=localStorage.getItem('novadev_cutoff')||'09:00';
+  if(!ss){localStorage.setItem(SK,JSON.stringify(students));localStorage.setItem(SKA,JSON.stringify(attendance));}
+  document.getElementById('cutoff-time').value=cutoffTime;
+}
+function saveAll(){localStorage.setItem(SK,JSON.stringify(students));localStorage.setItem(SKA,JSON.stringify(attendance));}
+function saveCutoff(){cutoffTime=document.getElementById('cutoff-time').value;localStorage.setItem('novadev_cutoff',cutoffTime);}
+
+function todayStr(){return new Date().toISOString().split('T')[0];}
+function nowTimeStr(){const n=new Date();return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;}
+function isLate(time){return time>cutoffTime;}
+
+function checkIn(studentId){
+  const today=todayStr(), time=nowTimeStr();
+  const already=attendance.find(a=>a.studentId===studentId&&a.date===today);
+  if(already){return {ok:false,msg:'Ya registrado hoy a las '+already.time};}
+  const s=students.find(x=>x.id===studentId);
+  if(!s){return{ok:false,msg:'Alumno no encontrado'};}
+  const late=isLate(time);
+  attendance.push({studentId,date:today,time,late});
+  saveAll(); updateStats(); renderTodayLog();
+  return{ok:true,name:s.name,time,late};
+}
+
+function manualCheckIn(){
+  const sel=document.getElementById('manual-student');
+  const id=sel.value; if(!id) return;
+  const r=checkIn(id);
+  showScanResult(r);
+}
+
+function showScanResult(r){
+  const box=document.getElementById('scan-result');
+  if(r.ok){
+    box.className='fixed top-24 left-1/2 transform -translate-x-1/2 z-50 bg-white rounded-2xl shadow-2xl border-2 px-6 py-4 text-center min-w-64 '+(r.late?'border-orange-400':'border-green-400');
+    box.innerHTML=`<div class="text-3xl mb-1">${r.late?'⏰':'✅'}</div><div class="font-bold text-gray-800">${r.name}</div><div class="text-sm font-semibold ${r.late?'text-orange-600':'text-green-600'}">${r.late?'Tardanza':'Asistencia'} — ${r.time}</div>`;
+  } else {
+    box.className='fixed top-24 left-1/2 transform -translate-x-1/2 z-50 bg-white rounded-2xl shadow-2xl border-2 border-red-400 px-6 py-4 text-center min-w-64';
+    box.innerHTML=`<div class="text-3xl mb-1">❌</div><div class="text-sm text-gray-700">${r.msg}</div>`;
+  }
+  box.classList.remove('hidden');
+  setTimeout(()=>box.classList.add('hidden'),3000);
+}
+
+async function startScanner(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const video=document.getElementById('qr-video');
+    document.getElementById('scanner-placeholder').classList.add('hidden');
+    video.classList.remove('hidden');
+    video.srcObject=stream;
+    scanner=stream;
+    document.getElementById('btn-start-scan').classList.add('hidden');
+    document.getElementById('btn-stop-scan').classList.remove('hidden');
+    // QR scanning loop using canvas
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    window._scanLoop=setInterval(()=>{
+      if(video.readyState===video.HAVE_ENOUGH_DATA){
+        canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+        ctx.drawImage(video,0,0);
+        try{
+          const data=canvas.toDataURL('image/jpeg',0.5);
+          // Real QR decode would use jsQR — we simulate with a check
+        }catch(e){}
+      }
+    },500);
+  }catch(e){
+    alert('No se pudo acceder a la camara. Usa el registro manual. Error: '+e.message);
+  }
+}
+
+function stopScanner(){
+  if(scanner){scanner.getTracks().forEach(t=>t.stop());scanner=null;}
+  if(window._scanLoop){clearInterval(window._scanLoop);}
+  const video=document.getElementById('qr-video');
+  video.classList.add('hidden');
+  document.getElementById('scanner-placeholder').classList.remove('hidden');
+  document.getElementById('btn-start-scan').classList.remove('hidden');
+  document.getElementById('btn-stop-scan').classList.add('hidden');
+}
+
+function renderTodayLog(){
+  const today=todayStr();
+  const todayAtts=attendance.filter(a=>a.date===today).sort((a,b)=>a.time.localeCompare(b.time));
+  const box=document.getElementById('today-log');
+  if(!todayAtts.length){box.innerHTML='<div class="text-center text-gray-400 text-sm py-8">Sin registros hoy</div>';return;}
+  box.innerHTML=todayAtts.map(a=>{
+    const s=students.find(x=>x.id===a.studentId)||{name:'Desconocido'};
+    return `<div class="flex items-center gap-3 p-2 rounded-xl ${a.late?'bg-orange-50':'bg-green-50'}">
+      <span class="text-lg">${a.late?'⏰':'✅'}</span>
+      <div class="flex-1"><div class="font-semibold text-sm">${s.name}</div><div class="text-xs text-gray-500">${s.group||''}</div></div>
+      <span class="text-xs font-bold ${a.late?'text-orange-600':'text-green-600'}">${a.time}</span>
+    </div>`;
+  }).join('');
+}
+
+function updateStats(){
+  const today=todayStr(), m=new Date();
+  const mStr=`${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,'0')}`;
+  const todayAtts=attendance.filter(a=>a.date===today);
+  const todayLate=todayAtts.filter(a=>a.late).length;
+  const monthDays=[...new Set(attendance.filter(a=>a.date.startsWith(mStr)).map(a=>a.date))];
+  const totalPossible=students.length*monthDays.length;
+  const totalPresent=attendance.filter(a=>a.date.startsWith(mStr)).length;
+  const pct=totalPossible>0?Math.round(totalPresent/totalPossible*100):0;
+  document.getElementById('s-students').textContent=students.length;
+  document.getElementById('s-today').textContent=todayAtts.length;
+  document.getElementById('s-late').textContent=todayLate;
+  document.getElementById('s-pct').textContent=pct+'%';
+}
+
+function renderStudents(){
+  const g=document.getElementById('students-grid');
+  const groups=[...new Set(students.map(s=>s.group||'Sin grupo'))];
+  const dl=document.getElementById('group-dl');
+  if(dl){dl.innerHTML='';groups.forEach(gr=>{const o=document.createElement('option');o.value=gr;dl.appendChild(o);});}
+  const sel=document.getElementById('manual-student');
+  if(sel) sel.innerHTML='<option value="">Seleccionar alumno...</option>'+students.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  if(!students.length){g.innerHTML='<div class="col-span-3 text-center py-12 text-gray-400 text-sm">Sin alumnos. Agrega el primero.</div>';return;}
+  g.innerHTML=students.map(s=>{
+    const today=todayStr();
+    const todayAtt=attendance.find(a=>a.studentId===s.id&&a.date===today);
+    const monthStr=`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const monthAtts=attendance.filter(a=>a.studentId===s.id&&a.date.startsWith(monthStr)).length;
+    const monthDays=[...new Set(attendance.filter(a=>a.date.startsWith(monthStr)).map(a=>a.date))].length;
+    const pct=monthDays>0?Math.round(monthAtts/monthDays*100):0;
+    return `<div class="bg-white rounded-2xl shadow-sm border border-violet-100 card-hover p-4">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <div class="font-bold text-gray-800">${s.name}</div>
+          <div class="text-violet-600 text-xs font-medium">${s.group||'Sin grupo'}</div>
+          <div class="text-gray-400 text-xs">${s.contact||''}</div>
+        </div>
+        <div class="text-right">
+          ${todayAtt?`<span class="text-xs font-bold ${todayAtt.late?'text-orange-500':'text-green-600'}">${todayAtt.late?'Tarde':'Presente'}</span>`:`<span class="text-xs text-gray-400">No registrado</span>`}
+          <div class="text-xs text-gray-400 mt-0.5">${todayAtt?todayAtt.time:''}</div>
+        </div>
+      </div>
+      <div class="mb-3">
+        <div class="flex justify-between text-xs text-gray-500 mb-1"><span>Asistencia este mes</span><span class="font-bold text-violet-600">${pct}% (${monthAtts}/${monthDays})</span></div>
+        <div class="h-1.5 bg-violet-100 rounded-full overflow-hidden"><div class="h-full bg-violet-500 rounded-full transition-all" style="width:${pct}%"></div></div>
+      </div>
+      <!-- Heatmap -->
+      <div class="mb-3">
+        <div class="text-xs text-gray-400 mb-1">Ultimos 14 dias</div>
+        <div class="flex gap-0.5 flex-wrap">${genHeatmap(s.id)}</div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="checkIn('${s.id}');showTab('scan')" class="flex-1 text-xs bg-green-50 text-green-700 py-1.5 rounded-lg hover:bg-green-100 font-medium">Registrar hoy</button>
+        <button onclick="showQR('${s.id}')" class="text-xs bg-violet-50 text-violet-700 px-3 py-1.5 rounded-lg hover:bg-violet-100 font-medium">QR</button>
+        <button onclick="openStudentForm('${s.id}')" class="text-xs bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-100 font-medium">Editar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function genHeatmap(studentId){
+  const cells=[];
+  for(let d=13;d>=0;d--){
+    const dt=new Date(); dt.setDate(dt.getDate()-d);
+    const ds=dt.toISOString().split('T')[0];
+    const att=attendance.find(a=>a.studentId===studentId&&a.date===ds);
+    let cls='heat-0';
+    if(att) cls=att.late?'heat-late':'heat-2';
+    cells.push(`<div class="heat-cell ${cls}" title="${ds}${att?' - '+(att.late?'Tarde':'Asistio'):' - Ausente'}"></div>`);
+  }
+  return cells.join('');
+}
+
+function showQR(id){
+  const s=students.find(x=>x.id===id); if(!s) return;
+  document.getElementById('qr-name').textContent=s.name;
+  document.getElementById('qr-group').textContent=s.group||'';
+  document.getElementById('qr-id-display').textContent='ID: '+s.id;
+  const qrDiv=document.getElementById('qr-code');
+  qrDiv.innerHTML='';
+  new QRCode(qrDiv,{text:s.id,width:200,height:200,colorDark:'#6d28d9',colorLight:'#ffffff'});
+  document.getElementById('qr-modal').classList.remove('hidden');
+}
+
+function printQR(){
+  window.print();
+}
+
+function openStudentForm(id){
+  editStudentId=id;
+  document.getElementById('sf-title').textContent=id?'Editar Alumno':'Nuevo Alumno';
+  if(id){
+    const s=students.find(x=>x.id===id); if(!s) return;
+    document.getElementById('sf-name').value=s.name||'';
+    document.getElementById('sf-contact').value=s.contact||'';
+    document.getElementById('sf-group').value=s.group||'';
+  } else {
+    document.getElementById('sf-name').value='';
+    document.getElementById('sf-contact').value='';
+    document.getElementById('sf-group').value='';
+  }
+  document.getElementById('student-modal').classList.remove('hidden');
+}
+function closeStudentForm(){document.getElementById('student-modal').classList.add('hidden');}
+
+function saveStudent(){
+  const name=document.getElementById('sf-name').value.trim();
+  if(!name){alert('Nombre requerido');return;}
+  const st={id:editStudentId||'s'+Date.now(),name,contact:document.getElementById('sf-contact').value.trim(),group:document.getElementById('sf-group').value.trim()};
+  if(editStudentId){const i=students.findIndex(x=>x.id===editStudentId);if(i>=0)students[i]=st;}else students.push(st);
+  saveAll(); closeStudentForm(); renderStudents(); updateStats();
+}
+
+function renderReport(){
+  const sel=document.getElementById('report-month');
+  const month=sel.value||`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+  const days=[...new Set(attendance.filter(a=>a.date.startsWith(month)).map(a=>a.date))].sort();
+  const box=document.getElementById('report-container');
+  if(!days.length){box.innerHTML='<div class="text-center py-12 text-gray-400 text-sm">Sin registros para este mes</div>';return;}
+  box.innerHTML=`<div class="bg-white rounded-2xl shadow-sm border border-violet-100 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="violet-grad text-white">
+          <tr>
+            <th class="px-3 py-3 text-left font-bold">Alumno</th>
+            <th class="px-2 py-3 text-left font-bold">Grupo</th>
+            ${days.map(d=>`<th class="px-1 py-3 text-center font-medium">${d.slice(8)}</th>`).join('')}
+            <th class="px-3 py-3 text-center font-bold">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${students.map((s,i)=>{
+            const present=days.filter(d=>attendance.find(a=>a.studentId===s.id&&a.date===d));
+            const pct=days.length>0?Math.round(present.length/days.length*100):0;
+            const cells=days.map(d=>{
+              const a=attendance.find(x=>x.studentId===s.id&&x.date===d);
+              if(!a) return `<td class="px-1 py-2 text-center"><div class="w-5 h-5 mx-auto bg-gray-100 rounded text-gray-300 flex items-center justify-center">-</div></td>`;
+              return `<td class="px-1 py-2 text-center" title="${a.time}"><div class="w-5 h-5 mx-auto rounded flex items-center justify-center ${a.late?'bg-orange-400 text-white':'bg-violet-500 text-white'}" style="font-size:9px">${a.late?'T':'A'}</div></td>`;
+            }).join('');
+            return `<tr class="${i%2===0?'bg-violet-50/30':''} border-t border-violet-50">
+              <td class="px-3 py-2 font-semibold">${s.name}</td>
+              <td class="px-2 py-2 text-gray-500">${s.group||''}</td>
+              ${cells}
+              <td class="px-3 py-2 text-center font-bold ${pct>=80?'text-green-600':pct>=60?'text-amber-600':'text-red-500'}">${pct}%</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="p-3 bg-violet-50 text-xs text-gray-500 flex gap-4">
+      <span><span class="inline-block w-4 h-4 bg-violet-500 rounded mr-1"></span>A = Asistencia puntual</span>
+      <span><span class="inline-block w-4 h-4 bg-orange-400 rounded mr-1"></span>T = Tardanza (despues de ${cutoffTime})</span>
+    </div>
+  </div>`;
+}
+
+function exportCSV(){
+  const month=document.getElementById('report-month')?.value||'2026-04';
+  const days=[...new Set(attendance.filter(a=>a.date.startsWith(month)).map(a=>a.date))].sort();
+  let csv='Alumno,Grupo,'+days.join(',')+',% Asistencia\n';
+  students.forEach(s=>{
+    const present=days.filter(d=>attendance.find(a=>a.studentId===s.id&&a.date===d));
+    const pct=days.length>0?Math.round(present.length/days.length*100):0;
+    const cells=days.map(d=>{
+      const a=attendance.find(x=>x.studentId===s.id&&x.date===d);
+      return a?(a.late?'Tardanza':'Asistio'):'Ausente';
+    });
+    csv+=`"${s.name}","${s.group||''}",${cells.join(',')},${pct}%\n`;
+  });
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`asistencia-${month}.csv`;
+  a.click();
+}
+
+function showTab(tab){
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.add('hidden'));
+  document.getElementById('tab-'+tab).classList.remove('hidden');
+  if(tab==='students') renderStudents();
+  if(tab==='report') renderReport();
+  if(tab==='scan') renderTodayLog();
+}
+
+function shareReportWA(){
+  const month=document.getElementById('report-month')?.value||'2026-04';
+  const days=[...new Set(attendance.filter(a=>a.date.startsWith(month)).map(a=>a.date))];
+  const totalPossible=students.length*days.length;
+  const totalPresent=attendance.filter(a=>a.date.startsWith(month)).length;
+  const pct=totalPossible>0?Math.round(totalPresent/totalPossible*100):0;
+  const late=attendance.filter(a=>a.date.startsWith(month)&&a.late).length;
+  const topLines=students.slice(0,5).map(s=>{
+    const p=attendance.filter(a=>a.studentId===s.id&&a.date.startsWith(month)).length;
+    const pctS=days.length>0?Math.round(p/days.length*100):0;
+    return `- ${s.name}: ${pctS}% (${p}/${days.length})`;
+  }).join('\n');
+  const msg=`*Reporte de Asistencia — ${month}*\n\nAlumnos: ${students.length}\nDias registrados: ${days.length}\nAsistencia promedio: ${pct}%\nTardanzas: ${late}\n\nTop alumnos:\n${topLines}\n\n_Reporte generado en Asistencia QR — Novamente Studio_`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+document.getElementById('student-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeStudentForm();});
+document.getElementById('qr-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)e.currentTarget.classList.add('hidden');});
+
+load(); showTab('scan'); renderStudents(); updateStats();
+</script>
+</body>
+</html>

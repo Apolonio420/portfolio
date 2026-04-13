@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Turnos Online | Dental Sonrisa Perfecta</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: {
+                colors: { primary: '#0284c7', 'primary-dark': '#0369a1', 'primary-light': '#e0f2fe', secondary: '#0f172a', accent: '#06b6d4' },
+                fontFamily: { sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'] }
+            }}
+        }
+    </script>
+    <style>
+        * { scroll-behavior: smooth; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .slot-btn { transition: all 0.15s; }
+        .slot-btn:hover:not(:disabled) { transform: scale(1.05); }
+        .slot-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .tab-active { border-bottom: 3px solid #0284c7; color: #0284c7; font-weight: 700; }
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; } body { background: white; } }
+    </style>
+</head>
+<body class="font-sans bg-gray-50 text-secondary min-h-screen">
+
+<div id="app">
+    <!-- HEADER -->
+    <header class="bg-white border-b shadow-sm sticky top-0 z-40 no-print">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold" id="business-name-header">Dental Sonrisa Perfecta</h1>
+                    <p class="text-xs text-gray-500">Sistema de Turnos Online</p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="showView('public')" class="text-sm px-3 py-1.5 rounded-lg hover:bg-gray-100" id="tab-public">Agendar</button>
+                <button onclick="toggleAdmin()" class="text-sm px-3 py-1.5 rounded-lg hover:bg-gray-100" id="tab-admin">Admin</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══════ PUBLIC VIEW: Booking ═══════ -->
+    <div id="view-public" class="max-w-4xl mx-auto px-4 py-6">
+        <!-- Step 1: Select Service -->
+        <div id="step-service" class="fade-in">
+            <h2 class="text-2xl font-bold mb-2">Agenda tu cita</h2>
+            <p class="text-gray-500 mb-6">Selecciona el servicio que necesitas</p>
+            <div class="grid sm:grid-cols-2 gap-3" id="services-grid"></div>
+        </div>
+
+        <!-- Step 2: Select Date -->
+        <div id="step-date" class="hidden fade-in">
+            <button onclick="goToStep('service')" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline">&larr; Cambiar servicio</button>
+            <h2 class="text-2xl font-bold mb-2">Elige una fecha</h2>
+            <p class="text-gray-500 mb-4" id="selected-service-label"></p>
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="changeWeek(-1)" class="p-2 rounded-lg hover:bg-gray-200">&larr;</button>
+                <span class="font-semibold" id="week-label"></span>
+                <button onclick="changeWeek(1)" class="p-2 rounded-lg hover:bg-gray-200">&rarr;</button>
+            </div>
+            <div class="grid grid-cols-7 gap-2" id="date-grid"></div>
+        </div>
+
+        <!-- Step 3: Select Time -->
+        <div id="step-time" class="hidden fade-in">
+            <button onclick="goToStep('date')" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline">&larr; Cambiar fecha</button>
+            <h2 class="text-2xl font-bold mb-2">Elige un horario</h2>
+            <p class="text-gray-500 mb-4" id="selected-date-label"></p>
+            <div class="grid grid-cols-3 sm:grid-cols-4 gap-2" id="time-grid"></div>
+        </div>
+
+        <!-- Step 4: Confirm -->
+        <div id="step-confirm" class="hidden fade-in">
+            <button onclick="goToStep('time')" class="text-primary text-sm mb-4 flex items-center gap-1 hover:underline">&larr; Cambiar horario</button>
+            <h2 class="text-2xl font-bold mb-6">Confirma tus datos</h2>
+            <div class="bg-white rounded-2xl border p-6 mb-6">
+                <div class="grid gap-4 mb-6">
+                    <div class="flex justify-between"><span class="text-gray-500">Servicio:</span><span class="font-semibold" id="conf-service"></span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Fecha:</span><span class="font-semibold" id="conf-date"></span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Hora:</span><span class="font-semibold" id="conf-time"></span></div>
+                </div>
+                <div class="space-y-3">
+                    <input type="text" id="client-name" placeholder="Tu nombre completo" class="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                    <input type="tel" id="client-phone" placeholder="Tu teléfono (10 dígitos)" class="w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                </div>
+            </div>
+            <button onclick="confirmBooking()" class="w-full bg-primary hover:bg-primary-dark text-white py-4 rounded-xl font-bold text-lg transition-all hover:shadow-lg">
+                Confirmar Cita
+            </button>
+        </div>
+
+        <!-- Step 5: Success -->
+        <div id="step-success" class="hidden fade-in text-center py-12">
+            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">¡Cita confirmada!</h2>
+            <p class="text-gray-500 mb-6" id="success-details"></p>
+            <a id="wa-confirm-link" target="_blank" class="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#20b858] text-white px-8 py-4 rounded-xl font-bold transition-all">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                Enviar confirmación por WhatsApp
+            </a>
+            <button onclick="goToStep('service')" class="block mx-auto mt-4 text-primary hover:underline">Agendar otra cita</button>
+        </div>
+
+        <!-- Lookup existing appointment -->
+        <div class="mt-8 pt-6 border-t">
+            <details class="group">
+                <summary class="text-sm text-gray-500 cursor-pointer hover:text-primary">¿Ya tienes cita? Consulta o cancela aquí</summary>
+                <div class="mt-3 flex gap-2">
+                    <input type="tel" id="lookup-phone" placeholder="Tu teléfono" class="flex-1 border rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary">
+                    <button onclick="lookupAppointment()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-xl text-sm font-semibold">Buscar</button>
+                </div>
+                <div id="lookup-result" class="mt-3"></div>
+            </details>
+        </div>
+    </div>
+
+    <!-- ═══════ ADMIN VIEW ═══════ -->
+    <div id="view-admin" class="hidden max-w-5xl mx-auto px-4 py-6">
+        <!-- Admin tabs -->
+        <div class="flex gap-6 border-b mb-6 no-print">
+            <button onclick="showAdminTab('today')" class="pb-2 text-sm tab-active" id="atab-today">Hoy</button>
+            <button onclick="showAdminTab('week')" class="pb-2 text-sm text-gray-500" id="atab-week">Semana</button>
+            <button onclick="showAdminTab('patients')" class="pb-2 text-sm text-gray-500" id="atab-patients">Pacientes</button>
+            <button onclick="showAdminTab('config')" class="pb-2 text-sm text-gray-500" id="atab-config">Configuración</button>
+        </div>
+
+        <!-- Today's Agenda -->
+        <div id="admin-today" class="fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Agenda de hoy — <span id="today-date"></span></h2>
+                <div class="flex gap-2">
+                    <button onclick="printAgenda()" class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1.5 rounded-lg">Imprimir</button>
+                    <button onclick="addManualAppt()" class="text-sm bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-dark">+ Agregar</button>
+                </div>
+            </div>
+            <div id="today-timeline"></div>
+            <div class="mt-6 grid grid-cols-4 gap-4" id="today-stats"></div>
+        </div>
+
+        <!-- Week View -->
+        <div id="admin-week" class="hidden fade-in">
+            <h2 class="text-xl font-bold mb-4">Vista semanal</h2>
+            <div id="week-grid-admin"></div>
+        </div>
+
+        <!-- Patients -->
+        <div id="admin-patients" class="hidden fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Pacientes</h2>
+                <input type="text" id="patient-search" placeholder="Buscar por nombre o teléfono..." oninput="searchPatients()" class="border rounded-xl px-4 py-2 text-sm w-64 outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            <div id="patients-list"></div>
+        </div>
+
+        <!-- Config -->
+        <div id="admin-config" class="hidden fade-in">
+            <h2 class="text-xl font-bold mb-4">Configuración</h2>
+            <div class="bg-white rounded-2xl border p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Nombre del negocio</label>
+                    <input type="text" id="cfg-name" class="w-full border rounded-xl px-4 py-2 outline-none" value="Dental Sonrisa Perfecta">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Teléfono / WhatsApp</label>
+                    <input type="text" id="cfg-phone" class="w-full border rounded-xl px-4 py-2 outline-none" value="5215512345678">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Hora inicio</label>
+                        <select id="cfg-start" class="w-full border rounded-xl px-4 py-2"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1">Hora cierre</label>
+                        <select id="cfg-end" class="w-full border rounded-xl px-4 py-2"></select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Duración de turno (minutos)</label>
+                    <select id="cfg-duration" class="w-full border rounded-xl px-4 py-2">
+                        <option value="15">15 minutos</option>
+                        <option value="30" selected>30 minutos</option>
+                        <option value="45">45 minutos</option>
+                        <option value="60">60 minutos</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Servicios (uno por línea: nombre | duración en min)</label>
+                    <textarea id="cfg-services" rows="6" class="w-full border rounded-xl px-4 py-2 text-sm font-mono outline-none">Consulta general | 30
+Limpieza dental | 45
+Blanqueamiento | 60
+Ortodoncia (revisión) | 30
+Extracción | 45
+Urgencia | 30</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Días de trabajo</label>
+                    <div class="flex gap-2 flex-wrap" id="cfg-days"></div>
+                </div>
+                <button onclick="saveConfig()" class="bg-primary text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-primary-dark">Guardar configuración</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual appointment modal -->
+    <div id="modal-manual" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md fade-in">
+            <h3 class="text-lg font-bold mb-4">Agregar cita manualmente</h3>
+            <div class="space-y-3">
+                <input type="text" id="m-name" placeholder="Nombre del paciente" class="w-full border rounded-xl px-4 py-2 outline-none">
+                <input type="tel" id="m-phone" placeholder="Teléfono" class="w-full border rounded-xl px-4 py-2 outline-none">
+                <select id="m-service" class="w-full border rounded-xl px-4 py-2"></select>
+                <input type="date" id="m-date" class="w-full border rounded-xl px-4 py-2 outline-none">
+                <select id="m-time" class="w-full border rounded-xl px-4 py-2"></select>
+                <textarea id="m-notes" placeholder="Notas (opcional)" rows="2" class="w-full border rounded-xl px-4 py-2 outline-none"></textarea>
+            </div>
+            <div class="flex gap-2 mt-4">
+                <button onclick="closeModal()" class="flex-1 border rounded-xl py-2 font-semibold hover:bg-gray-50">Cancelar</button>
+                <button onclick="saveManualAppt()" class="flex-1 bg-primary text-white rounded-xl py-2 font-semibold hover:bg-primary-dark">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="text-center py-4 text-xs text-gray-400 border-t mt-8 no-print">
+    <a href="https://novamentestudio.com" target="_blank" class="hover:text-gray-600">Powered by Novamente Studio</a>
+</footer>
+
+<script>
+// ═══════ DATA & STATE ═══════
+const DEFAULT_CONFIG = {
+    name: "Dental Sonrisa Perfecta",
+    phone: "5215512345678",
+    startHour: 9,
+    endHour: 20,
+    slotDuration: 30,
+    workDays: [1,2,3,4,5,6], // Mon-Sat
+    services: [
+        { name: "Consulta general", duration: 30 },
+        { name: "Limpieza dental", duration: 45 },
+        { name: "Blanqueamiento", duration: 60 },
+        { name: "Ortodoncia (revisión)", duration: 30 },
+        { name: "Extracción", duration: 45 },
+        { name: "Urgencia", duration: 30 },
+    ]
+};
+
+let config = JSON.parse(localStorage.getItem('turnera_config')) || DEFAULT_CONFIG;
+let appointments = JSON.parse(localStorage.getItem('turnera_appts')) || [];
+let selectedService = null;
+let selectedDate = null;
+let selectedTime = null;
+let currentWeekStart = getMonday(new Date());
+let isAdmin = false;
+
+// Demo data
+if (appointments.length === 0) {
+    const today = new Date();
+    const fmt = d => d.toISOString().split('T')[0];
+    appointments = [
+        { id: 1, name: "María García López", phone: "5551234567", service: "Limpieza dental", date: fmt(today), time: "10:00", status: "confirmed", notes: "" },
+        { id: 2, name: "Roberto Hernández", phone: "5559876543", service: "Consulta general", date: fmt(today), time: "11:00", status: "confirmed", notes: "Primera visita" },
+        { id: 3, name: "Ana Martínez Ruiz", phone: "5554567890", service: "Blanqueamiento", date: fmt(today), time: "13:00", status: "confirmed", notes: "" },
+        { id: 4, name: "Carlos Morales", phone: "5557654321", service: "Ortodoncia (revisión)", date: fmt(today), time: "16:00", status: "pending", notes: "Ajuste de brackets" },
+        { id: 5, name: "Patricia Sánchez", phone: "5552345678", service: "Extracción", date: fmt(addDays(today,1)), time: "09:30", status: "confirmed", notes: "Muela del juicio" },
+    ];
+    saveData();
+}
+
+// ═══════ UTILITIES ═══════
+function getMonday(d) { d = new Date(d); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)); }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function fmtDate(d) { return new Date(d + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function fmtDateShort(d) { return new Date(d + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' }); }
+function today() { return new Date().toISOString().split('T')[0]; }
+function nextId() { return appointments.length ? Math.max(...appointments.map(a=>a.id)) + 1 : 1; }
+function saveData() { localStorage.setItem('turnera_appts', JSON.stringify(appointments)); localStorage.setItem('turnera_config', JSON.stringify(config)); }
+
+function getSlots(date) {
+    const svc = config.services.find(s => s.name === selectedService);
+    const dur = svc ? svc.duration : config.slotDuration;
+    const slots = [];
+    for (let h = config.startHour; h < config.endHour; h++) {
+        for (let m = 0; m < 60; m += dur) {
+            if (h + m/60 >= config.endHour) break;
+            const time = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            const taken = appointments.some(a => a.date === date && a.time === time && a.status !== 'cancelled');
+            slots.push({ time, available: !taken });
+        }
+    }
+    return slots;
+}
+
+// ═══════ PUBLIC VIEW ═══════
+function renderServices() {
+    const grid = document.getElementById('services-grid');
+    grid.innerHTML = config.services.map(s => `
+        <button onclick="selectService('${s.name}')" class="bg-white border rounded-2xl p-5 text-left hover:border-primary hover:shadow-md transition-all group">
+            <div class="font-semibold text-secondary group-hover:text-primary">${s.name}</div>
+            <div class="text-sm text-gray-400 mt-1">${s.duration} minutos</div>
+        </button>
+    `).join('');
+}
+
+function selectService(name) {
+    selectedService = name;
+    document.getElementById('selected-service-label').textContent = name;
+    goToStep('date');
+    renderDates();
+}
+
+function renderDates() {
+    const grid = document.getElementById('date-grid');
+    const start = currentWeekStart;
+    const days = [];
+    for (let i = 0; i < 14; i++) {
+        const d = addDays(start, i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
+        const isWorkDay = config.workDays.includes(dayOfWeek);
+        const isPast = dateStr < today();
+        const isToday = dateStr === today();
+        days.push({ date: dateStr, day: d, isWorkDay, isPast, isToday });
+    }
+    document.getElementById('week-label').textContent = `${fmtDateShort(days[0].date)} — ${fmtDateShort(days[13].date)}`;
+    grid.innerHTML = days.map(d => {
+        const disabled = !d.isWorkDay || d.isPast;
+        const sel = d.date === selectedDate;
+        return `<button onclick="${disabled ? '' : `selectDate('${d.date}')`}"
+            class="slot-btn p-3 rounded-xl text-center border ${sel ? 'bg-primary text-white border-primary' : disabled ? 'bg-gray-100 text-gray-300' : 'bg-white hover:border-primary'}"
+            ${disabled ? 'disabled' : ''}>
+            <div class="text-xs">${d.day.toLocaleDateString('es-MX',{weekday:'short'})}</div>
+            <div class="text-lg font-bold">${d.day.getDate()}</div>
+            ${d.isToday ? '<div class="text-[10px] text-primary font-semibold">HOY</div>' : ''}
+        </button>`;
+    }).join('');
+}
+
+function changeWeek(dir) { currentWeekStart = addDays(currentWeekStart, dir * 7); renderDates(); }
+
+function selectDate(date) {
+    selectedDate = date;
+    document.getElementById('selected-date-label').textContent = fmtDate(date);
+    goToStep('time');
+    renderTimes();
+}
+
+function renderTimes() {
+    const slots = getSlots(selectedDate);
+    const grid = document.getElementById('time-grid');
+    grid.innerHTML = slots.map(s => `
+        <button onclick="${s.available ? `selectTime('${s.time}')` : ''}"
+            class="slot-btn py-3 rounded-xl text-center border font-semibold ${
+                s.time === selectedTime ? 'bg-primary text-white border-primary' :
+                s.available ? 'bg-white hover:border-primary' : 'bg-gray-100 text-gray-300 line-through'
+            }" ${s.available ? '' : 'disabled'}>
+            ${s.time}
+        </button>
+    `).join('');
+    if (slots.filter(s=>s.available).length === 0) {
+        grid.innerHTML = '<p class="col-span-full text-center text-gray-400 py-8">No hay horarios disponibles este día. Prueba otro día.</p>';
+    }
+}
+
+function selectTime(time) {
+    selectedTime = time;
+    document.getElementById('conf-service').textContent = selectedService;
+    document.getElementById('conf-date').textContent = fmtDate(selectedDate);
+    document.getElementById('conf-time').textContent = time + ' hrs';
+    goToStep('confirm');
+}
+
+function confirmBooking() {
+    const name = document.getElementById('client-name').value.trim();
+    const phone = document.getElementById('client-phone').value.trim();
+    if (!name || !phone) { alert('Por favor completa tu nombre y teléfono'); return; }
+
+    const appt = { id: nextId(), name, phone, service: selectedService, date: selectedDate, time: selectedTime, status: 'confirmed', notes: '' };
+    appointments.push(appt);
+    saveData();
+
+    document.getElementById('success-details').textContent = `${selectedService} — ${fmtDate(selectedDate)} a las ${selectedTime} hrs`;
+    const waMsg = encodeURIComponent(`Hola, confirmo mi cita:\n📋 ${selectedService}\n📅 ${fmtDate(selectedDate)}\n🕐 ${selectedTime} hrs\n👤 ${name}\n📱 ${phone}`);
+    document.getElementById('wa-confirm-link').href = `https://wa.me/${config.phone}?text=${waMsg}`;
+    goToStep('success');
+    selectedService = null; selectedDate = null; selectedTime = null;
+}
+
+function lookupAppointment() {
+    const phone = document.getElementById('lookup-phone').value.trim();
+    const found = appointments.filter(a => a.phone === phone && a.status !== 'cancelled' && a.date >= today());
+    const el = document.getElementById('lookup-result');
+    if (found.length === 0) {
+        el.innerHTML = '<p class="text-sm text-gray-400">No encontramos citas con ese teléfono.</p>';
+    } else {
+        el.innerHTML = found.map(a => `
+            <div class="bg-white border rounded-xl p-4 mt-2 flex justify-between items-center">
+                <div>
+                    <div class="font-semibold">${a.service}</div>
+                    <div class="text-sm text-gray-500">${fmtDate(a.date)} a las ${a.time}</div>
+                </div>
+                <button onclick="cancelAppt(${a.id})" class="text-red-500 text-sm hover:underline">Cancelar</button>
+            </div>
+        `).join('');
+    }
+}
+
+function cancelAppt(id) {
+    if (confirm('¿Seguro que quieres cancelar esta cita?')) {
+        const appt = appointments.find(a => a.id === id);
+        if (appt) { appt.status = 'cancelled'; saveData(); lookupAppointment(); renderToday(); }
+    }
+}
+
+function goToStep(step) {
+    ['service','date','time','confirm','success'].forEach(s => {
+        document.getElementById('step-'+s).classList.toggle('hidden', s !== step);
+    });
+    if (step === 'service') renderServices();
+}
+
+// ═══════ ADMIN VIEW ═══════
+function toggleAdmin() {
+    if (!isAdmin) {
+        const pw = prompt('Contraseña de administrador:');
+        if (pw !== 'admin') { alert('Contraseña incorrecta'); return; }
+        isAdmin = true;
+    }
+    showView('admin');
+    renderToday();
+}
+
+function showView(view) {
+    document.getElementById('view-public').classList.toggle('hidden', view !== 'public');
+    document.getElementById('view-admin').classList.toggle('hidden', view !== 'admin');
+    document.getElementById('tab-public').classList.toggle('tab-active', view === 'public');
+    document.getElementById('tab-admin').classList.toggle('tab-active', view === 'admin');
+    if (view === 'public') goToStep('service');
+}
+
+function showAdminTab(tab) {
+    ['today','week','patients','config'].forEach(t => {
+        document.getElementById('admin-'+t).classList.toggle('hidden', t !== tab);
+        document.getElementById('atab-'+t).classList.toggle('tab-active', t === tab);
+        document.getElementById('atab-'+t).classList.toggle('text-gray-500', t !== tab);
+    });
+    if (tab === 'today') renderToday();
+    if (tab === 'week') renderWeekAdmin();
+    if (tab === 'patients') renderPatients();
+    if (tab === 'config') renderConfig();
+}
+
+function renderToday() {
+    const todayAppts = appointments.filter(a => a.date === today() && a.status !== 'cancelled')
+        .sort((a,b) => a.time.localeCompare(b.time));
+
+    document.getElementById('today-date').textContent = fmtDate(today());
+
+    const timeline = document.getElementById('today-timeline');
+    if (todayAppts.length === 0) {
+        timeline.innerHTML = '<div class="text-center py-12 text-gray-400">No hay citas agendadas para hoy</div>';
+    } else {
+        timeline.innerHTML = todayAppts.map(a => {
+            const statusColors = { confirmed: 'bg-green-100 text-green-700', pending: 'bg-yellow-100 text-yellow-700', completed: 'bg-blue-100 text-blue-700', noshow: 'bg-red-100 text-red-700' };
+            const statusLabels = { confirmed: 'Confirmada', pending: 'Pendiente', completed: 'Completada', noshow: 'No asistió' };
+            return `
+            <div class="bg-white border rounded-xl p-4 mb-2 flex items-center justify-between hover:shadow-sm transition-shadow">
+                <div class="flex items-center gap-4">
+                    <div class="text-lg font-bold text-primary w-16">${a.time}</div>
+                    <div>
+                        <div class="font-semibold">${a.name}</div>
+                        <div class="text-sm text-gray-500">${a.service} · ${a.phone}</div>
+                        ${a.notes ? `<div class="text-xs text-gray-400 mt-1">📝 ${a.notes}</div>` : ''}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs px-2 py-1 rounded-full ${statusColors[a.status] || 'bg-gray-100'}">${statusLabels[a.status] || a.status}</span>
+                    <select onchange="updateStatus(${a.id}, this.value)" class="text-xs border rounded-lg px-2 py-1">
+                        <option value="">Cambiar...</option>
+                        <option value="confirmed">Confirmada</option>
+                        <option value="completed">Completada</option>
+                        <option value="noshow">No asistió</option>
+                        <option value="cancelled">Cancelar</option>
+                    </select>
+                    <button onclick="sendReminder(${a.id})" class="text-xs bg-[#25D366] text-white px-2 py-1 rounded-lg hover:bg-[#20b858]" title="Enviar recordatorio WhatsApp">WA</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // Stats
+    const allToday = appointments.filter(a => a.date === today());
+    const confirmed = allToday.filter(a => a.status === 'confirmed').length;
+    const completed = allToday.filter(a => a.status === 'completed').length;
+    const noshows = allToday.filter(a => a.status === 'noshow').length;
+    const total = allToday.filter(a => a.status !== 'cancelled').length;
+
+    document.getElementById('today-stats').innerHTML = `
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold text-primary">${total}</div><div class="text-xs text-gray-500">Total hoy</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold text-green-600">${confirmed}</div><div class="text-xs text-gray-500">Confirmadas</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold text-blue-600">${completed}</div><div class="text-xs text-gray-500">Completadas</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold text-red-500">${noshows}</div><div class="text-xs text-gray-500">No asistieron</div></div>
+    `;
+}
+
+function updateStatus(id, status) {
+    if (!status) return;
+    const appt = appointments.find(a => a.id === id);
+    if (appt) { appt.status = status; saveData(); renderToday(); }
+}
+
+function sendReminder(id) {
+    const a = appointments.find(ap => ap.id === id);
+    if (!a) return;
+    const msg = encodeURIComponent(`Hola ${a.name}, te recordamos tu cita:\n📋 ${a.service}\n📅 ${fmtDate(a.date)}\n🕐 ${a.time} hrs\n\n¡Te esperamos!`);
+    window.open(`https://wa.me/52${a.phone}?text=${msg}`, '_blank');
+}
+
+function renderWeekAdmin() {
+    const start = getMonday(new Date());
+    let html = '<div class="grid grid-cols-7 gap-2">';
+    for (let i = 0; i < 7; i++) {
+        const d = addDays(start, i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayAppts = appointments.filter(a => a.date === dateStr && a.status !== 'cancelled').sort((a,b) => a.time.localeCompare(b.time));
+        const isToday = dateStr === today();
+        html += `<div class="bg-white border rounded-xl p-3 ${isToday ? 'ring-2 ring-primary' : ''}">
+            <div class="text-xs font-semibold text-gray-500 mb-2">${fmtDateShort(dateStr)}</div>
+            ${dayAppts.length ? dayAppts.map(a => `<div class="text-xs bg-primary-light rounded p-1.5 mb-1"><span class="font-semibold">${a.time}</span> ${a.name.split(' ')[0]}</div>`).join('') : '<div class="text-xs text-gray-300 text-center py-2">Sin citas</div>'}
+        </div>`;
+    }
+    html += '</div>';
+    document.getElementById('week-grid-admin').innerHTML = html;
+}
+
+function renderPatients() {
+    const patients = {};
+    appointments.forEach(a => {
+        if (!patients[a.phone]) patients[a.phone] = { name: a.name, phone: a.phone, visits: [] };
+        patients[a.phone].visits.push(a);
+    });
+    const list = Object.values(patients).sort((a,b) => a.name.localeCompare(b.name));
+    const search = document.getElementById('patient-search').value.toLowerCase();
+    const filtered = search ? list.filter(p => p.name.toLowerCase().includes(search) || p.phone.includes(search)) : list;
+
+    document.getElementById('patients-list').innerHTML = filtered.map(p => {
+        const total = p.visits.filter(v => v.status !== 'cancelled').length;
+        const last = p.visits.filter(v => v.status !== 'cancelled').sort((a,b) => b.date.localeCompare(a.date))[0];
+        return `<div class="bg-white border rounded-xl p-4 mb-2 flex justify-between items-center">
+            <div>
+                <div class="font-semibold">${p.name}</div>
+                <div class="text-sm text-gray-500">${p.phone} · ${total} visita${total !== 1 ? 's' : ''}</div>
+                ${last ? `<div class="text-xs text-gray-400">Última: ${fmtDateShort(last.date)} — ${last.service}</div>` : ''}
+            </div>
+            <button onclick="sendReminder(${last?.id})" class="text-xs bg-[#25D366] text-white px-3 py-1.5 rounded-lg">WhatsApp</button>
+        </div>`;
+    }).join('') || '<p class="text-center text-gray-400 py-8">No hay pacientes registrados</p>';
+}
+
+function searchPatients() { renderPatients(); }
+
+function renderConfig() {
+    // Hours selects
+    ['cfg-start', 'cfg-end'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = '';
+        for (let h = 6; h <= 22; h++) {
+            const opt = document.createElement('option');
+            opt.value = h; opt.textContent = `${String(h).padStart(2,'0')}:00`;
+            sel.appendChild(opt);
+        }
+    });
+    document.getElementById('cfg-start').value = config.startHour;
+    document.getElementById('cfg-end').value = config.endHour;
+    document.getElementById('cfg-name').value = config.name;
+    document.getElementById('cfg-phone').value = config.phone;
+    document.getElementById('cfg-duration').value = config.slotDuration;
+    document.getElementById('cfg-services').value = config.services.map(s => `${s.name} | ${s.duration}`).join('\n');
+
+    const dayNames = ['', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    document.getElementById('cfg-days').innerHTML = [1,2,3,4,5,6,7].map(d => `
+        <label class="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer ${config.workDays.includes(d) ? 'bg-primary text-white border-primary' : 'bg-white'}">
+            <input type="checkbox" value="${d}" ${config.workDays.includes(d) ? 'checked' : ''} class="hidden" onchange="toggleDay(${d})">
+            ${dayNames[d]}
+        </label>
+    `).join('');
+}
+
+function toggleDay(d) {
+    const idx = config.workDays.indexOf(d);
+    if (idx >= 0) config.workDays.splice(idx, 1);
+    else config.workDays.push(d);
+    renderConfig();
+}
+
+function saveConfig() {
+    config.name = document.getElementById('cfg-name').value;
+    config.phone = document.getElementById('cfg-phone').value;
+    config.startHour = parseInt(document.getElementById('cfg-start').value);
+    config.endHour = parseInt(document.getElementById('cfg-end').value);
+    config.slotDuration = parseInt(document.getElementById('cfg-duration').value);
+    config.services = document.getElementById('cfg-services').value.trim().split('\n').map(line => {
+        const [name, dur] = line.split('|').map(s => s.trim());
+        return { name, duration: parseInt(dur) || 30 };
+    });
+    saveData();
+    document.getElementById('business-name-header').textContent = config.name;
+    alert('Configuración guardada');
+}
+
+// Manual appointment
+function addManualAppt() {
+    document.getElementById('modal-manual').classList.remove('hidden');
+    const sel = document.getElementById('m-service');
+    sel.innerHTML = config.services.map(s => `<option value="${s.name}">${s.name} (${s.duration} min)</option>`).join('');
+    document.getElementById('m-date').value = today();
+    const timeSel = document.getElementById('m-time');
+    timeSel.innerHTML = '';
+    for (let h = config.startHour; h < config.endHour; h++) {
+        for (let m = 0; m < 60; m += 30) {
+            const t = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            timeSel.innerHTML += `<option value="${t}">${t}</option>`;
+        }
+    }
+}
+
+function closeModal() { document.getElementById('modal-manual').classList.add('hidden'); }
+
+function saveManualAppt() {
+    const appt = {
+        id: nextId(),
+        name: document.getElementById('m-name').value.trim(),
+        phone: document.getElementById('m-phone').value.trim(),
+        service: document.getElementById('m-service').value,
+        date: document.getElementById('m-date').value,
+        time: document.getElementById('m-time').value,
+        status: 'confirmed',
+        notes: document.getElementById('m-notes').value.trim(),
+    };
+    if (!appt.name || !appt.phone) { alert('Completa nombre y teléfono'); return; }
+    appointments.push(appt);
+    saveData();
+    closeModal();
+    renderToday();
+}
+
+function printAgenda() { window.print(); }
+
+// ═══════ INIT ═══════
+document.getElementById('business-name-header').textContent = config.name;
+renderServices();
+</script>
+</body>
+</html>

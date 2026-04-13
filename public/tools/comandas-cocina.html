@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comandas Cocina — Novamente Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #0f0f0f; color: #f1f5f9; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #1a1a1a; }
+  ::-webkit-scrollbar-thumb { background: #3f3f3f; border-radius: 3px; }
+
+  .col-header { border-top: 3px solid; }
+  .col-pendiente .col-header { border-color: #dc2626; }
+  .col-preparando .col-header { border-color: #f59e0b; }
+  .col-listo .col-header { border-color: #22c55e; }
+
+  .order-card { transition: all .2s ease; }
+  .order-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+
+  .timer-normal { color: #94a3b8; }
+  .timer-warn { color: #f59e0b; }
+  .timer-danger { color: #dc2626; animation: pulse-red 1s infinite; }
+  @keyframes pulse-red { 0%,100% { opacity:1; } 50% { opacity:.6; } }
+
+  .badge-allergy { background: rgba(220,38,38,.2); border: 1px solid rgba(220,38,38,.4); color: #fca5a5; }
+
+  .btn-primary { background: #dc2626; color: white; transition: background .2s; }
+  .btn-primary:hover { background: #b91c1c; }
+  .btn-ghost { background: transparent; border: 1px solid #3f3f3f; color: #94a3b8; transition: all .2s; }
+  .btn-ghost:hover { border-color: #dc2626; color: #dc2626; }
+
+  .modal-overlay { background: rgba(0,0,0,.7); backdrop-filter: blur(4px); }
+
+  #fullscreen-mode header, #fullscreen-mode .top-bar { display: none; }
+  #fullscreen-mode .main-grid { height: 100vh; }
+
+  .sound-on { color: #dc2626; }
+  .sound-off { color: #475569; }
+
+  @media print {
+    body { background: white; color: black; }
+    header, .top-bar, .add-order-btn, .modal-overlay { display: none !important; }
+    .order-card { border: 1px solid #ccc; page-break-inside: avoid; }
+    .col-header { border-top: 3px solid #333; }
+  }
+</style>
+</head>
+<body id="app-root">
+
+<!-- Header -->
+<header class="border-b border-white/10 bg-black/60 sticky top-0 z-30 backdrop-blur-md">
+  <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-white font-bold text-sm">🍳</div>
+      <div>
+        <h1 class="font-bold text-white text-sm leading-none">Comandas Cocina</h1>
+        <p class="text-xs text-slate-400 leading-none mt-0.5">Sistema de órdenes en tiempo real</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="sound-toggle" onclick="toggleSound()" class="w-8 h-8 rounded-lg flex items-center justify-center text-lg hover:bg-white/10 transition-colors" title="Sonido de alertas">🔔</button>
+      <button onclick="toggleFullscreen()" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors text-slate-400" title="Pantalla completa">⛶</button>
+      <button onclick="openAddOrder()" class="btn-primary text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5">
+        <span class="text-base leading-none">+</span> Nueva Orden
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Stats Bar -->
+<div class="top-bar border-b border-white/10 bg-black/40">
+  <div class="max-w-screen-2xl mx-auto px-4 py-2 flex items-center gap-6 overflow-x-auto">
+    <div class="flex items-center gap-2 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-red-500"></span>
+      <span class="text-slate-400">Pendientes:</span>
+      <span id="stat-pendiente" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-2 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+      <span class="text-slate-400">Preparando:</span>
+      <span id="stat-preparando" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-2 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-green-500"></span>
+      <span class="text-slate-400">Listos hoy:</span>
+      <span id="stat-listo" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-2 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+      <span class="text-slate-400">Tiempo prom:</span>
+      <span id="stat-avg" class="font-bold text-white">—</span>
+    </div>
+    <div class="flex items-center gap-2 text-xs whitespace-nowrap ml-auto">
+      <span class="text-slate-500" id="clock"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Main Kanban Grid -->
+<div class="main-grid max-w-screen-2xl mx-auto px-4 py-4 grid grid-cols-1 md:grid-cols-3 gap-4" style="min-height:calc(100vh - 140px)">
+
+  <!-- Pendiente -->
+  <div class="col-pendiente flex flex-col">
+    <div class="col-header bg-neutral-900 rounded-t-xl px-4 py-3 flex items-center justify-between mb-0">
+      <div class="flex items-center gap-2">
+        <span class="text-red-500 font-bold text-sm">PENDIENTE</span>
+        <span id="count-pendiente" class="bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+      </div>
+      <span class="text-xs text-slate-500">En cola</span>
+    </div>
+    <div id="col-pendiente" class="flex-1 bg-neutral-900/50 rounded-b-xl p-3 space-y-3 overflow-y-auto" style="min-height:200px"></div>
+  </div>
+
+  <!-- Preparando -->
+  <div class="col-preparando flex flex-col">
+    <div class="col-header bg-neutral-900 rounded-t-xl px-4 py-3 flex items-center justify-between mb-0">
+      <div class="flex items-center gap-2">
+        <span class="text-amber-400 font-bold text-sm">PREPARANDO</span>
+        <span id="count-preparando" class="bg-amber-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+      </div>
+      <span class="text-xs text-slate-500">En proceso</span>
+    </div>
+    <div id="col-preparando" class="flex-1 bg-neutral-900/50 rounded-b-xl p-3 space-y-3 overflow-y-auto" style="min-height:200px"></div>
+  </div>
+
+  <!-- Listo -->
+  <div class="col-listo flex flex-col">
+    <div class="col-header bg-neutral-900 rounded-t-xl px-4 py-3 flex items-center justify-between mb-0">
+      <div class="flex items-center gap-2">
+        <span class="text-green-400 font-bold text-sm">LISTO</span>
+        <span id="count-listo" class="bg-green-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+      </div>
+      <span class="text-xs text-slate-500">Para servir</span>
+    </div>
+    <div id="col-listo" class="flex-1 bg-neutral-900/50 rounded-b-xl p-3 space-y-3 overflow-y-auto" style="min-height:200px"></div>
+  </div>
+
+</div>
+
+<!-- Add Order Modal -->
+<div id="modal-add" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl">
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <h2 class="font-bold text-white">Nueva Orden</h2>
+      <button onclick="closeModal('modal-add')" class="text-slate-400 hover:text-white text-xl w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10">✕</button>
+    </div>
+    <div class="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Mesa *</label>
+          <select id="new-table" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-red-500 focus:outline-none">
+            <option value="">Seleccionar...</option>
+            <option value="1">Mesa 1</option><option value="2">Mesa 2</option><option value="3">Mesa 3</option>
+            <option value="4">Mesa 4</option><option value="5">Mesa 5</option><option value="6">Mesa 6</option>
+            <option value="7">Mesa 7</option><option value="8">Mesa 8</option><option value="9">Mesa 9</option>
+            <option value="10">Mesa 10</option><option value="11">Mesa 11</option><option value="12">Mesa 12</option>
+            <option value="13">Mesa 13</option><option value="14">Mesa 14</option><option value="15">Mesa 15</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Mesero</label>
+          <input id="new-waiter" type="text" placeholder="Nombre del mesero" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-red-500 focus:outline-none">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 font-medium mb-2 block">Platillos</label>
+        <div id="item-list" class="space-y-2"></div>
+        <button onclick="addItemRow()" class="mt-2 text-xs text-red-400 hover:text-red-300 flex items-center gap-1">
+          <span>+</span> Agregar platillo
+        </button>
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 font-medium mb-1 block">Notas / Alergias</label>
+        <textarea id="new-notes" rows="2" placeholder="Ej: Sin gluten, sin cebolla, alergia a mariscos..." class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-red-500 focus:outline-none resize-none"></textarea>
+      </div>
+    </div>
+    <div class="px-6 py-4 border-t border-white/10 flex gap-2 justify-end">
+      <button onclick="closeModal('modal-add')" class="btn-ghost text-xs font-semibold px-4 py-2 rounded-lg">Cancelar</button>
+      <button onclick="submitOrder()" class="btn-primary text-xs font-semibold px-4 py-2 rounded-lg">Enviar a Cocina</button>
+    </div>
+  </div>
+</div>
+
+<!-- Waiter Notify Modal -->
+<div id="modal-notify" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl">
+    <div class="px-6 py-5 text-center">
+      <div class="text-5xl mb-3">🟢</div>
+      <h2 class="font-bold text-white text-lg mb-1" id="notify-title">Orden Lista</h2>
+      <p class="text-slate-400 text-sm mb-4" id="notify-body"></p>
+      <div class="flex gap-2">
+        <button onclick="closeModal('modal-notify')" class="flex-1 btn-ghost text-xs font-semibold py-2.5 rounded-lg">Cerrar</button>
+        <a id="notify-wa" href="#" target="_blank" class="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-semibold py-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors">
+          <span>📲</span> WhatsApp
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="border-t border-white/10 py-4 text-center">
+  <p class="text-xs text-slate-600">Powered by <span class="text-slate-500 font-medium">Novamente Studio</span> · <span id="footer-year"></span></p>
+</footer>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'comandas_v2';
+let state = { orders: [], soundEnabled: true, completedToday: 0 };
+let timerInterval = null;
+
+const MENU_ITEMS = [
+  'Tacos al pastor','Tacos de carnitas','Enchiladas verdes','Enchiladas rojas',
+  'Pozole rojo','Pozole verde','Tamales de rajas','Tamales de pollo',
+  'Chiles rellenos','Quesadillas de huitlacoche','Sopa de lima','Tostadas de tinga',
+  'Molletes','Flautas de pollo','Guacamole'
+];
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try { state = { ...state, ...JSON.parse(raw) }; } catch(e) {}
+  } else {
+    seedDemoData();
+  }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function seedDemoData() {
+  const now = Date.now();
+  const min = 60000;
+  state.orders = [
+    { id: 1, table: '3', waiter: 'Carlos', items: ['Tacos al pastor x2','Guacamole'], notes: 'Sin cebolla en los tacos', status: 'pendiente', createdAt: now - 3*min, startedAt: null, completedAt: null },
+    { id: 2, table: '7', waiter: 'María', items: ['Enchiladas verdes','Sopa de lima'], notes: '⚠️ Alergia al gluten', status: 'pendiente', createdAt: now - 5*min, startedAt: null, completedAt: null },
+    { id: 3, table: '1', waiter: 'José', items: ['Pozole rojo x2','Tostadas de tinga x3'], notes: '', status: 'pendiente', createdAt: now - 8*min, startedAt: null, completedAt: null },
+    { id: 4, table: '5', waiter: 'Ana', items: ['Tamales de pollo x2','Chiles rellenos'], notes: 'Cumpleaños — traer vela', status: 'preparando', createdAt: now - 12*min, startedAt: now - 10*min, completedAt: null },
+    { id: 5, table: '9', waiter: 'Luis', items: ['Flautas de pollo x3','Guacamole'], notes: '', status: 'preparando', createdAt: now - 22*min, startedAt: now - 20*min, completedAt: null },
+    { id: 6, table: '12', waiter: 'Rosa', items: ['Quesadillas de huitlacoche x2','Molletes'], notes: '⚠️ Sin lactosa', status: 'preparando', createdAt: now - 15*min, startedAt: now - 13*min, completedAt: null },
+    { id: 7, table: '2', waiter: 'Pedro', items: ['Tacos de carnitas x4'], notes: '', status: 'listo', createdAt: now - 30*min, startedAt: now - 28*min, completedAt: now - 5*min },
+    { id: 8, table: '6', waiter: 'Elena', items: ['Tamales de rajas','Pozole verde'], notes: 'VIP — cliente frecuente', status: 'listo', createdAt: now - 25*min, startedAt: now - 22*min, completedAt: now - 2*min },
+  ];
+  state.completedToday = 2;
+  saveState();
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────────
+function formatTimer(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function getTimerClass(ms, status) {
+  if (status === 'listo') return '';
+  const min = ms / 60000;
+  if (min >= 20) return 'timer-danger';
+  if (min >= 10) return 'timer-warn';
+  return 'timer-normal';
+}
+
+function renderCard(order) {
+  const now = Date.now();
+  const elapsed = now - order.createdAt;
+  const timerClass = getTimerClass(elapsed, order.status);
+  const timerStr = formatTimer(elapsed);
+
+  const hasAllergy = order.notes && order.notes.includes('⚠️');
+  const notesHtml = order.notes
+    ? `<div class="mt-2 px-2 py-1.5 rounded-lg text-xs ${hasAllergy ? 'badge-allergy' : 'bg-white/5 text-slate-400'}">${order.notes}</div>`
+    : '';
+
+  let actionBtn = '';
+  if (order.status === 'pendiente') {
+    actionBtn = `<button onclick="advanceOrder(${order.id})" class="w-full mt-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold py-1.5 rounded-lg transition-colors">▶ Iniciar Preparación</button>`;
+  } else if (order.status === 'preparando') {
+    actionBtn = `<button onclick="advanceOrder(${order.id})" class="w-full mt-2 bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-1.5 rounded-lg transition-colors">✓ Marcar Listo</button>`;
+  } else {
+    actionBtn = `<button onclick="notifyWaiter(${order.id})" class="w-full mt-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-1.5 rounded-lg transition-colors">📲 Notificar Mesero</button>`;
+  }
+
+  return `
+    <div class="order-card bg-neutral-800 border border-white/10 rounded-xl p-3" data-id="${order.id}">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="bg-red-600 text-white text-xs font-bold rounded-lg px-2 py-0.5">Mesa ${order.table}</span>
+          <span class="text-xs text-slate-400">${order.waiter}</span>
+        </div>
+        <span class="text-xs font-mono font-bold ${timerClass}" data-timer="${order.id}">⏱ ${timerStr}</span>
+      </div>
+      <ul class="space-y-0.5">
+        ${order.items.map(i => `<li class="text-sm text-slate-200">• ${i}</li>`).join('')}
+      </ul>
+      ${notesHtml}
+      ${actionBtn}
+    </div>
+  `;
+}
+
+function render() {
+  const statuses = ['pendiente','preparando','listo'];
+  statuses.forEach(status => {
+    const col = document.getElementById(`col-${status}`);
+    const orders = state.orders.filter(o => o.status === status);
+    col.innerHTML = orders.length
+      ? orders.map(renderCard).join('')
+      : `<div class="text-center text-slate-600 text-sm py-8">Sin órdenes</div>`;
+    document.getElementById(`count-${status}`).textContent = orders.length;
+  });
+
+  document.getElementById('stat-pendiente').textContent = state.orders.filter(o=>o.status==='pendiente').length;
+  document.getElementById('stat-preparando').textContent = state.orders.filter(o=>o.status==='preparando').length;
+  document.getElementById('stat-listo').textContent = state.completedToday + state.orders.filter(o=>o.status==='listo').length;
+
+  const completedOrders = state.orders.filter(o=>o.status==='listo' && o.startedAt && o.completedAt);
+  if (completedOrders.length) {
+    const avg = completedOrders.reduce((acc,o) => acc + (o.completedAt - o.createdAt), 0) / completedOrders.length;
+    document.getElementById('stat-avg').textContent = `${Math.round(avg/60000)} min`;
+  }
+}
+
+function updateTimers() {
+  const now = Date.now();
+  state.orders.forEach(order => {
+    const el = document.querySelector(`[data-timer="${order.id}"]`);
+    if (!el || order.status === 'listo') return;
+    const elapsed = now - order.createdAt;
+    el.textContent = `⏱ ${formatTimer(elapsed)}`;
+    el.className = `text-xs font-mono font-bold ${getTimerClass(elapsed, order.status)}`;
+  });
+}
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
+function advanceOrder(id) {
+  const order = state.orders.find(o => o.id === id);
+  if (!order) return;
+  const now = Date.now();
+  if (order.status === 'pendiente') {
+    order.status = 'preparando';
+    order.startedAt = now;
+  } else if (order.status === 'preparando') {
+    order.status = 'listo';
+    order.completedAt = now;
+    if (state.soundEnabled) playBell();
+    showNotifyModal(order);
+  }
+  saveState();
+  render();
+}
+
+function notifyWaiter(id) {
+  const order = state.orders.find(o => o.id === id);
+  if (order) showNotifyModal(order);
+}
+
+function showNotifyModal(order) {
+  document.getElementById('notify-title').textContent = `Mesa ${order.table} — Orden Lista`;
+  document.getElementById('notify-body').textContent = `Los platillos de la mesa ${order.table} (${order.waiter}) están listos para servir.`;
+  const msg = encodeURIComponent(`🍽️ ¡Mesa ${order.table} lista! Los platillos están listos para servir. (${order.items.join(', ')})`);
+  document.getElementById('notify-wa').href = `https://wa.me/?text=${msg}`;
+  document.getElementById('modal-notify').classList.remove('hidden');
+}
+
+function playBell() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.setValueAtTime(880, ctx.currentTime);
+    g.gain.setValueAtTime(0.3, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.8);
+  } catch(e) {}
+}
+
+function toggleSound() {
+  state.soundEnabled = !state.soundEnabled;
+  const btn = document.getElementById('sound-toggle');
+  btn.textContent = state.soundEnabled ? '🔔' : '🔕';
+  btn.title = state.soundEnabled ? 'Sonido activado' : 'Sonido desactivado';
+  saveState();
+}
+
+function toggleFullscreen() {
+  const root = document.getElementById('app-root');
+  root.classList.toggle('fullscreen-mode');
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    document.documentElement.requestFullscreen().catch(()=>{});
+  }
+}
+
+// ─── Add Order Modal ──────────────────────────────────────────────────────────
+let itemCount = 0;
+
+function openAddOrder() {
+  document.getElementById('new-table').value = '';
+  document.getElementById('new-waiter').value = '';
+  document.getElementById('new-notes').value = '';
+  document.getElementById('item-list').innerHTML = '';
+  itemCount = 0;
+  addItemRow();
+  addItemRow();
+  document.getElementById('modal-add').classList.remove('hidden');
+}
+
+function addItemRow() {
+  const id = `item-${++itemCount}`;
+  const div = document.createElement('div');
+  div.className = 'flex gap-2';
+  div.innerHTML = `
+    <select class="flex-1 bg-neutral-800 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white focus:border-red-500 focus:outline-none">
+      <option value="">-- Platillo --</option>
+      ${MENU_ITEMS.map(m=>`<option value="${m}">${m}</option>`).join('')}
+    </select>
+    <input type="number" min="1" max="10" value="1" class="w-16 bg-neutral-800 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white text-center focus:border-red-500 focus:outline-none">
+    <button onclick="this.parentElement.remove()" class="text-slate-500 hover:text-red-400 px-1 text-lg">✕</button>
+  `;
+  document.getElementById('item-list').appendChild(div);
+}
+
+function submitOrder() {
+  const table = document.getElementById('new-table').value;
+  const waiter = document.getElementById('new-waiter').value.trim() || 'Sin asignar';
+  const notes = document.getElementById('new-notes').value.trim();
+
+  if (!table) { alert('Selecciona una mesa'); return; }
+
+  const rows = document.getElementById('item-list').querySelectorAll('div');
+  const items = [];
+  rows.forEach(row => {
+    const sel = row.querySelector('select').value;
+    const qty = row.querySelector('input').value;
+    if (sel) items.push(`${sel} x${qty}`);
+  });
+
+  if (!items.length) { alert('Agrega al menos un platillo'); return; }
+
+  const newOrder = {
+    id: Date.now(),
+    table, waiter, items, notes,
+    status: 'pendiente',
+    createdAt: Date.now(),
+    startedAt: null,
+    completedAt: null
+  };
+
+  state.orders.unshift(newOrder);
+  saveState();
+  render();
+  closeModal('modal-add');
+  if (state.soundEnabled) playBell();
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+// ─── Clock ────────────────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+loadState();
+render();
+updateClock();
+setInterval(updateTimers, 1000);
+setInterval(updateClock, 1000);
+
+// Close modals on backdrop click
+['modal-add','modal-notify'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal(id);
+  });
+});
+</script>
+</body>
+</html>

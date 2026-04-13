@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Órdenes de Trabajo — Taller Mecánico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        dark: { DEFAULT: '#1e293b', light: '#334155', muted: '#475569' },
+        accent: { DEFAULT: '#ef4444', light: '#fca5a5', dark: '#b91c1c' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #0f172a; color: #f1f5f9; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 20px; }
+  .card-light { background: #253447; border: 1px solid #334155; border-radius: 16px; }
+  .fade-in { animation: fadeIn 0.3s ease forwards; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .status-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; letter-spacing:0.02em; }
+  .s-recibido { background:#1e3a5f; color:#60a5fa; }
+  .s-diagnosticando { background:#3b2f0f; color:#fbbf24; }
+  .s-reparacion { background:#3b1a0f; color:#fb923c; }
+  .s-listo { background:#0d3321; color:#4ade80; }
+  .s-entregado { background:#1e293b; color:#94a3b8; }
+  .btn-primary { background: #ef4444; color: #fff; border-radius: 12px; padding: 10px 20px; font-weight: 700; font-size: 13px; transition: all 0.2s; border: none; cursor: pointer; }
+  .btn-primary:hover { background: #dc2626; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(239,68,68,0.4); }
+  .btn-ghost { background: #334155; color: #cbd5e1; border-radius: 12px; padding: 10px 20px; font-weight: 600; font-size: 13px; transition: all 0.2s; border: none; cursor: pointer; }
+  .btn-ghost:hover { background: #3f5068; }
+  .input-field { background: #0f172a; border: 1.5px solid #334155; border-radius: 10px; padding: 10px 14px; color: #f1f5f9; font-size: 14px; width: 100%; outline: none; transition: border 0.2s; }
+  .input-field:focus { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+  .input-field::placeholder { color: #475569; }
+  select.input-field option { background: #1e293b; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .pipeline-step { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+  .pipeline-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; transition: all 0.3s; }
+  .pipeline-line { flex: 1; height: 2px; align-self: flex-start; margin-top: 13px; transition: background 0.3s; }
+  .stat-card { background: linear-gradient(135deg, #1e293b 0%, #253447 100%); border: 1px solid #334155; border-radius: 20px; padding: 20px; transition: transform 0.2s, box-shadow 0.2s; }
+  .stat-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; color: #000 !important; }
+    .card { background: #fff !important; border: 1px solid #ddd !important; color: #000 !important; }
+    .card-light { background: #f9f9f9 !important; border: 1px solid #ddd !important; color: #000 !important; }
+    * { color: #000 !important; }
+    .print-order { display: block !important; }
+  }
+  .print-order { display: none; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="bg-dark border-b border-slate-700 sticky top-0 z-50 no-print">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-accent flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+      <div>
+        <h1 class="font-bold text-white text-base leading-tight">Taller Mecánico</h1>
+        <p class="text-xs text-slate-400">Sistema de Órdenes de Trabajo</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="relative no-print">
+        <input id="searchInput" type="text" placeholder="Buscar placas, cliente..." class="input-field w-48 text-sm py-2" oninput="renderOrders()">
+      </div>
+      <button onclick="openNewOrder()" class="btn-primary flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Nueva OT
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Dashboard -->
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="stat-card">
+      <p class="text-xs text-slate-400 mb-1">En Taller</p>
+      <p id="statInShop" class="text-3xl font-black text-white">0</p>
+      <p class="text-xs text-slate-500 mt-1">vehículos activos</p>
+    </div>
+    <div class="stat-card">
+      <p class="text-xs text-slate-400 mb-1">Listos p/ Entregar</p>
+      <p id="statReady" class="text-3xl font-black text-green-400">0</p>
+      <p class="text-xs text-slate-500 mt-1">esperando cliente</p>
+    </div>
+    <div class="stat-card">
+      <p class="text-xs text-slate-400 mb-1">Facturado Hoy</p>
+      <p id="statToday" class="text-3xl font-black text-accent">$0</p>
+      <p class="text-xs text-slate-500 mt-1">ordenes entregadas</p>
+    </div>
+    <div class="stat-card">
+      <p class="text-xs text-slate-400 mb-1">Esta Semana</p>
+      <p id="statWeek" class="text-3xl font-black text-blue-400">$0</p>
+      <p class="text-xs text-slate-500 mt-1">ingresos totales</p>
+    </div>
+  </div>
+
+  <!-- Pipeline Filter -->
+  <div class="card p-5 mb-6 no-print">
+    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Filtrar por estado</p>
+    <div class="flex gap-3 flex-wrap">
+      <button onclick="filterByStatus('')" id="fAll" class="status-chip bg-slate-700 text-slate-200 hover:bg-slate-600 transition-colors cursor-pointer">Todos</button>
+      <button onclick="filterByStatus('Recibido')" id="fRecibido" class="status-chip s-recibido hover:opacity-80 transition-opacity cursor-pointer">Recibido</button>
+      <button onclick="filterByStatus('Diagnosticando')" id="fDiagnosticando" class="status-chip s-diagnosticando hover:opacity-80 cursor-pointer">Diagnosticando</button>
+      <button onclick="filterByStatus('En reparación')" id="fReparacion" class="status-chip s-reparacion hover:opacity-80 cursor-pointer">En reparación</button>
+      <button onclick="filterByStatus('Listo')" id="fListo" class="status-chip s-listo hover:opacity-80 cursor-pointer">Listo</button>
+      <button onclick="filterByStatus('Entregado')" id="fEntregado" class="status-chip s-entregado hover:opacity-80 cursor-pointer">Entregado</button>
+    </div>
+  </div>
+
+  <!-- Orders List -->
+  <div id="ordersContainer" class="space-y-4"></div>
+</main>
+
+<!-- Footer -->
+<footer class="text-center py-6 text-xs text-slate-500 mt-8">
+  Powered by <span class="font-semibold text-accent">Novamente Studio</span> · Órdenes de Trabajo v1.0
+</footer>
+
+<!-- New/Edit Order Modal -->
+<div id="modalOrder" class="modal-overlay" onclick="if(event.target===this)closeModal('modalOrder')">
+  <div class="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden fade-in" style="background:#1e293b; border:1px solid #334155; max-height:92vh; overflow-y:auto;">
+    <div class="bg-accent p-5 flex items-center justify-between sticky top-0 z-10">
+      <h2 id="orderModalTitle" class="text-white font-black text-lg">Nueva Orden de Trabajo</h2>
+      <button onclick="closeModal('modalOrder')" class="text-white/70 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-5">
+      <input type="hidden" id="oEditId">
+      <!-- Vehicle -->
+      <div>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Vehículo</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Marca</label>
+            <input id="oMarca" class="input-field" placeholder="Toyota, Nissan...">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Modelo</label>
+            <input id="oModelo" class="input-field" placeholder="Corolla, Sentra...">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Año</label>
+            <input id="oAnio" type="number" class="input-field" placeholder="2020">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Placas *</label>
+            <input id="oPlacas" class="input-field uppercase" placeholder="ABC-123-X" oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs text-slate-400 mb-1">Kilometraje</label>
+            <input id="oKm" type="number" class="input-field" placeholder="85000">
+          </div>
+        </div>
+      </div>
+      <!-- Owner -->
+      <div>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Propietario</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Nombre *</label>
+            <input id="oCliente" class="input-field" placeholder="Nombre completo">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Teléfono *</label>
+            <input id="oTel" class="input-field" placeholder="55 1234 5678">
+          </div>
+        </div>
+      </div>
+      <!-- Diagnosis & Status -->
+      <div>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Diagnóstico</p>
+        <textarea id="oDiag" class="input-field" rows="3" placeholder="Descripción del problema reportado por el cliente..."></textarea>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Estado</label>
+        <select id="oStatus" class="input-field">
+          <option value="Recibido">Recibido</option>
+          <option value="Diagnosticando">Diagnosticando</option>
+          <option value="En reparación">En reparación</option>
+          <option value="Listo">Listo</option>
+          <option value="Entregado">Entregado</option>
+        </select>
+      </div>
+      <!-- Services -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Servicios y Refacciones</p>
+          <button onclick="addItem()" class="text-xs text-accent font-semibold hover:text-red-400 transition-colors">+ Agregar</button>
+        </div>
+        <div id="itemsList" class="space-y-2"></div>
+        <div class="mt-3 text-right">
+          <p class="text-sm text-slate-400">Total estimado: <span id="orderTotal" class="text-white font-bold text-lg">$0.00</span></p>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex gap-3 sticky bottom-0" style="background:#1e293b;">
+      <button onclick="closeModal('modalOrder')" class="btn-ghost flex-1 py-3">Cancelar</button>
+      <button onclick="saveOrder()" class="btn-primary flex-1 py-3">Guardar Orden</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Order Modal -->
+<div id="modalView" class="modal-overlay" onclick="if(event.target===this)closeModal('modalView')">
+  <div class="w-full max-w-xl mx-4 rounded-3xl overflow-hidden fade-in" style="background:#1e293b; border:1px solid #334155; max-height:90vh; overflow-y:auto;">
+    <div id="viewContent"></div>
+  </div>
+</div>
+
+<script>
+let orders = [];
+let activeFilter = '';
+let editingId = null;
+
+const STATUSES = ['Recibido', 'Diagnosticando', 'En reparación', 'Listo', 'Entregado'];
+const STATUS_CLASS = { 'Recibido':'s-recibido', 'Diagnosticando':'s-diagnosticando', 'En reparación':'s-reparacion', 'Listo':'s-listo', 'Entregado':'s-entregado' };
+
+const DEMO_ORDERS = [
+  {
+    id:1001, folio:'OT-001', date:'2026-04-12', status:'Listo',
+    marca:'Toyota', modelo:'Corolla', anio:2019, placas:'ABC-123-X', km:72000,
+    cliente:'Carlos Hernández', tel:'5512345678',
+    diagnostico:'Ruido al frenar, revisión general de frenos solicitada.',
+    items:[
+      {desc:'Cambio de balatas delanteras',qty:1,price:480},
+      {desc:'Cambio de discos de freno',qty:2,price:650},
+      {desc:'Mano de obra',qty:1,price:350}
+    ]
+  },
+  {
+    id:1002, folio:'OT-002', date:'2026-04-11', status:'En reparación',
+    marca:'Nissan', modelo:'Sentra', anio:2021, placas:'MNO-567-Z', km:38500,
+    cliente:'María López', tel:'5587654321',
+    diagnostico:'Motor no enciende. Diagnóstico indica falla en sensor MAF y bujías gastadas.',
+    items:[
+      {desc:'Sensor MAF original',qty:1,price:1200},
+      {desc:'Bujías NGK (juego 4)',qty:1,price:480},
+      {desc:'Escáner diagnóstico',qty:1,price:200},
+      {desc:'Mano de obra',qty:1,price:600}
+    ]
+  },
+  {
+    id:1003, folio:'OT-003', date:'2026-04-10', status:'Diagnosticando',
+    marca:'Volkswagen', modelo:'Jetta', anio:2018, placas:'DEF-456-Y', km:95200,
+    cliente:'Roberto Sánchez', tel:'5523456789',
+    diagnostico:'Luz check engine encendida. Cliente indica aumento en consumo de gasolina.',
+    items:[
+      {desc:'Diagnóstico electrónico',qty:1,price:250}
+    ]
+  },
+  {
+    id:1004, folio:'OT-004', date:'2026-04-09', status:'Entregado',
+    marca:'Chevrolet', modelo:'Aveo', anio:2016, placas:'GHI-789-W', km:124000,
+    cliente:'Ana Martínez', tel:'5534567890',
+    diagnostico:'Servicio de mantenimiento 120,000 km. Cambio de aceite y filtros.',
+    items:[
+      {desc:'Aceite sintético 4L',qty:1,price:520},
+      {desc:'Filtro de aceite',qty:1,price:85},
+      {desc:'Filtro de aire',qty:1,price:120},
+      {desc:'Filtro de cabina',qty:1,price:95},
+      {desc:'Mano de obra mantenimiento',qty:1,price:280}
+    ]
+  }
+];
+
+function save() { localStorage.setItem('ot_orders', JSON.stringify(orders)); }
+function load() {
+  const d = localStorage.getItem('ot_orders');
+  orders = d ? JSON.parse(d) : [...DEMO_ORDERS];
+}
+
+function totalOrder(o) { return o.items.reduce((s,i) => s + i.qty * i.price, 0); }
+
+function fmtMXN(n) { return '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 }); }
+function fmtDate(d) { return new Date(d + 'T12:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }); }
+
+function updateStats() {
+  const today = new Date().toISOString().slice(0,10);
+  const weekAgo = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
+  const inShop = orders.filter(o => !['Entregado'].includes(o.status)).length;
+  const ready = orders.filter(o => o.status === 'Listo').length;
+  const todayRev = orders.filter(o => o.status === 'Entregado' && o.date === today).reduce((s,o) => s + totalOrder(o), 0);
+  const weekRev = orders.filter(o => o.status === 'Entregado' && o.date >= weekAgo).reduce((s,o) => s + totalOrder(o), 0);
+  document.getElementById('statInShop').textContent = inShop;
+  document.getElementById('statReady').textContent = ready;
+  document.getElementById('statToday').textContent = fmtMXN(todayRev);
+  document.getElementById('statWeek').textContent = fmtMXN(weekRev);
+}
+
+function filterByStatus(s) {
+  activeFilter = s;
+  renderOrders();
+}
+
+function renderOrders() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  let filtered = orders.filter(o => {
+    const matchQ = !q || o.placas.toLowerCase().includes(q) || o.cliente.toLowerCase().includes(q) || o.folio.toLowerCase().includes(q);
+    const matchS = !activeFilter || o.status === activeFilter;
+    return matchQ && matchS;
+  });
+  filtered.sort((a,b) => b.id - a.id);
+  const container = document.getElementById('ordersContainer');
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="text-center py-20 text-slate-500"><svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg><p class="font-medium">Sin órdenes</p></div>';
+    return;
+  }
+  container.innerHTML = filtered.map(o => renderOrderCard(o)).join('');
+  updateStats();
+}
+
+function renderOrderCard(o) {
+  const total = totalOrder(o);
+  const stepIdx = STATUSES.indexOf(o.status);
+  const pipeline = STATUSES.map((s, i) => {
+    const active = i <= stepIdx;
+    const current = i === stepIdx;
+    return `<div class="flex flex-col items-center gap-1">
+      <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${current ? 'bg-accent border-accent text-white shadow-lg shadow-red-900/50' : active ? 'bg-slate-600 border-slate-500 text-slate-200' : 'bg-slate-800 border-slate-700 text-slate-600'}">${i+1}</div>
+      <p class="text-xs text-center leading-tight ${current ? 'text-accent font-bold' : active ? 'text-slate-400' : 'text-slate-600'}">${s.replace('En reparación','En rep.')}</p>
+    </div>`;
+  });
+  const lines = STATUSES.slice(0,-1).map((_,i) => {
+    const active = i < stepIdx;
+    return `<div class="flex-1 h-0.5 mt-3.5 ${active ? 'bg-accent' : 'bg-slate-700'} transition-all"></div>`;
+  });
+  const pipelineHtml = pipeline.map((p,i) => p + (i < lines.length ? lines[i] : '')).join('');
+
+  return `<div class="card p-5 fade-in hover:border-slate-500 transition-colors">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="text-white font-black text-lg">${o.folio}</span>
+          <span class="status-chip ${STATUS_CLASS[o.status]}">${o.status}</span>
+        </div>
+        <p class="text-slate-400 text-sm mt-1">${fmtDate(o.date)}</p>
+      </div>
+      <div class="text-right">
+        <p class="text-2xl font-black text-accent">${fmtMXN(total)}</p>
+        <p class="text-xs text-slate-500">${o.items.length} concepto(s)</p>
+      </div>
+    </div>
+    <!-- Vehicle & Client -->
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div class="card-light p-3">
+        <p class="text-xs text-slate-500 mb-1">Vehículo</p>
+        <p class="font-bold text-white text-sm">${o.marca} ${o.modelo} ${o.anio}</p>
+        <p class="text-accent font-black text-lg tracking-widest">${o.placas}</p>
+        <p class="text-xs text-slate-400">${o.km ? o.km.toLocaleString('es-MX') + ' km' : 'N/D'}</p>
+      </div>
+      <div class="card-light p-3">
+        <p class="text-xs text-slate-500 mb-1">Cliente</p>
+        <p class="font-bold text-white text-sm">${o.cliente}</p>
+        <p class="text-slate-300 text-sm">${o.tel}</p>
+        ${o.status === 'Listo' ? `<a href="https://wa.me/52${o.tel.replace(/\D/g,'')}?text=${encodeURIComponent('Hola '+o.nombre+', tu vehículo '+o.marca+' '+o.modelo+' placas '+o.placas+' ya está LISTO para ser recogido en el taller. Total: '+fmtMXN(total)+'. ¡Te esperamos!')}" target="_blank" class="mt-2 flex items-center gap-1 text-green-400 hover:text-green-300 text-xs font-bold transition-colors">
+          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.555 4.122 1.528 5.853L0 24l6.326-1.499A11.933 11.933 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.034-1.388l-.36-.214-3.754.889.935-3.654-.235-.374A9.793 9.793 0 012.182 12C2.182 6.575 6.575 2.182 12 2.182S21.818 6.575 21.818 12 17.425 21.818 12 21.818z"/></svg>
+          Notificar por WhatsApp
+        </a>` : ''}
+      </div>
+    </div>
+    <!-- Pipeline -->
+    <div class="card-light p-3 mb-4">
+      <div class="flex items-start">${pipelineHtml}</div>
+    </div>
+    <!-- Diagnosis preview -->
+    <p class="text-sm text-slate-400 line-clamp-2 mb-4">${o.diagnostico}</p>
+    <!-- Actions -->
+    <div class="flex gap-2 flex-wrap no-print">
+      <button onclick="viewOrder(${o.id})" class="btn-ghost text-sm py-2 px-4">Ver Detalle</button>
+      <button onclick="openEditOrder(${o.id})" class="btn-ghost text-sm py-2 px-4">Editar</button>
+      <button onclick="advanceStatus(${o.id})" class="btn-primary text-sm py-2 px-4 flex items-center gap-1" ${o.status === 'Entregado' ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        Avanzar
+      </button>
+      <button onclick="printOrder(${o.id})" class="btn-ghost text-sm py-2 px-4">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+function advanceStatus(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const idx = STATUSES.indexOf(o.status);
+  if (idx < STATUSES.length - 1) {
+    o.status = STATUSES[idx + 1];
+    save();
+    renderOrders();
+    if (o.status === 'Listo') {
+      if (confirm(`El vehículo ${o.marca} ${o.modelo} (${o.placas}) está LISTO.\n¿Enviar WhatsApp al cliente ${o.cliente}?`)) {
+        const msg = encodeURIComponent(`Hola ${o.cliente}, tu vehículo ${o.marca} ${o.modelo} placas ${o.placas} ya está LISTO para ser recogido en el taller. Total: ${fmtMXN(totalOrder(o))}. ¡Te esperamos!`);
+        window.open(`https://wa.me/52${o.tel.replace(/\D/g,'')}?text=${msg}`, '_blank');
+      }
+    }
+  }
+}
+
+function viewOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const total = totalOrder(o);
+  document.getElementById('viewContent').innerHTML = `
+    <div class="p-5 flex items-center justify-between border-b border-slate-700">
+      <div>
+        <h2 class="text-white font-black text-xl">${o.folio}</h2>
+        <span class="status-chip ${STATUS_CLASS[o.status]}">${o.status}</span>
+      </div>
+      <button onclick="closeModal('modalView')" class="text-slate-400 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-xs text-slate-500 mb-1">Vehículo</p>
+          <p class="font-bold text-white">${o.marca} ${o.modelo} ${o.anio}</p>
+          <p class="text-accent font-black text-xl tracking-widest">${o.placas}</p>
+          <p class="text-sm text-slate-400">${o.km ? o.km.toLocaleString('es-MX') + ' km' : 'N/D'}</p>
+        </div>
+        <div>
+          <p class="text-xs text-slate-500 mb-1">Cliente</p>
+          <p class="font-bold text-white">${o.cliente}</p>
+          <p class="text-slate-300">${o.tel}</p>
+          <p class="text-xs text-slate-500 mt-1">${fmtDate(o.date)}</p>
+        </div>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 mb-1">Diagnóstico</p>
+        <p class="text-slate-300 text-sm leading-relaxed">${o.diagnostico}</p>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 mb-2">Servicios y Refacciones</p>
+        <div class="space-y-2">
+          ${o.items.map(i => `<div class="flex justify-between items-center py-2 border-b border-slate-700">
+            <div>
+              <p class="text-sm text-white font-medium">${i.desc}</p>
+              <p class="text-xs text-slate-500">Cant: ${i.qty}</p>
+            </div>
+            <p class="font-bold text-accent">${fmtMXN(i.qty * i.price)}</p>
+          </div>`).join('')}
+        </div>
+        <div class="mt-3 flex justify-between items-center">
+          <p class="font-bold text-slate-300">TOTAL</p>
+          <p class="text-2xl font-black text-accent">${fmtMXN(total)}</p>
+        </div>
+      </div>
+    </div>
+    <div class="px-5 pb-5 flex gap-3 no-print">
+      ${o.status !== 'Entregado' ? `<button onclick="advanceStatus(${o.id});closeModal('modalView')" class="btn-primary flex-1 py-3">Avanzar Estado</button>` : ''}
+      ${o.status === 'Listo' ? `<a href="https://wa.me/52${o.tel.replace(/\D/g,'')}?text=${encodeURIComponent('Hola '+o.cliente+', tu vehículo '+o.marca+' '+o.modelo+' placas '+o.placas+' ya está LISTO. Total: '+fmtMXN(total))}" target="_blank" class="btn-ghost flex-1 py-3 text-center text-green-400">WhatsApp</a>` : ''}
+    </div>
+  `;
+  document.getElementById('modalView').classList.add('open');
+}
+
+function printOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  const total = totalOrder(o);
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${o.folio}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>*{font-family:'Plus Jakarta Sans',sans-serif}body{margin:40px;color:#111}h1{font-size:24px;font-weight:800}table{width:100%;border-collapse:collapse}th,td{padding:8px 12px;border-bottom:1px solid #eee;text-align:left}th{background:#f5f5f5;font-size:12px;text-transform:uppercase}tfoot td{font-weight:800;font-size:18px}.chip{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#e5e7eb}</style>
+  </head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
+    <div><h1>${o.folio}</h1><p style="color:#6b7280">${fmtDate(o.date)}</p><span class="chip">${o.status}</span></div>
+    <div style="text-align:right"><p style="font-size:28px;font-weight:900;color:#ef4444">${fmtMXN(total)}</p></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+    <div style="padding:16px;background:#f9fafb;border-radius:12px">
+      <p style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:8px">Vehículo</p>
+      <p style="font-weight:700;font-size:16px">${o.marca} ${o.modelo} ${o.anio}</p>
+      <p style="font-weight:900;font-size:22px;color:#ef4444;letter-spacing:3px">${o.placas}</p>
+      <p style="color:#6b7280">${o.km ? o.km.toLocaleString('es-MX') + ' km' : ''}</p>
+    </div>
+    <div style="padding:16px;background:#f9fafb;border-radius:12px">
+      <p style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:8px">Cliente</p>
+      <p style="font-weight:700;font-size:16px">${o.cliente}</p>
+      <p>${o.tel}</p>
+    </div>
+  </div>
+  <p style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:8px">Diagnóstico</p>
+  <p style="margin-bottom:24px;line-height:1.6">${o.diagnostico}</p>
+  <table>
+    <thead><tr><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Subtotal</th></tr></thead>
+    <tbody>${o.items.map(i => `<tr><td>${i.desc}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">${fmtMXN(i.price)}</td><td style="text-align:right">${fmtMXN(i.qty*i.price)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="3" style="text-align:right;padding-top:12px">TOTAL</td><td style="text-align:right;padding-top:12px;color:#ef4444">${fmtMXN(total)}</td></tr></tfoot>
+  </table>
+  <p style="text-align:center;color:#9ca3af;font-size:11px;margin-top:40px">Powered by Novamente Studio · Taller Mecánico</p>
+  </body></html>`);
+  w.document.close();
+  w.print();
+}
+
+// Modal Helpers
+let itemCount = 0;
+function addItem(desc='', qty=1, price=0) {
+  const id = 'item_' + Date.now() + '_' + itemCount++;
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'flex gap-2 items-center';
+  div.innerHTML = `
+    <input class="input-field flex-1" placeholder="Descripción del servicio o refacción" value="${desc}" oninput="calcOrderTotal()">
+    <input type="number" class="input-field w-16" placeholder="Cant." value="${qty}" min="1" oninput="calcOrderTotal()">
+    <input type="number" class="input-field w-24" placeholder="Precio" value="${price}" min="0" step="0.01" oninput="calcOrderTotal()">
+    <button onclick="document.getElementById('${id}').remove();calcOrderTotal()" class="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  `;
+  document.getElementById('itemsList').appendChild(div);
+  calcOrderTotal();
+}
+
+function calcOrderTotal() {
+  const rows = document.querySelectorAll('#itemsList > div');
+  let total = 0;
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const qty = parseFloat(inputs[1].value) || 0;
+    const price = parseFloat(inputs[2].value) || 0;
+    total += qty * price;
+  });
+  document.getElementById('orderTotal').textContent = fmtMXN(total);
+}
+
+function openNewOrder() {
+  editingId = null;
+  document.getElementById('orderModalTitle').textContent = 'Nueva Orden de Trabajo';
+  ['oMarca','oModelo','oAnio','oPlacas','oKm','oCliente','oTel','oDiag','oEditId'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('oStatus').value = 'Recibido';
+  document.getElementById('itemsList').innerHTML = '';
+  document.getElementById('orderTotal').textContent = '$0.00';
+  addItem('Mano de obra',1,0);
+  document.getElementById('modalOrder').classList.add('open');
+}
+
+function openEditOrder(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  editingId = id;
+  document.getElementById('orderModalTitle').textContent = 'Editar ' + o.folio;
+  document.getElementById('oEditId').value = id;
+  document.getElementById('oMarca').value = o.marca;
+  document.getElementById('oModelo').value = o.modelo;
+  document.getElementById('oAnio').value = o.anio;
+  document.getElementById('oPlacas').value = o.placas;
+  document.getElementById('oKm').value = o.km || '';
+  document.getElementById('oCliente').value = o.cliente;
+  document.getElementById('oTel').value = o.tel;
+  document.getElementById('oDiag').value = o.diagnostico;
+  document.getElementById('oStatus').value = o.status;
+  document.getElementById('itemsList').innerHTML = '';
+  o.items.forEach(i => addItem(i.desc, i.qty, i.price));
+  document.getElementById('modalOrder').classList.add('open');
+}
+
+function saveOrder() {
+  const placas = document.getElementById('oPlacas').value.trim().toUpperCase();
+  const cliente = document.getElementById('oCliente').value.trim();
+  const tel = document.getElementById('oTel').value.trim();
+  if (!placas || !cliente) { alert('Placas y cliente son requeridos'); return; }
+  const rows = document.querySelectorAll('#itemsList > div');
+  const items = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const desc = inputs[0].value.trim();
+    if (desc) items.push({ desc, qty: parseFloat(inputs[1].value)||1, price: parseFloat(inputs[2].value)||0 });
+  });
+  const o = {
+    marca: document.getElementById('oMarca').value.trim(),
+    modelo: document.getElementById('oModelo').value.trim(),
+    anio: parseInt(document.getElementById('oAnio').value)||new Date().getFullYear(),
+    placas, km: parseInt(document.getElementById('oKm').value)||0,
+    cliente, tel,
+    diagnostico: document.getElementById('oDiag').value.trim(),
+    status: document.getElementById('oStatus').value,
+    items,
+    date: new Date().toISOString().slice(0,10)
+  };
+  if (editingId) {
+    const idx = orders.findIndex(x => x.id === editingId);
+    orders[idx] = { ...orders[idx], ...o };
+  } else {
+    const nextId = Math.max(0,...orders.map(x=>x.id)) + 1;
+    o.id = nextId;
+    o.folio = 'OT-' + String(nextId).padStart(3,'0');
+    orders.unshift(o);
+  }
+  save();
+  closeModal('modalOrder');
+  renderOrders();
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function init() { load(); renderOrders(); }
+init();
+</script>
+</body>
+</html>

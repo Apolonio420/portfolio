@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Alumnos Premium</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        indigo: { 50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',300:'#a5b4fc',400:'#818cf8',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81' },
+        amber: { 50:'#fffbeb',100:'#fef3c7',200:'#fde68a',300:'#fcd34d',400:'#fbbf24',500:'#f59e0b',600:'#d97706',700:'#b45309' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.8); }
+  .glass-dark { background: rgba(79,70,229,0.08); backdrop-filter: blur(20px); border: 1px solid rgba(79,70,229,0.15); }
+  .slide-in { animation: slideIn 0.3s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes slideIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  .card-hover { transition: all 0.25s cubic-bezier(0.16,1,0.3,1); }
+  .card-hover:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(79,70,229,0.15); }
+  .badge-green { background:#dcfce7; color:#16a34a; }
+  .badge-yellow { background:#fef9c3; color:#ca8a04; }
+  .badge-red { background:#fee2e2; color:#dc2626; }
+  .tab-active { background: #4f46e5; color: white; box-shadow: 0 4px 14px rgba(79,70,229,0.4); }
+  .tab-inactive { background: white; color: #6b7280; }
+  .day-present { background: #4f46e5; color: white; border-radius: 50%; }
+  .day-absent { background: #fee2e2; color: #dc2626; border-radius: 50%; }
+  .day-none { background: #f3f4f6; color: #9ca3af; border-radius: 50%; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #f1f5f9; } ::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 4px; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    .glass { background: white !important; backdrop-filter: none !important; box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+    .print-break { page-break-before: always; }
+  }
+</style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-white to-amber-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="glass sticky top-0 z-50 border-b border-indigo-100 no-print">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg">CA</div>
+      <div>
+        <h1 class="font-bold text-gray-900 text-sm leading-tight">Control de Alumnos</h1>
+        <p class="text-xs text-indigo-500 font-medium">Academia Premium</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="today-date" class="text-xs text-gray-500 hidden sm:block"></span>
+      <button onclick="showView('dashboard')" class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-indigo-700 transition-colors">Dashboard</button>
+    </div>
+  </div>
+</header>
+
+<!-- NAV TABS -->
+<div class="max-w-6xl mx-auto px-4 pt-4 pb-2 no-print">
+  <div class="flex gap-2 overflow-x-auto pb-1">
+    <button onclick="showView('dashboard')" id="tab-dashboard" class="tab-active text-xs font-semibold px-4 py-2 rounded-xl transition-all whitespace-nowrap">Dashboard</button>
+    <button onclick="showView('alumnos')" id="tab-alumnos" class="tab-inactive text-xs font-semibold px-4 py-2 rounded-xl transition-all whitespace-nowrap border">Alumnos</button>
+    <button onclick="showView('asistencia')" id="tab-asistencia" class="tab-inactive text-xs font-semibold px-4 py-2 rounded-xl transition-all whitespace-nowrap border">Asistencia Diaria</button>
+    <button onclick="showView('pagos')" id="tab-pagos" class="tab-inactive text-xs font-semibold px-4 py-2 rounded-xl transition-all whitespace-nowrap border">Pagos</button>
+  </div>
+</div>
+
+<!-- VIEWS -->
+<main class="max-w-6xl mx-auto px-4 pb-20">
+
+<!-- DASHBOARD VIEW -->
+<div id="view-dashboard" class="slide-in">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 mt-2">
+    <div class="glass rounded-2xl p-4 card-hover">
+      <p class="text-xs text-gray-500 font-medium">Total Alumnos</p>
+      <p id="stat-total" class="text-2xl font-bold text-indigo-700 mt-1">0</p>
+      <p class="text-xs text-gray-400 mt-1">Activos</p>
+    </div>
+    <div class="glass rounded-2xl p-4 card-hover">
+      <p class="text-xs text-gray-500 font-medium">Asistencia Hoy</p>
+      <p id="stat-asistencia" class="text-2xl font-bold text-green-600 mt-1">0</p>
+      <p class="text-xs text-gray-400 mt-1">Presentes</p>
+    </div>
+    <div class="glass rounded-2xl p-4 card-hover">
+      <p class="text-xs text-gray-500 font-medium">Pagos Pend.</p>
+      <p id="stat-pendientes" class="text-2xl font-bold text-amber-500 mt-1">0</p>
+      <p class="text-xs text-gray-400 mt-1">Alumnos</p>
+    </div>
+    <div class="glass rounded-2xl p-4 card-hover">
+      <p class="text-xs text-gray-500 font-medium">Ingresos Mes</p>
+      <p id="stat-ingresos" class="text-2xl font-bold text-indigo-600 mt-1">$0</p>
+      <p class="text-xs text-gray-400 mt-1">Este mes</p>
+    </div>
+  </div>
+  <div class="grid sm:grid-cols-2 gap-4">
+    <div class="glass rounded-2xl p-5">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">Grupos Activos</h3>
+      <div id="grupos-list" class="space-y-2"></div>
+    </div>
+    <div class="glass rounded-2xl p-5">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">Alertas de Pago</h3>
+      <div id="alertas-list" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ALUMNOS VIEW -->
+<div id="view-alumnos" class="hidden slide-in">
+  <div class="flex items-center justify-between my-3">
+    <div class="relative flex-1 max-w-xs">
+      <input id="search-alumno" type="text" placeholder="Buscar alumno..." oninput="renderAlumnos()" class="w-full pl-8 pr-3 py-2 text-sm border border-indigo-100 rounded-xl bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      <svg class="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    </div>
+    <button onclick="openModal('modal-add-alumno')" class="ml-2 bg-indigo-600 text-white text-xs font-semibold px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors shadow-md">+ Nuevo</button>
+  </div>
+  <div id="alumnos-grid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+</div>
+
+<!-- ASISTENCIA VIEW -->
+<div id="view-asistencia" class="hidden slide-in">
+  <div class="glass rounded-2xl p-5 mt-3 mb-4">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-gray-800">Asistencia de Hoy</h3>
+      <span id="fecha-asistencia" class="text-xs text-indigo-600 font-medium bg-indigo-50 px-3 py-1 rounded-full"></span>
+    </div>
+    <div class="flex gap-3 mb-4 flex-wrap">
+      <select id="filter-grupo" onchange="renderAsistencia()" class="text-sm border border-indigo-100 rounded-xl px-3 py-2 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">Todos los grupos</option>
+        <option value="Inglés Básico">Inglés Básico</option>
+        <option value="Inglés Intermedio">Inglés Intermedio</option>
+      </select>
+      <button onclick="marcarTodos('presente')" class="text-xs bg-green-500 text-white px-3 py-2 rounded-xl font-medium hover:bg-green-600 transition-colors">Todos Presentes</button>
+      <button onclick="marcarTodos('ausente')" class="text-xs bg-red-100 text-red-600 px-3 py-2 rounded-xl font-medium hover:bg-red-200 transition-colors">Todos Ausentes</button>
+    </div>
+    <div id="asistencia-list" class="space-y-2"></div>
+  </div>
+</div>
+
+<!-- PAGOS VIEW -->
+<div id="view-pagos" class="hidden slide-in">
+  <div class="mt-3 mb-4">
+    <div class="glass rounded-2xl p-5 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">Registrar Pago</h3>
+      <div class="grid sm:grid-cols-3 gap-3">
+        <select id="pago-alumno" class="text-sm border border-indigo-100 rounded-xl px-3 py-2 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+          <option value="">Seleccionar alumno</option>
+        </select>
+        <input id="pago-monto" type="number" placeholder="Monto ($)" class="text-sm border border-indigo-100 rounded-xl px-3 py-2 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <button onclick="registrarPago()" class="bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors">Registrar</button>
+      </div>
+    </div>
+    <div id="pagos-list" class="space-y-3"></div>
+  </div>
+</div>
+
+</main>
+
+<!-- MODAL: DETALLE ALUMNO -->
+<div id="modal-detalle" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4 no-print">
+  <div class="glass rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto slide-in">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-bold text-gray-900 text-lg" id="detalle-nombre">Alumno</h2>
+      <button onclick="closeModal('modal-detalle')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+    <div id="detalle-content"></div>
+  </div>
+</div>
+
+<!-- MODAL: AGREGAR ALUMNO -->
+<div id="modal-add-alumno" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4 no-print">
+  <div class="glass rounded-3xl p-6 w-full max-w-md slide-in">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-bold text-gray-900">Nuevo Alumno</h2>
+      <button onclick="closeModal('modal-add-alumno')" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+    </div>
+    <div class="space-y-3">
+      <input id="new-nombre" type="text" placeholder="Nombre completo" class="w-full text-sm border border-indigo-100 rounded-xl px-4 py-2.5 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      <input id="new-telefono" type="tel" placeholder="Teléfono / WhatsApp" class="w-full text-sm border border-indigo-100 rounded-xl px-4 py-2.5 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      <input id="new-tutor" type="text" placeholder="Nombre del tutor" class="w-full text-sm border border-indigo-100 rounded-xl px-4 py-2.5 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      <input id="new-tutor-tel" type="tel" placeholder="Teléfono del tutor" class="w-full text-sm border border-indigo-100 rounded-xl px-4 py-2.5 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      <select id="new-grupo" class="w-full text-sm border border-indigo-100 rounded-xl px-4 py-2.5 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="Inglés Básico">Inglés Básico</option>
+        <option value="Inglés Intermedio">Inglés Intermedio</option>
+      </select>
+      <input id="new-cuota" type="number" placeholder="Cuota mensual ($)" class="w-full text-sm border border-indigo-100 rounded-xl px-4 py-2.5 bg-white/70 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      <button onclick="agregarAlumno()" class="w-full bg-indigo-600 text-white font-semibold py-2.5 rounded-xl hover:bg-indigo-700 transition-colors">Agregar Alumno</button>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="fixed bottom-0 left-0 right-0 text-center py-2 text-xs text-gray-400 bg-white/80 backdrop-blur-md border-t border-gray-100">
+  Powered by <span class="text-indigo-600 font-semibold">Novamente Studio</span>
+</footer>
+
+<script>
+const PHONE_ACADEMIA = '5491112345678';
+let data = JSON.parse(localStorage.getItem('ca_data') || 'null');
+
+const defaultData = {
+  alumnos: [
+    {id:1, nombre:'Sofía Ramírez', telefono:'5491155001001', tutor:'María Ramírez', tutorTel:'5491155001002', grupo:'Inglés Básico', cuota:2800, estado:'al_dia', pagos:[], notas:'Muy dedicada'},
+    {id:2, nombre:'Lucas Fernández', telefono:'5491155001003', tutor:'Carlos Fernández', tutorTel:'5491155001004', grupo:'Inglés Básico', cuota:2800, estado:'pendiente', pagos:[], notas:''},
+    {id:3, nombre:'Valentina Torres', telefono:'5491155001005', tutor:'Ana Torres', tutorTel:'5491155001006', grupo:'Inglés Básico', cuota:2800, estado:'al_dia', pagos:[], notas:''},
+    {id:4, nombre:'Mateo García', telefono:'5491155001007', tutor:'José García', tutorTel:'5491155001008', grupo:'Inglés Básico', cuota:2800, estado:'atrasado', pagos:[], notas:'2 meses de deuda'},
+    {id:5, nombre:'Isabella López', telefono:'5491155001009', tutor:'Laura López', tutorTel:'5491155001010', grupo:'Inglés Básico', cuota:2800, estado:'al_dia', pagos:[], notas:''},
+    {id:6, nombre:'Santiago Martínez', telefono:'5491155001011', tutor:'Pedro Martínez', tutorTel:'5491155001012', grupo:'Inglés Básico', cuota:2800, estado:'pendiente', pagos:[], notas:''},
+    {id:7, nombre:'Camila Rodríguez', telefono:'5491155002001', tutor:'Sandra Rodríguez', tutorTel:'5491155002002', grupo:'Inglés Intermedio', cuota:3500, estado:'al_dia', pagos:[], notas:''},
+    {id:8, nombre:'Nicolás Díaz', telefono:'5491155002003', tutor:'Hugo Díaz', tutorTel:'5491155002004', grupo:'Inglés Intermedio', cuota:3500, estado:'al_dia', pagos:[], notas:'Excelente progreso'},
+    {id:9, nombre:'Emma Pérez', telefono:'5491155002005', tutor:'Rosa Pérez', tutorTel:'5491155002006', grupo:'Inglés Intermedio', cuota:3500, estado:'atrasado', pagos:[], notas:''},
+    {id:10, nombre:'Tomás Sánchez', telefono:'5491155002007', tutor:'Miguel Sánchez', tutorTel:'5491155002008', grupo:'Inglés Intermedio', cuota:3500, estado:'al_dia', pagos:[], notas:''},
+    {id:11, nombre:'Luciana Herrera', telefono:'5491155002009', tutor:'Claudia Herrera', tutorTel:'5491155002010', grupo:'Inglés Intermedio', cuota:3500, estado:'al_dia', pagos:[], notas:''},
+    {id:12, nombre:'Benjamín Castro', telefono:'5491155002011', tutor:'Roberto Castro', tutorTel:'5491155002012', grupo:'Inglés Intermedio', cuota:3500, estado:'pendiente', pagos:[], notas:''}
+  ],
+  asistencia: {},
+  nextId: 13
+};
+
+if (!data) {
+  data = defaultData;
+  // Pre-load some demo payments
+  const today = new Date().toISOString().split('T')[0];
+  data.alumnos.filter(a => a.estado === 'al_dia').forEach(a => {
+    a.pagos.push({ fecha: today, monto: a.cuota, concepto: 'Cuota ' + new Date().toLocaleString('es-MX', {month:'long'}) });
+  });
+  saveData();
+}
+
+function saveData() {
+  localStorage.setItem('ca_data', JSON.stringify(data));
+}
+
+function getTodayKey() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function badgeEstado(estado) {
+  if (estado === 'al_dia') return '<span class="badge-green text-xs font-semibold px-2 py-0.5 rounded-full">Al día</span>';
+  if (estado === 'pendiente') return '<span class="badge-yellow text-xs font-semibold px-2 py-0.5 rounded-full">Pendiente</span>';
+  return '<span class="badge-red text-xs font-semibold px-2 py-0.5 rounded-full">Atrasado</span>';
+}
+
+function showView(v) {
+  ['dashboard','alumnos','asistencia','pagos'].forEach(id => {
+    document.getElementById('view-'+id).classList.add('hidden');
+    const tab = document.getElementById('tab-'+id);
+    if (tab) { tab.className = 'tab-inactive text-xs font-semibold px-4 py-2 rounded-xl transition-all whitespace-nowrap border'; }
+  });
+  document.getElementById('view-'+v).classList.remove('hidden');
+  const activeTab = document.getElementById('tab-'+v);
+  if (activeTab) { activeTab.className = 'tab-active text-xs font-semibold px-4 py-2 rounded-xl transition-all whitespace-nowrap'; }
+  if (v === 'dashboard') renderDashboard();
+  if (v === 'alumnos') renderAlumnos();
+  if (v === 'asistencia') renderAsistencia();
+  if (v === 'pagos') renderPagos();
+}
+
+function renderDashboard() {
+  const today = getTodayKey();
+  const asistenciaHoy = data.asistencia[today] || {};
+  const presentes = Object.values(asistenciaHoy).filter(v => v === 'presente').length;
+  const pendientes = data.alumnos.filter(a => a.estado !== 'al_dia').length;
+  const ingresos = data.alumnos.reduce((s, a) => s + a.pagos.filter(p => p.fecha.startsWith(new Date().toISOString().slice(0,7))).reduce((x,p) => x+p.monto, 0), 0);
+  document.getElementById('stat-total').textContent = data.alumnos.length;
+  document.getElementById('stat-asistencia').textContent = presentes;
+  document.getElementById('stat-pendientes').textContent = pendientes;
+  document.getElementById('stat-ingresos').textContent = '$' + ingresos.toLocaleString('es-MX');
+
+  const grupos = [...new Set(data.alumnos.map(a => a.grupo))];
+  document.getElementById('grupos-list').innerHTML = grupos.map(g => {
+    const count = data.alumnos.filter(a => a.grupo === g).length;
+    const alDia = data.alumnos.filter(a => a.grupo === g && a.estado === 'al_dia').length;
+    return `<div class="flex items-center justify-between p-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer" onclick="showView('alumnos')">
+      <div>
+        <p class="text-sm font-semibold text-indigo-800">${g}</p>
+        <p class="text-xs text-gray-500">${count} alumnos</p>
+      </div>
+      <div class="text-right">
+        <p class="text-xs text-green-600 font-semibold">${alDia} al día</p>
+        <p class="text-xs text-amber-500">${count - alDia} pendientes</p>
+      </div>
+    </div>`;
+  }).join('');
+
+  const alertas = data.alumnos.filter(a => a.estado !== 'al_dia');
+  document.getElementById('alertas-list').innerHTML = alertas.length === 0
+    ? '<p class="text-sm text-green-600 text-center py-4">¡Sin alertas! Todo al día.</p>'
+    : alertas.map(a => `<div class="flex items-center justify-between p-3 rounded-xl ${a.estado === 'atrasado' ? 'bg-red-50' : 'bg-amber-50'}">
+      <div>
+        <p class="text-sm font-semibold text-gray-800">${a.nombre}</p>
+        <p class="text-xs text-gray-500">${a.grupo}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        ${badgeEstado(a.estado)}
+        <a href="https://wa.me/${a.tutorTel || a.telefono}?text=${encodeURIComponent('Hola '+a.tutor+', le recordamos que el pago de '+a.nombre+' está pendiente. Monto: $'+a.cuota+'. Gracias.')}" target="_blank" class="bg-green-500 text-white text-xs px-2 py-1 rounded-lg hover:bg-green-600 transition-colors">WA</a>
+      </div>
+    </div>`).join('');
+}
+
+function renderAlumnos() {
+  const q = (document.getElementById('search-alumno')?.value || '').toLowerCase();
+  const filtrados = data.alumnos.filter(a => a.nombre.toLowerCase().includes(q) || a.grupo.toLowerCase().includes(q));
+  document.getElementById('alumnos-grid').innerHTML = filtrados.map(a => `
+    <div class="glass rounded-2xl p-4 card-hover cursor-pointer" onclick="verDetalle(${a.id})">
+      <div class="flex items-start justify-between mb-3">
+        <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 font-bold text-sm">${a.nombre.split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
+        ${badgeEstado(a.estado)}
+      </div>
+      <h4 class="font-bold text-gray-900 text-sm mb-1">${a.nombre}</h4>
+      <p class="text-xs text-indigo-500 font-medium mb-2">${a.grupo}</p>
+      <div class="flex items-center justify-between">
+        <p class="text-xs text-gray-500">Cuota: <span class="font-semibold text-gray-700">$${a.cuota.toLocaleString('es-MX')}</span></p>
+        <a href="https://wa.me/${a.telefono}" target="_blank" onclick="event.stopPropagation()" class="text-green-500 hover:text-green-600 transition-colors">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        </a>
+      </div>
+    </div>
+  `).join('') || '<p class="text-sm text-gray-500 col-span-3 text-center py-8">No se encontraron alumnos</p>';
+}
+
+function verDetalle(id) {
+  const a = data.alumnos.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('detalle-nombre').textContent = a.nombre;
+  const today = getTodayKey();
+  const dias = Array.from({length:30}, (_,i) => {
+    const d = new Date(); d.setDate(d.getDate() - 29 + i);
+    const key = d.toISOString().split('T')[0];
+    const asist = (data.asistencia[key] || {})[id];
+    const cls = asist === 'presente' ? 'day-present' : asist === 'ausente' ? 'day-absent' : 'day-none';
+    return `<div class="w-7 h-7 flex items-center justify-center text-xs font-medium ${cls}">${d.getDate()}</div>`;
+  }).join('');
+  document.getElementById('detalle-content').innerHTML = `
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-indigo-50 rounded-xl p-3"><p class="text-xs text-gray-500">Grupo</p><p class="font-semibold text-sm text-indigo-700">${a.grupo}</p></div>
+        <div class="bg-indigo-50 rounded-xl p-3"><p class="text-xs text-gray-500">Cuota</p><p class="font-semibold text-sm text-indigo-700">$${a.cuota.toLocaleString('es-MX')}</p></div>
+        <div class="bg-gray-50 rounded-xl p-3"><p class="text-xs text-gray-500">Tutor</p><p class="font-semibold text-sm">${a.tutor || '-'}</p></div>
+        <div class="bg-gray-50 rounded-xl p-3"><p class="text-xs text-gray-500">Estado</p>${badgeEstado(a.estado)}</div>
+      </div>
+      <div>
+        <p class="text-xs font-semibold text-gray-600 mb-2">Asistencia (últimos 30 días)</p>
+        <div class="flex flex-wrap gap-1">${dias}</div>
+      </div>
+      <div>
+        <p class="text-xs font-semibold text-gray-600 mb-2">Pagos recientes</p>
+        ${a.pagos.length === 0 ? '<p class="text-xs text-gray-400">Sin pagos registrados</p>' : a.pagos.slice(-5).reverse().map(p => `<div class="flex justify-between text-xs py-1.5 border-b border-gray-100"><span class="text-gray-600">${p.fecha}</span><span class="text-gray-500">${p.concepto}</span><span class="font-semibold text-green-600">+$${p.monto.toLocaleString('es-MX')}</span></div>`).join('')}
+      </div>
+      <div class="flex gap-2 pt-2">
+        <a href="https://wa.me/${a.telefono}" target="_blank" class="flex-1 bg-green-500 text-white text-xs font-semibold py-2.5 rounded-xl text-center hover:bg-green-600 transition-colors">WhatsApp Alumno</a>
+        ${a.tutorTel ? `<a href="https://wa.me/${a.tutorTel}?text=${encodeURIComponent('Hola '+a.tutor+', le contactamos de la academia respecto a '+a.nombre+'.')}" target="_blank" class="flex-1 bg-indigo-600 text-white text-xs font-semibold py-2.5 rounded-xl text-center hover:bg-indigo-700 transition-colors">WhatsApp Tutor</a>` : ''}
+      </div>
+      ${a.estado !== 'al_dia' ? `<a href="https://wa.me/${a.tutorTel || a.telefono}?text=${encodeURIComponent('Estimado/a '+a.tutor+', le informamos que el pago mensual de '+a.nombre+' correspondiente a la cuota de $'+a.cuota+' se encuentra pendiente. Por favor realice su pago a la brevedad. Gracias.')}" target="_blank" class="block w-full bg-amber-500 text-white text-xs font-semibold py-2.5 rounded-xl text-center hover:bg-amber-600 transition-colors">Enviar recordatorio de pago</a>` : ''}
+    </div>`;
+  openModal('modal-detalle');
+}
+
+function renderAsistencia() {
+  const today = getTodayKey();
+  document.getElementById('fecha-asistencia').textContent = new Date().toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'});
+  const grupoFiltro = document.getElementById('filter-grupo')?.value || '';
+  const filtrados = grupoFiltro ? data.alumnos.filter(a => a.grupo === grupoFiltro) : data.alumnos;
+  if (!data.asistencia[today]) data.asistencia[today] = {};
+  document.getElementById('asistencia-list').innerHTML = filtrados.map(a => {
+    const estado = data.asistencia[today][a.id] || '';
+    return `<div class="flex items-center justify-between p-3 glass rounded-xl">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 font-bold text-xs">${a.nombre.split(' ').map(n=>n[0]).slice(0,2).join('')}</div>
+        <div>
+          <p class="text-sm font-semibold text-gray-800">${a.nombre}</p>
+          <p class="text-xs text-indigo-500">${a.grupo}</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="marcarAsistencia(${a.id},'presente')" class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${estado==='presente' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-100'}">Presente</button>
+        <button onclick="marcarAsistencia(${a.id},'ausente')" class="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${estado==='ausente' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-100'}">Ausente</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function marcarAsistencia(alumnoId, estado) {
+  const today = getTodayKey();
+  if (!data.asistencia[today]) data.asistencia[today] = {};
+  data.asistencia[today][alumnoId] = estado;
+  saveData();
+  renderAsistencia();
+}
+
+function marcarTodos(estado) {
+  const today = getTodayKey();
+  if (!data.asistencia[today]) data.asistencia[today] = {};
+  const grupoFiltro = document.getElementById('filter-grupo')?.value || '';
+  const filtrados = grupoFiltro ? data.alumnos.filter(a => a.grupo === grupoFiltro) : data.alumnos;
+  filtrados.forEach(a => { data.asistencia[today][a.id] = estado; });
+  saveData();
+  renderAsistencia();
+}
+
+function renderPagos() {
+  const select = document.getElementById('pago-alumno');
+  select.innerHTML = '<option value="">Seleccionar alumno</option>' + data.alumnos.map(a => `<option value="${a.id}">${a.nombre} (${a.grupo})</option>`).join('');
+  const todos = [];
+  data.alumnos.forEach(a => a.pagos.forEach(p => todos.push({...p, nombre: a.nombre, grupo: a.grupo})));
+  todos.sort((a,b) => b.fecha.localeCompare(a.fecha));
+  document.getElementById('pagos-list').innerHTML = todos.slice(0,20).map(p => `
+    <div class="glass rounded-xl p-4 flex items-center justify-between">
+      <div>
+        <p class="text-sm font-semibold text-gray-800">${p.nombre}</p>
+        <p class="text-xs text-gray-500">${p.grupo} · ${p.fecha}</p>
+        <p class="text-xs text-indigo-500">${p.concepto}</p>
+      </div>
+      <p class="font-bold text-green-600">+$${p.monto.toLocaleString('es-MX')}</p>
+    </div>
+  `).join('') || '<p class="text-sm text-gray-400 text-center py-8">Sin pagos registrados</p>';
+}
+
+function registrarPago() {
+  const id = parseInt(document.getElementById('pago-alumno').value);
+  const monto = parseFloat(document.getElementById('pago-monto').value);
+  if (!id || !monto) { alert('Selecciona alumno e ingresa monto'); return; }
+  const alumno = data.alumnos.find(a => a.id === id);
+  alumno.pagos.push({ fecha: getTodayKey(), monto, concepto: 'Cuota ' + new Date().toLocaleString('es-MX', {month:'long', year:'numeric'}) });
+  alumno.estado = 'al_dia';
+  saveData();
+  document.getElementById('pago-alumno').value = '';
+  document.getElementById('pago-monto').value = '';
+  renderPagos();
+  alert('Pago registrado correctamente');
+}
+
+function agregarAlumno() {
+  const nombre = document.getElementById('new-nombre').value.trim();
+  const telefono = document.getElementById('new-telefono').value.trim();
+  if (!nombre) { alert('Ingresa el nombre del alumno'); return; }
+  data.alumnos.push({
+    id: data.nextId++,
+    nombre,
+    telefono,
+    tutor: document.getElementById('new-tutor').value.trim(),
+    tutorTel: document.getElementById('new-tutor-tel').value.trim(),
+    grupo: document.getElementById('new-grupo').value,
+    cuota: parseFloat(document.getElementById('new-cuota').value) || 0,
+    estado: 'pendiente',
+    pagos: [], notas: ''
+  });
+  saveData();
+  closeModal('modal-add-alumno');
+  renderAlumnos();
+}
+
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// Init
+document.getElementById('today-date').textContent = new Date().toLocaleDateString('es-MX', {day:'numeric', month:'short', year:'numeric'});
+showView('dashboard');
+</script>
+</body>
+</html>

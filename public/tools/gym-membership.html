@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GymPro — Sistema de Membresías</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  :root {
+    --dark: #0f172a;
+    --darker: #080f1e;
+    --green: #22c55e;
+    --green-dark: #16a34a;
+    --card: #1e293b;
+    --border: #334155;
+    --muted: #64748b;
+  }
+  body { background: var(--dark); color: #f1f5f9; }
+  .bg-dark { background: var(--dark); }
+  .bg-darker { background: var(--darker); }
+  .bg-card { background: var(--card); }
+  .border-custom { border-color: var(--border); }
+  .text-muted { color: var(--muted); }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes pulse-green {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  }
+  .fade-in { animation: fadeIn 0.4s ease forwards; }
+  .slide-in { animation: slideIn 0.3s ease forwards; }
+  .pulse-green { animation: pulse-green 2s infinite; }
+
+  /* Sidebar */
+  .sidebar { background: var(--darker); border-right: 1px solid var(--border); }
+  .nav-item { transition: all 0.2s ease; border-radius: 8px; }
+  .nav-item:hover { background: rgba(34, 197, 94, 0.1); color: var(--green); }
+  .nav-item.active { background: rgba(34, 197, 94, 0.15); color: var(--green); border-left: 3px solid var(--green); }
+
+  /* Cards */
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; transition: transform 0.2s, box-shadow 0.2s; }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  .green-card { background: linear-gradient(135deg, #16a34a, #22c55e); }
+
+  /* Tables */
+  .table-row { transition: background 0.15s; }
+  .table-row:hover { background: rgba(255,255,255,0.04); }
+
+  /* Buttons */
+  .btn-green { background: var(--green); color: #fff; border-radius: 8px; transition: all 0.2s; }
+  .btn-green:hover { background: var(--green-dark); transform: translateY(-1px); }
+  .btn-outline { border: 1px solid var(--border); border-radius: 8px; transition: all 0.2s; }
+  .btn-outline:hover { border-color: var(--green); color: var(--green); }
+
+  /* Status badges */
+  .badge-active { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+  .badge-expiring { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+  .badge-expired { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+  /* Inputs */
+  input, select, textarea {
+    background: #0f172a !important;
+    border: 1px solid var(--border) !important;
+    color: #f1f5f9 !important;
+    border-radius: 8px;
+    transition: border-color 0.2s;
+  }
+  input:focus, select:focus { border-color: var(--green) !important; outline: none; box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
+
+  /* Modal */
+  .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+  .modal-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--darker); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; border-radius: 12px; padding: 14px 20px; animation: fadeIn 0.3s ease; }
+
+  /* Mobile nav */
+  .mobile-nav { background: var(--darker); border-top: 1px solid var(--border); }
+
+  /* Print */
+  @media print {
+    body { background: white; color: #000; }
+    .sidebar, .mobile-nav, .btn-green, .btn-outline, .no-print { display: none !important; }
+    .print-full { width: 100% !important; margin: 0 !important; }
+    .stat-card { border: 1px solid #ccc; }
+    .badge-active { background: #d1fae5; color: #065f46; }
+    .badge-expiring { background: #fef3c7; color: #92400e; }
+    .badge-expired { background: #fee2e2; color: #991b1b; }
+  }
+
+  /* Chart container */
+  .chart-container { position: relative; height: 200px; }
+
+  /* Checkin animation */
+  @keyframes checkmark {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
+  }
+  .checkin-success { animation: checkmark 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+</style>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        green: { 500: '#22c55e', 600: '#16a34a' }
+      }
+    }
+  }
+}
+</script>
+</head>
+<body class="bg-dark min-h-screen">
+
+<!-- App Shell -->
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Sidebar (desktop) -->
+  <aside class="sidebar w-64 hidden md:flex flex-col fixed h-full z-40">
+    <!-- Logo -->
+    <div class="p-6 border-b border-custom">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 green-card rounded-xl flex items-center justify-center pulse-green">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="font-bold text-white text-lg leading-none">GymPro</div>
+          <div class="text-xs text-muted">Sistema de Membresías</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 p-4 space-y-1">
+      <button onclick="showSection('dashboard')" class="nav-item active w-full flex items-center gap-3 px-4 py-3 text-sm font-medium" id="nav-dashboard">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </button>
+      <button onclick="showSection('checkin')" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium" id="nav-checkin">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Check-In
+      </button>
+      <button onclick="showSection('members')" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium" id="nav-members">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Miembros
+      </button>
+      <button onclick="showSection('payments')" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium" id="nav-payments">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        Pagos
+      </button>
+      <button onclick="showSection('reminders')" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium" id="nav-reminders">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 3H3a2 2 0 00-2 2v14a2 2 0 002 2h18a2 2 0 002-2V5a2 2 0 00-2-2z"/></svg>
+        WhatsApp
+      </button>
+    </nav>
+
+    <!-- Footer -->
+    <div class="p-4 border-t border-custom">
+      <div class="text-xs text-muted text-center">Powered by Novamente Studio</div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 md:ml-64 overflow-y-auto">
+    <!-- Top bar -->
+    <header class="sticky top-0 z-30 bg-darker border-b border-custom px-4 md:px-6 py-4 flex items-center justify-between no-print">
+      <div>
+        <h1 class="text-lg font-bold text-white" id="page-title">Dashboard</h1>
+        <p class="text-xs text-muted" id="page-subtitle">Resumen del gimnasio</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="text-right hidden sm:block">
+          <div class="text-sm font-semibold text-white" id="current-date"></div>
+          <div class="text-xs text-muted" id="current-time"></div>
+        </div>
+        <button onclick="openAddMemberModal()" class="btn-green px-4 py-2 text-sm font-semibold no-print">
+          + Nuevo Miembro
+        </button>
+      </div>
+    </header>
+
+    <!-- Sections -->
+    <div class="p-4 md:p-6">
+
+      <!-- DASHBOARD -->
+      <section id="section-dashboard" class="fade-in">
+        <!-- Stats Row -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div class="stat-card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-muted text-sm">Miembros Activos</span>
+              <div class="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </div>
+            </div>
+            <div class="text-3xl font-bold text-white" id="stat-active">0</div>
+            <div class="text-xs text-green-500 mt-1">miembros</div>
+          </div>
+          <div class="stat-card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-muted text-sm">Por Vencer (7d)</span>
+              <div class="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.94-.833-2.71 0L4.068 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+              </div>
+            </div>
+            <div class="text-3xl font-bold text-white" id="stat-expiring">0</div>
+            <div class="text-xs text-yellow-500 mt-1">requieren renovación</div>
+          </div>
+          <div class="stat-card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-muted text-sm">Ingresos del Mes</span>
+              <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+            </div>
+            <div class="text-3xl font-bold text-white" id="stat-revenue">$0</div>
+            <div class="text-xs text-blue-400 mt-1">MXN este mes</div>
+          </div>
+          <div class="stat-card p-5">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-muted text-sm">Check-ins Hoy</span>
+              <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+              </div>
+            </div>
+            <div class="text-3xl font-bold text-white" id="stat-checkins">0</div>
+            <div class="text-xs text-purple-400 mt-1">entradas registradas</div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          <!-- Plan Distribution -->
+          <div class="stat-card p-5">
+            <h3 class="font-semibold text-white mb-4">Distribución de Planes</h3>
+            <div class="chart-container">
+              <canvas id="planChart"></canvas>
+            </div>
+          </div>
+          <!-- Revenue Chart -->
+          <div class="stat-card p-5 lg:col-span-2">
+            <h3 class="font-semibold text-white mb-4">Tasa de Renovación (últimos 6 meses)</h3>
+            <div class="chart-container">
+              <canvas id="renewalChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expiring Soon -->
+        <div class="stat-card p-5 mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-white">Por Vencer Esta Semana</h3>
+            <button onclick="showSection('reminders')" class="text-sm text-green-500 hover:text-green-400 transition-colors">Enviar WhatsApp →</button>
+          </div>
+          <div id="expiring-list" class="space-y-3"></div>
+        </div>
+
+        <!-- Recent Checkins -->
+        <div class="stat-card p-5">
+          <h3 class="font-semibold text-white mb-4">Check-ins Recientes</h3>
+          <div id="recent-checkins" class="space-y-2"></div>
+        </div>
+      </section>
+
+      <!-- CHECK-IN -->
+      <section id="section-checkin" class="hidden fade-in">
+        <div class="max-w-lg mx-auto">
+          <div class="stat-card p-6">
+            <div class="text-center mb-6">
+              <div class="w-16 h-16 green-card rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+              <h2 class="text-xl font-bold text-white">Check-In Rápido</h2>
+              <p class="text-muted text-sm mt-1">Busca al miembro por nombre o teléfono</p>
+            </div>
+
+            <div class="relative mb-4">
+              <svg class="absolute left-3 top-3.5 w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input type="text" id="checkin-search" placeholder="Nombre o teléfono..." class="w-full pl-10 pr-4 py-3 text-sm" oninput="searchCheckin()" autocomplete="off">
+            </div>
+
+            <!-- Search Results -->
+            <div id="checkin-results" class="space-y-2 mb-4"></div>
+
+            <!-- Checkin Result Card -->
+            <div id="checkin-card" class="hidden"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MEMBERS -->
+      <section id="section-members" class="hidden fade-in">
+        <!-- Filter Bar -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-6 no-print">
+          <div class="relative flex-1">
+            <svg class="absolute left-3 top-3 w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0118 0z"/></svg>
+            <input type="text" id="member-search" placeholder="Buscar miembros..." class="w-full pl-10 pr-4 py-2.5 text-sm" oninput="renderMembers()">
+          </div>
+          <select id="filter-status" class="px-4 py-2.5 text-sm w-full sm:w-auto" onchange="renderMembers()">
+            <option value="">Todos los estados</option>
+            <option value="Activo">Activo</option>
+            <option value="Por vencer">Por vencer</option>
+            <option value="Vencido">Vencido</option>
+          </select>
+          <select id="filter-plan" class="px-4 py-2.5 text-sm w-full sm:w-auto" onchange="renderMembers()">
+            <option value="">Todos los planes</option>
+            <option value="Mensual">Mensual</option>
+            <option value="Trimestral">Trimestral</option>
+            <option value="Anual">Anual</option>
+          </select>
+          <button onclick="window.print()" class="btn-outline px-4 py-2.5 text-sm text-muted no-print">
+            🖨️ Imprimir
+          </button>
+        </div>
+
+        <!-- Members Table -->
+        <div class="stat-card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-custom">
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Miembro</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Plan</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider hidden md:table-cell">Vencimiento</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Estado</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Días</th>
+                  <th class="text-right px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider no-print">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="members-tbody"></tbody>
+            </table>
+          </div>
+          <div id="members-empty" class="hidden text-center py-12 text-muted">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <p class="text-sm">No se encontraron miembros</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAYMENTS -->
+      <section id="section-payments" class="hidden fade-in">
+        <div class="flex flex-col sm:flex-row gap-3 mb-6 no-print">
+          <div class="relative flex-1">
+            <svg class="absolute left-3 top-3 w-5 h-5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0118 0z"/></svg>
+            <input type="text" id="payment-search" placeholder="Buscar por miembro..." class="w-full pl-10 pr-4 py-2.5 text-sm" oninput="renderPayments()">
+          </div>
+          <select id="payment-month" class="px-4 py-2.5 text-sm w-full sm:w-auto" onchange="renderPayments()">
+            <option value="">Todos los meses</option>
+            <option value="2026-04">Abril 2026</option>
+            <option value="2026-03">Marzo 2026</option>
+            <option value="2026-02">Febrero 2026</option>
+            <option value="2026-01">Enero 2026</option>
+          </select>
+        </div>
+
+        <!-- Payment Summary -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div class="stat-card p-5">
+            <div class="text-muted text-sm mb-1">Total este mes</div>
+            <div class="text-2xl font-bold text-white" id="pay-total-month">$0</div>
+          </div>
+          <div class="stat-card p-5">
+            <div class="text-muted text-sm mb-1">Pagos registrados</div>
+            <div class="text-2xl font-bold text-white" id="pay-count-month">0</div>
+          </div>
+          <div class="stat-card p-5">
+            <div class="text-muted text-sm mb-1">Promedio por pago</div>
+            <div class="text-2xl font-bold text-white" id="pay-avg-month">$0</div>
+          </div>
+        </div>
+
+        <div class="stat-card overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-custom">
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Miembro</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider hidden sm:table-cell">Plan</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider">Monto</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider hidden md:table-cell">Fecha</th>
+                  <th class="text-left px-4 py-3 text-xs font-semibold text-muted uppercase tracking-wider hidden lg:table-cell">Método</th>
+                </tr>
+              </thead>
+              <tbody id="payments-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- WHATSAPP REMINDERS -->
+      <section id="section-reminders" class="hidden fade-in">
+        <div class="mb-6">
+          <div class="flex flex-col sm:flex-row gap-4">
+            <div class="stat-card p-5 flex-1">
+              <div class="text-muted text-sm mb-1">Por vencer en 7 días</div>
+              <div class="text-2xl font-bold text-yellow-400" id="remind-expiring-7">0</div>
+            </div>
+            <div class="stat-card p-5 flex-1">
+              <div class="text-muted text-sm mb-1">Por vencer en 3 días</div>
+              <div class="text-2xl font-bold text-orange-400" id="remind-expiring-3">0</div>
+            </div>
+            <div class="stat-card p-5 flex-1">
+              <div class="text-muted text-sm mb-1">Vencidos sin contacto</div>
+              <div class="text-2xl font-bold text-red-400" id="remind-expired">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Message Template -->
+        <div class="stat-card p-5 mb-6">
+          <h3 class="font-semibold text-white mb-3">Plantilla de Mensaje</h3>
+          <textarea id="wa-template" rows="4" class="w-full p-3 text-sm resize-none" style="border-radius:8px;">¡Hola {nombre}! 💪 Te recordamos que tu membresía en GymPro vence el {fecha}. ¡Renueva ahora y sigue entrenando sin interrupciones! Contáctanos para más info.</textarea>
+          <div class="flex gap-2 mt-3 text-xs text-muted">
+            <span class="bg-dark px-2 py-1 rounded">{nombre}</span>
+            <span class="bg-dark px-2 py-1 rounded">{fecha}</span>
+            <span class="bg-dark px-2 py-1 rounded">{dias}</span>
+            <span class="bg-dark px-2 py-1 rounded">{plan}</span>
+          </div>
+        </div>
+
+        <!-- Members to Remind -->
+        <div class="stat-card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-white">Miembros por Notificar</h3>
+            <button onclick="sendAllWhatsApp()" class="btn-green px-4 py-2 text-sm font-semibold flex items-center gap-2">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488"/></svg>
+              Enviar a todos
+            </button>
+          </div>
+          <div id="reminder-list" class="space-y-3"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-custom p-4 text-center text-xs text-muted mt-auto">
+      Powered by <span class="text-green-500 font-semibold">Novamente Studio</span> · GymPro v1.0
+    </footer>
+  </main>
+
+</div>
+
+<!-- Mobile Bottom Nav -->
+<div class="mobile-nav fixed bottom-0 left-0 right-0 md:hidden flex no-print z-40">
+  <button onclick="showSection('dashboard')" class="flex-1 flex flex-col items-center py-3 text-muted nav-mobile" id="mnav-dashboard">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+    <span class="text-xs mt-1">Dashboard</span>
+  </button>
+  <button onclick="showSection('checkin')" class="flex-1 flex flex-col items-center py-3 text-muted nav-mobile" id="mnav-checkin">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <span class="text-xs mt-1">Check-In</span>
+  </button>
+  <button onclick="showSection('members')" class="flex-1 flex flex-col items-center py-3 text-muted nav-mobile" id="mnav-members">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    <span class="text-xs mt-1">Miembros</span>
+  </button>
+  <button onclick="showSection('payments')" class="flex-1 flex flex-col items-center py-3 text-muted nav-mobile" id="mnav-payments">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+    <span class="text-xs mt-1">Pagos</span>
+  </button>
+  <button onclick="showSection('reminders')" class="flex-1 flex flex-col items-center py-3 text-muted nav-mobile" id="mnav-reminders">
+    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488"/></svg>
+    <span class="text-xs mt-1">WhatsApp</span>
+  </button>
+</div>
+
+<!-- ADD/EDIT MEMBER MODAL -->
+<div id="modal-member" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+  <div class="modal-box w-full max-w-md max-h-[90vh] overflow-y-auto p-6 slide-in">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-bold text-white" id="modal-member-title">Nuevo Miembro</h2>
+      <button onclick="closeModal('modal-member')" class="text-muted hover:text-white transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="member-form" onsubmit="saveMember(event)">
+      <input type="hidden" id="member-id">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-muted mb-1">Nombre completo *</label>
+          <input type="text" id="m-name" required class="w-full px-4 py-2.5 text-sm" placeholder="Juan Pérez">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-muted mb-1">Teléfono *</label>
+          <input type="tel" id="m-phone" required class="w-full px-4 py-2.5 text-sm" placeholder="5512345678">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-muted mb-1">Plan *</label>
+          <select id="m-plan" required class="w-full px-4 py-2.5 text-sm" onchange="updateExpiry()">
+            <option value="">Seleccionar plan</option>
+            <option value="Mensual">Mensual — $500 MXN</option>
+            <option value="Trimestral">Trimestral — $1,300 MXN</option>
+            <option value="Anual">Anual — $4,500 MXN</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-muted mb-1">Fecha de inicio *</label>
+          <input type="date" id="m-start" required class="w-full px-4 py-2.5 text-sm" oninput="updateExpiry()">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-muted mb-1">Fecha de vencimiento</label>
+          <input type="date" id="m-expiry" class="w-full px-4 py-2.5 text-sm bg-dark">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-muted mb-1">Método de pago</label>
+          <select id="m-payment-method" class="w-full px-4 py-2.5 text-sm">
+            <option value="Efectivo">Efectivo</option>
+            <option value="Transferencia">Transferencia</option>
+            <option value="Tarjeta">Tarjeta</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-muted mb-1">Notas</label>
+          <textarea id="m-notes" rows="2" class="w-full px-4 py-2.5 text-sm resize-none" placeholder="Observaciones..."></textarea>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button type="button" onclick="closeModal('modal-member')" class="btn-outline flex-1 py-2.5 text-sm text-muted font-medium">Cancelar</button>
+        <button type="submit" class="btn-green flex-1 py-2.5 text-sm font-semibold">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MEMBER DETAIL MODAL -->
+<div id="modal-detail" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+  <div class="modal-box w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 slide-in">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-xl font-bold text-white">Detalle del Miembro</h2>
+      <button onclick="closeModal('modal-detail')" class="text-muted hover:text-white transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="modal-detail-content"></div>
+  </div>
+</div>
+
+<!-- RENEW MODAL -->
+<div id="modal-renew" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+  <div class="modal-box w-full max-w-sm p-6 slide-in">
+    <div class="text-center mb-6">
+      <div class="w-14 h-14 bg-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+        <svg class="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      </div>
+      <h2 class="text-xl font-bold text-white">Renovar Membresía</h2>
+      <p class="text-muted text-sm mt-1" id="renew-member-name"></p>
+    </div>
+    <input type="hidden" id="renew-member-id">
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-muted mb-1">Nuevo Plan</label>
+        <select id="renew-plan" class="w-full px-4 py-2.5 text-sm">
+          <option value="Mensual">Mensual — $500 MXN</option>
+          <option value="Trimestral">Trimestral — $1,300 MXN</option>
+          <option value="Anual">Anual — $4,500 MXN</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-muted mb-1">Método de pago</label>
+        <select id="renew-method" class="w-full px-4 py-2.5 text-sm">
+          <option value="Efectivo">Efectivo</option>
+          <option value="Transferencia">Transferencia</option>
+          <option value="Tarjeta">Tarjeta</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex gap-3 mt-6">
+      <button onclick="closeModal('modal-renew')" class="btn-outline flex-1 py-2.5 text-sm text-muted font-medium">Cancelar</button>
+      <button onclick="confirmRenew()" class="btn-green flex-1 py-2.5 text-sm font-semibold">Renovar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<script>
+// ===================== DATA =====================
+const PLANS = {
+  'Mensual': { price: 500, days: 30 },
+  'Trimestral': { price: 1300, days: 90 },
+  'Anual': { price: 4500, days: 365 }
+};
+
+const TODAY = new Date('2026-04-12');
+const todayStr = '2026-04-12';
+
+function addDays(dateStr, days) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+function daysDiff(dateStr) {
+  const d = new Date(dateStr);
+  const diff = Math.ceil((d - TODAY) / (1000*60*60*24));
+  return diff;
+}
+
+function getStatus(member) {
+  const days = daysDiff(member.expiry);
+  if (days < 0) return 'Vencido';
+  if (days <= 7) return 'Por vencer';
+  return 'Activo';
+}
+
+// Demo data
+const DEMO_MEMBERS = [
+  { id: 1, name: 'Carlos Mendoza', phone: '5512345601', plan: 'Mensual', start: '2026-03-12', expiry: '2026-04-12', notes: 'Clase de boxeo', paymentMethod: 'Efectivo' },
+  { id: 2, name: 'Laura Jiménez', phone: '5512345602', plan: 'Trimestral', start: '2026-01-15', expiry: '2026-04-15', notes: '', paymentMethod: 'Transferencia' },
+  { id: 3, name: 'Miguel Torres', phone: '5512345603', plan: 'Anual', start: '2026-01-01', expiry: '2026-12-31', notes: 'Instructor externo', paymentMethod: 'Tarjeta' },
+  { id: 4, name: 'Sofía Ramírez', phone: '5512345604', plan: 'Mensual', start: '2026-03-20', expiry: '2026-04-20', notes: '', paymentMethod: 'Efectivo' },
+  { id: 5, name: 'Diego Morales', phone: '5512345605', plan: 'Trimestral', start: '2025-12-10', expiry: '2026-03-10', notes: '', paymentMethod: 'Efectivo' },
+  { id: 6, name: 'Valeria Castro', phone: '5512345606', plan: 'Mensual', start: '2026-03-05', expiry: '2026-04-05', notes: 'Zumba y cardio', paymentMethod: 'Transferencia' },
+  { id: 7, name: 'Andrés López', phone: '5512345607', plan: 'Anual', start: '2026-02-01', expiry: '2027-02-01', notes: '', paymentMethod: 'Tarjeta' },
+  { id: 8, name: 'Fernanda Ortega', phone: '5512345608', plan: 'Mensual', start: '2026-04-01', expiry: '2026-05-01', notes: '', paymentMethod: 'Efectivo' },
+  { id: 9, name: 'Roberto Herrera', phone: '5512345609', plan: 'Trimestral', start: '2025-11-15', expiry: '2026-02-15', notes: '', paymentMethod: 'Tarjeta' },
+  { id: 10, name: 'Daniela Vargas', phone: '5512345610', plan: 'Mensual', start: '2026-04-08', expiry: '2026-04-15', notes: 'Recién inscrita', paymentMethod: 'Efectivo' },
+  { id: 11, name: 'Oscar Flores', phone: '5512345611', plan: 'Anual', start: '2026-03-01', expiry: '2027-03-01', notes: 'Powerlifting', paymentMethod: 'Transferencia' },
+  { id: 12, name: 'Isabella Ruiz', phone: '5512345612', plan: 'Trimestral', start: '2026-01-12', expiry: '2026-04-12', notes: '', paymentMethod: 'Efectivo' },
+  { id: 13, name: 'Eduardo Peña', phone: '5512345613', plan: 'Mensual', start: '2026-02-01', expiry: '2026-03-01', notes: '', paymentMethod: 'Tarjeta' },
+  { id: 14, name: 'Natalia Guerrero', phone: '5512345614', plan: 'Anual', start: '2026-01-05', expiry: '2027-01-05', notes: 'Yoga y pilates', paymentMethod: 'Transferencia' },
+  { id: 15, name: 'Javier Salinas', phone: '5512345615', plan: 'Mensual', start: '2026-04-05', expiry: '2026-04-17', notes: '', paymentMethod: 'Efectivo' },
+];
+
+const DEMO_PAYMENTS = [];
+DEMO_MEMBERS.forEach(m => {
+  DEMO_PAYMENTS.push({
+    id: DEMO_PAYMENTS.length + 1,
+    memberId: m.id,
+    memberName: m.name,
+    plan: m.plan,
+    amount: PLANS[m.plan].price,
+    date: m.start,
+    method: m.paymentMethod
+  });
+  // Add renewal for some
+  if (m.id % 3 === 0) {
+    const prevStart = addDays(m.start, -PLANS[m.plan].days);
+    DEMO_PAYMENTS.push({
+      id: DEMO_PAYMENTS.length + 1,
+      memberId: m.id,
+      memberName: m.name,
+      plan: m.plan,
+      amount: PLANS[m.plan].price,
+      date: prevStart,
+      method: m.paymentMethod
+    });
+  }
+});
+
+const DEMO_CHECKINS = [
+  { memberId: 1, memberName: 'Carlos Mendoza', date: todayStr, time: '07:23' },
+  { memberId: 3, memberName: 'Miguel Torres', date: todayStr, time: '08:01' },
+  { memberId: 8, memberName: 'Fernanda Ortega', date: todayStr, time: '09:15' },
+  { memberId: 11, memberName: 'Oscar Flores', date: todayStr, time: '10:00' },
+  { memberId: 4, memberName: 'Sofía Ramírez', date: '2026-04-11', time: '18:30' },
+  { memberId: 7, memberName: 'Andrés López', date: '2026-04-11', time: '17:00' },
+];
+
+// ===================== STATE =====================
+let members, payments, checkins;
+
+function initData() {
+  const savedM = localStorage.getItem('gympro_members');
+  const savedP = localStorage.getItem('gympro_payments');
+  const savedC = localStorage.getItem('gympro_checkins');
+  members = savedM ? JSON.parse(savedM) : [...DEMO_MEMBERS];
+  payments = savedP ? JSON.parse(savedP) : [...DEMO_PAYMENTS];
+  checkins = savedC ? JSON.parse(savedC) : [...DEMO_CHECKINS];
+  save();
+}
+
+function save() {
+  localStorage.setItem('gympro_members', JSON.stringify(members));
+  localStorage.setItem('gympro_payments', JSON.stringify(payments));
+  localStorage.setItem('gympro_checkins', JSON.stringify(checkins));
+}
+
+// ===================== NAVIGATION =====================
+let currentSection = 'dashboard';
+
+function showSection(name) {
+  document.querySelectorAll('[id^="section-"]').forEach(s => s.classList.add('hidden'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-mobile').forEach(n => { n.style.color = ''; });
+
+  document.getElementById('section-' + name).classList.remove('hidden');
+  const navEl = document.getElementById('nav-' + name);
+  if (navEl) navEl.classList.add('active');
+  const mNavEl = document.getElementById('mnav-' + name);
+  if (mNavEl) mNavEl.style.color = '#22c55e';
+
+  const titles = {
+    dashboard: ['Dashboard', 'Resumen del gimnasio'],
+    checkin: ['Check-In', 'Registra la entrada de miembros'],
+    members: ['Miembros', 'Gestiona todas las membresías'],
+    payments: ['Historial de Pagos', 'Registro de todos los pagos'],
+    reminders: ['Recordatorios WhatsApp', 'Envía notificaciones a miembros']
+  };
+  document.getElementById('page-title').textContent = titles[name][0];
+  document.getElementById('page-subtitle').textContent = titles[name][1];
+  currentSection = name;
+
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'members') renderMembers();
+  if (name === 'payments') renderPayments();
+  if (name === 'reminders') renderReminders();
+  if (name === 'checkin') { document.getElementById('checkin-search').value = ''; document.getElementById('checkin-results').innerHTML = ''; document.getElementById('checkin-card').classList.add('hidden'); }
+}
+
+// ===================== CLOCK =====================
+function updateClock() {
+  const now = new Date();
+  document.getElementById('current-date').textContent = TODAY.toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long' });
+  document.getElementById('current-time').textContent = now.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+}
+
+// ===================== DASHBOARD =====================
+let planChart, renewalChart;
+
+function renderDashboard() {
+  const active = members.filter(m => getStatus(m) === 'Activo').length;
+  const expiring = members.filter(m => getStatus(m) === 'Por vencer').length;
+  const todayCheckins = checkins.filter(c => c.date === todayStr).length;
+
+  // Revenue this month
+  const thisMonth = '2026-04';
+  const monthRevenue = payments.filter(p => p.date && p.date.startsWith(thisMonth)).reduce((s, p) => s + p.amount, 0);
+
+  document.getElementById('stat-active').textContent = active;
+  document.getElementById('stat-expiring').textContent = expiring;
+  document.getElementById('stat-revenue').textContent = '$' + monthRevenue.toLocaleString('es-MX');
+  document.getElementById('stat-checkins').textContent = todayCheckins;
+
+  // Expiring list
+  const expiringMembers = members.filter(m => { const d = daysDiff(m.expiry); return d >= 0 && d <= 7; });
+  const expiringList = document.getElementById('expiring-list');
+  if (expiringMembers.length === 0) {
+    expiringList.innerHTML = '<p class="text-muted text-sm text-center py-4">No hay membresías por vencer esta semana</p>';
+  } else {
+    expiringList.innerHTML = expiringMembers.map(m => `
+      <div class="flex items-center justify-between p-3 bg-dark rounded-lg">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 font-bold text-sm">${m.name[0]}</div>
+          <div>
+            <div class="text-sm font-medium text-white">${m.name}</div>
+            <div class="text-xs text-muted">${m.plan} · vence ${formatDate(m.expiry)}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge-expiring text-xs px-2 py-1 rounded-full font-medium">${daysDiff(m.expiry)}d</span>
+          <a href="https://wa.me/52${m.phone}?text=${encodeURIComponent(buildWAMessage(m))}" target="_blank" class="text-green-500 hover:text-green-400">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488"/></svg>
+          </a>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Recent checkins
+  const recentCI = [...checkins].reverse().slice(0, 5);
+  document.getElementById('recent-checkins').innerHTML = recentCI.length === 0
+    ? '<p class="text-muted text-sm text-center py-4">Sin check-ins registrados</p>'
+    : recentCI.map(c => `
+        <div class="flex items-center justify-between py-2 border-b border-custom last:border-0">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 font-bold text-xs">${c.memberName[0]}</div>
+            <div class="text-sm font-medium text-white">${c.memberName}</div>
+          </div>
+          <div class="text-xs text-muted">${c.date === todayStr ? 'Hoy' : c.date} ${c.time}</div>
+        </div>
+      `).join('');
+
+  // Charts
+  renderCharts();
+}
+
+function renderCharts() {
+  // Plan Distribution
+  const planCounts = { Mensual: 0, Trimestral: 0, Anual: 0 };
+  members.forEach(m => { if (planCounts[m.plan] !== undefined) planCounts[m.plan]++; });
+
+  if (planChart) planChart.destroy();
+  const ctx1 = document.getElementById('planChart').getContext('2d');
+  planChart = new Chart(ctx1, {
+    type: 'doughnut',
+    data: {
+      labels: ['Mensual', 'Trimestral', 'Anual'],
+      datasets: [{ data: [planCounts.Mensual, planCounts.Trimestral, planCounts.Anual], backgroundColor: ['#22c55e', '#3b82f6', '#a855f7'], borderColor: '#1e293b', borderWidth: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 11 }, padding: 12 } } }
+    }
+  });
+
+  // Renewal Rate
+  const months = ['Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr'];
+  const renewalData = [72, 68, 80, 75, 83, 78];
+  const revenueData = [8500, 9200, 11000, 10500, 12300, monthRevenue > 0 ? monthRevenue : 9800];
+
+  if (renewalChart) renewalChart.destroy();
+  const ctx2 = document.getElementById('renewalChart').getContext('2d');
+  renewalChart = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [
+        {
+          label: 'Tasa de Renovación (%)',
+          type: 'line',
+          data: renewalData,
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          yAxisID: 'y1',
+          pointBackgroundColor: '#22c55e'
+        },
+        {
+          label: 'Ingresos (MXN)',
+          data: revenueData,
+          backgroundColor: 'rgba(59,130,246,0.3)',
+          borderColor: '#3b82f6',
+          borderWidth: 1,
+          borderRadius: 6,
+          yAxisID: 'y'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans', size: 11 } } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans' } } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', font: { family: 'Plus Jakarta Sans' }, callback: v => '$' + v.toLocaleString() } },
+        y1: { position: 'right', grid: { display: false }, ticks: { color: '#22c55e', font: { family: 'Plus Jakarta Sans' }, callback: v => v + '%' } }
+      }
+    }
+  });
+
+  // For stat
+  const monthRevenue2 = payments.filter(p => p.date && p.date.startsWith('2026-04')).reduce((s, p) => s + p.amount, 0);
+  document.getElementById('stat-revenue').textContent = '$' + monthRevenue2.toLocaleString('es-MX');
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  const date = new Date(d + 'T00:00:00');
+  return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// ===================== MEMBERS =====================
+function renderMembers() {
+  const search = (document.getElementById('member-search')?.value || '').toLowerCase();
+  const statusFilter = document.getElementById('filter-status')?.value || '';
+  const planFilter = document.getElementById('filter-plan')?.value || '';
+
+  let filtered = members.filter(m => {
+    const s = getStatus(m);
+    const matchSearch = m.name.toLowerCase().includes(search) || m.phone.includes(search);
+    const matchStatus = !statusFilter || s === statusFilter;
+    const matchPlan = !planFilter || m.plan === planFilter;
+    return matchSearch && matchStatus && matchPlan;
+  });
+
+  const tbody = document.getElementById('members-tbody');
+  const empty = document.getElementById('members-empty');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  tbody.innerHTML = filtered.map(m => {
+    const status = getStatus(m);
+    const days = daysDiff(m.expiry);
+    const badgeClass = status === 'Activo' ? 'badge-active' : status === 'Por vencer' ? 'badge-expiring' : 'badge-expired';
+    const daysText = days < 0 ? `Vencido hace ${Math.abs(days)}d` : days === 0 ? 'Hoy' : `${days} días`;
+    return `
+      <tr class="table-row border-b border-custom">
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${status === 'Activo' ? 'bg-green-500/20 text-green-400' : status === 'Por vencer' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}">${m.name[0]}</div>
+            <div>
+              <div class="text-sm font-semibold text-white">${m.name}</div>
+              <a href="tel:${m.phone}" class="text-xs text-muted hover:text-green-400 transition-colors">${m.phone}</a>
+            </div>
+          </div>
+        </td>
+        <td class="px-4 py-3 hidden sm:table-cell">
+          <span class="text-sm text-white">${m.plan}</span>
+          <div class="text-xs text-muted">$${PLANS[m.plan].price.toLocaleString()}</div>
+        </td>
+        <td class="px-4 py-3 hidden md:table-cell">
+          <div class="text-sm text-white">${formatDate(m.expiry)}</div>
+          <div class="text-xs text-muted">${formatDate(m.start)}</div>
+        </td>
+        <td class="px-4 py-3">
+          <span class="${badgeClass} text-xs px-2.5 py-1 rounded-full font-medium">${status}</span>
+        </td>
+        <td class="px-4 py-3 hidden lg:table-cell">
+          <span class="text-sm ${days < 0 ? 'text-red-400' : days <= 7 ? 'text-yellow-400' : 'text-muted'}">${daysText}</span>
+        </td>
+        <td class="px-4 py-3 no-print">
+          <div class="flex items-center justify-end gap-1">
+            <button onclick="showMemberDetail(${m.id})" class="p-2 text-muted hover:text-white transition-colors" title="Ver detalle">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
+            <button onclick="openEditMember(${m.id})" class="p-2 text-muted hover:text-blue-400 transition-colors" title="Editar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            </button>
+            <button onclick="openRenewModal(${m.id})" class="p-2 text-muted hover:text-yellow-400 transition-colors" title="Renovar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            </button>
+            <a href="https://wa.me/52${m.phone}?text=${encodeURIComponent(buildWAMessage(m))}" target="_blank" class="p-2 text-muted hover:text-green-400 transition-colors" title="WhatsApp">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488"/></svg>
+            </a>
+            <button onclick="deleteMember(${m.id})" class="p-2 text-muted hover:text-red-400 transition-colors" title="Eliminar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ===================== MEMBER DETAIL =====================
+function showMemberDetail(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  const status = getStatus(m);
+  const days = daysDiff(m.expiry);
+  const badgeClass = status === 'Activo' ? 'badge-active' : status === 'Por vencer' ? 'badge-expiring' : 'badge-expired';
+  const memberPayments = payments.filter(p => p.memberId === id);
+  const memberCheckins = checkins.filter(c => c.memberId === id).reverse().slice(0, 5);
+
+  document.getElementById('modal-detail-content').innerHTML = `
+    <div class="space-y-4">
+      <!-- Header -->
+      <div class="flex items-center gap-4 p-4 bg-dark rounded-xl">
+        <div class="w-16 h-16 rounded-2xl flex items-center justify-center font-bold text-2xl ${status === 'Activo' ? 'bg-green-500/20 text-green-400' : status === 'Por vencer' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}">${m.name[0]}</div>
+        <div class="flex-1">
+          <div class="text-xl font-bold text-white">${m.name}</div>
+          <a href="tel:${m.phone}" class="text-sm text-muted">${m.phone}</a>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="${badgeClass} text-xs px-2.5 py-1 rounded-full font-medium">${status}</span>
+            <span class="text-xs text-muted">${m.plan} · $${PLANS[m.plan].price.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Membership Info -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-dark rounded-xl p-3">
+          <div class="text-xs text-muted mb-1">Inicio</div>
+          <div class="text-sm font-semibold text-white">${formatDate(m.start)}</div>
+        </div>
+        <div class="bg-dark rounded-xl p-3">
+          <div class="text-xs text-muted mb-1">Vencimiento</div>
+          <div class="text-sm font-semibold ${days < 0 ? 'text-red-400' : days <= 7 ? 'text-yellow-400' : 'text-white'}">${formatDate(m.expiry)}</div>
+        </div>
+        <div class="bg-dark rounded-xl p-3">
+          <div class="text-xs text-muted mb-1">Días restantes</div>
+          <div class="text-sm font-semibold ${days < 0 ? 'text-red-400' : 'text-green-400'}">${days < 0 ? 'Vencido hace ' + Math.abs(days) + 'd' : days + ' días'}</div>
+        </div>
+        <div class="bg-dark rounded-xl p-3">
+          <div class="text-xs text-muted mb-1">Check-ins totales</div>
+          <div class="text-sm font-semibold text-white">${checkins.filter(c => c.memberId === id).length}</div>
+        </div>
+      </div>
+
+      ${m.notes ? `<div class="bg-dark rounded-xl p-3"><div class="text-xs text-muted mb-1">Notas</div><div class="text-sm text-white">${m.notes}</div></div>` : ''}
+
+      <!-- Payment History -->
+      <div>
+        <h4 class="text-sm font-semibold text-white mb-2">Historial de Pagos</h4>
+        <div class="space-y-2">
+          ${memberPayments.length === 0 ? '<p class="text-xs text-muted">Sin pagos registrados</p>' :
+            memberPayments.map(p => `
+              <div class="flex items-center justify-between py-2 border-b border-custom last:border-0">
+                <div>
+                  <div class="text-sm text-white">${p.plan}</div>
+                  <div class="text-xs text-muted">${formatDate(p.date)} · ${p.method}</div>
+                </div>
+                <div class="text-sm font-semibold text-green-400">$${p.amount.toLocaleString()}</div>
+              </div>
+            `).join('')}
+        </div>
+      </div>
+
+      <!-- Recent Check-ins -->
+      <div>
+        <h4 class="text-sm font-semibold text-white mb-2">Check-ins Recientes</h4>
+        <div class="space-y-1">
+          ${memberCheckins.length === 0 ? '<p class="text-xs text-muted">Sin check-ins</p>' :
+            memberCheckins.map(c => `
+              <div class="flex items-center justify-between text-sm py-1 border-b border-custom last:border-0">
+                <span class="text-muted">${c.date}</span>
+                <span class="text-white font-medium">${c.time}</span>
+              </div>
+            `).join('')}
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeModal('modal-detail'); openRenewModal(${m.id})" class="btn-outline flex-1 py-2 text-sm text-muted font-medium">Renovar</button>
+        <a href="https://wa.me/52${m.phone}?text=${encodeURIComponent(buildWAMessage(m))}" target="_blank" class="btn-green flex-1 py-2 text-sm font-semibold text-center">WhatsApp</a>
+      </div>
+    </div>
+  `;
+  openModal('modal-detail');
+}
+
+// ===================== CHECK-IN =====================
+function searchCheckin() {
+  const q = document.getElementById('checkin-search').value.toLowerCase();
+  const resultsEl = document.getElementById('checkin-results');
+  document.getElementById('checkin-card').classList.add('hidden');
+
+  if (q.length < 2) { resultsEl.innerHTML = ''; return; }
+
+  const found = members.filter(m => m.name.toLowerCase().includes(q) || m.phone.includes(q)).slice(0, 5);
+
+  if (found.length === 0) {
+    resultsEl.innerHTML = '<p class="text-center text-muted text-sm py-4">No se encontraron miembros</p>';
+    return;
+  }
+
+  resultsEl.innerHTML = found.map(m => {
+    const status = getStatus(m);
+    const badgeClass = status === 'Activo' ? 'badge-active' : status === 'Por vencer' ? 'badge-expiring' : 'badge-expired';
+    return `
+      <button onclick="doCheckin(${m.id})" class="w-full flex items-center justify-between p-3 bg-dark hover:bg-green-500/5 rounded-xl transition-colors text-left border border-custom hover:border-green-500/30">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full ${status === 'Activo' ? 'bg-green-500/20 text-green-400' : status === 'Por vencer' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'} flex items-center justify-center font-bold">${m.name[0]}</div>
+          <div>
+            <div class="font-semibold text-white text-sm">${m.name}</div>
+            <div class="text-xs text-muted">${m.phone}</div>
+          </div>
+        </div>
+        <span class="${badgeClass} text-xs px-2 py-1 rounded-full">${status}</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function doCheckin(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  const status = getStatus(m);
+  const days = daysDiff(m.expiry);
+  const cardEl = document.getElementById('checkin-card');
+  document.getElementById('checkin-results').innerHTML = '';
+  document.getElementById('checkin-search').value = m.name;
+  cardEl.classList.remove('hidden');
+
+  if (status === 'Vencido') {
+    cardEl.innerHTML = `
+      <div class="bg-red-500/10 border border-red-500/30 rounded-2xl p-6 text-center fade-in">
+        <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-9 h-9 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        </div>
+        <div class="text-xl font-bold text-red-400 mb-2">Acceso Bloqueado</div>
+        <div class="text-white font-semibold mb-1">${m.name}</div>
+        <div class="text-muted text-sm mb-4">Membresía vencida hace ${Math.abs(days)} días</div>
+        <div class="text-sm text-muted mb-4">Plan: ${m.plan} · Venció: ${formatDate(m.expiry)}</div>
+        <button onclick="closeModal('modal-renew'); openRenewModal(${m.id})" class="btn-green px-6 py-2.5 text-sm font-semibold">
+          Renovar Membresía
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  // Log check-in
+  const now = new Date();
+  const timeStr = now.toTimeString().slice(0, 5);
+  checkins.push({ memberId: m.id, memberName: m.name, date: todayStr, time: timeStr });
+  save();
+
+  cardEl.innerHTML = `
+    <div class="bg-green-500/10 border border-green-500/30 rounded-2xl p-6 text-center fade-in">
+      <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4 checkin-success">
+        <svg class="w-9 h-9 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <div class="text-xl font-bold text-green-400 mb-2">¡Bienvenido!</div>
+      <div class="text-white font-semibold mb-1">${m.name}</div>
+      <div class="text-muted text-sm mb-4">Check-in registrado: ${timeStr}</div>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="bg-dark rounded-xl p-3">
+          <div class="text-xs text-muted">Plan</div>
+          <div class="text-sm font-semibold text-white">${m.plan}</div>
+        </div>
+        <div class="bg-dark rounded-xl p-3">
+          <div class="text-xs text-muted">Días restantes</div>
+          <div class="text-sm font-semibold ${days <= 7 ? 'text-yellow-400' : 'text-green-400'}">${days} días</div>
+        </div>
+      </div>
+      ${status === 'Por vencer' ? `<div class="text-yellow-400 text-xs bg-yellow-500/10 rounded-lg p-2 mb-3">⚠️ Membresía por vencer en ${days} días</div>` : ''}
+      <button onclick="document.getElementById('checkin-search').value=''; document.getElementById('checkin-card').classList.add('hidden')" class="btn-outline px-6 py-2.5 text-sm text-muted font-medium">
+        Nuevo Check-In
+      </button>
+    </div>
+  `;
+  showToast('✅ Check-in registrado para ' + m.name, 'green');
+}
+
+// ===================== PAYMENTS =====================
+function renderPayments() {
+  const search = (document.getElementById('payment-search')?.value || '').toLowerCase();
+  const monthFilter = document.getElementById('payment-month')?.value || '';
+
+  let filtered = payments.filter(p => {
+    const matchSearch = p.memberName.toLowerCase().includes(search);
+    const matchMonth = !monthFilter || (p.date && p.date.startsWith(monthFilter));
+    return matchSearch && matchMonth;
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const total = filtered.reduce((s, p) => s + p.amount, 0);
+  document.getElementById('pay-total-month').textContent = '$' + total.toLocaleString('es-MX');
+  document.getElementById('pay-count-month').textContent = filtered.length;
+  document.getElementById('pay-avg-month').textContent = filtered.length ? '$' + Math.round(total / filtered.length).toLocaleString('es-MX') : '$0';
+
+  document.getElementById('payments-tbody').innerHTML = filtered.length === 0
+    ? '<tr><td colspan="5" class="text-center py-12 text-muted text-sm">No se encontraron pagos</td></tr>'
+    : filtered.map(p => `
+        <tr class="table-row border-b border-custom">
+          <td class="px-4 py-3">
+            <div class="text-sm font-semibold text-white">${p.memberName}</div>
+          </td>
+          <td class="px-4 py-3 hidden sm:table-cell">
+            <span class="text-sm text-muted">${p.plan}</span>
+          </td>
+          <td class="px-4 py-3">
+            <span class="text-sm font-bold text-green-400">$${p.amount.toLocaleString()}</span>
+          </td>
+          <td class="px-4 py-3 hidden md:table-cell">
+            <span class="text-sm text-muted">${formatDate(p.date)}</span>
+          </td>
+          <td class="px-4 py-3 hidden lg:table-cell">
+            <span class="text-xs bg-dark px-2 py-1 rounded-full text-muted">${p.method}</span>
+          </td>
+        </tr>
+      `).join('');
+}
+
+// ===================== REMINDERS =====================
+function buildWAMessage(m) {
+  const template = document.getElementById('wa-template')?.value || '¡Hola {nombre}! Tu membresía vence el {fecha}. ¡Renueva ya!';
+  const days = daysDiff(m.expiry);
+  return template
+    .replace(/{nombre}/g, m.name.split(' ')[0])
+    .replace(/{fecha}/g, formatDate(m.expiry))
+    .replace(/{dias}/g, Math.max(0, days))
+    .replace(/{plan}/g, m.plan);
+}
+
+function renderReminders() {
+  const expiring7 = members.filter(m => { const d = daysDiff(m.expiry); return d >= 0 && d <= 7; });
+  const expiring3 = members.filter(m => { const d = daysDiff(m.expiry); return d >= 0 && d <= 3; });
+  const expired = members.filter(m => getStatus(m) === 'Vencido');
+
+  document.getElementById('remind-expiring-7').textContent = expiring7.length;
+  document.getElementById('remind-expiring-3').textContent = expiring3.length;
+  document.getElementById('remind-expired').textContent = expired.length;
+
+  const toRemind = [...expiring7, ...expired.slice(0, 5)].filter((m, i, arr) => arr.findIndex(x => x.id === m.id) === i);
+
+  const list = document.getElementById('reminder-list');
+  if (toRemind.length === 0) {
+    list.innerHTML = '<p class="text-center text-muted text-sm py-8">No hay miembros que requieran recordatorio</p>';
+    return;
+  }
+
+  list.innerHTML = toRemind.map(m => {
+    const status = getStatus(m);
+    const days = daysDiff(m.expiry);
+    const badgeClass = status === 'Por vencer' ? 'badge-expiring' : 'badge-expired';
+    return `
+      <div class="flex items-center justify-between p-4 bg-dark rounded-xl">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full ${status === 'Por vencer' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'} flex items-center justify-center font-bold">${m.name[0]}</div>
+          <div>
+            <div class="text-sm font-semibold text-white">${m.name}</div>
+            <div class="text-xs text-muted">${m.phone} · ${m.plan}</div>
+            <div class="text-xs mt-0.5 ${status === 'Por vencer' ? 'text-yellow-400' : 'text-red-400'}">
+              ${days < 0 ? `Vencido hace ${Math.abs(days)} días` : `Vence en ${days} días`}
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <span class="${badgeClass} text-xs px-2 py-1 rounded-full hidden sm:block">${status}</span>
+          <a href="https://wa.me/52${m.phone}?text=${encodeURIComponent(buildWAMessage(m))}" target="_blank"
+             class="btn-green px-3 py-2 text-xs font-semibold flex items-center gap-1">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488"/></svg>
+            Enviar
+          </a>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function sendAllWhatsApp() {
+  const expiring = members.filter(m => { const d = daysDiff(m.expiry); return d >= 0 && d <= 7; });
+  if (expiring.length === 0) { showToast('No hay miembros por vencer esta semana', 'yellow'); return; }
+  expiring.forEach((m, i) => {
+    setTimeout(() => {
+      const url = `https://wa.me/52${m.phone}?text=${encodeURIComponent(buildWAMessage(m))}`;
+      window.open(url, '_blank');
+    }, i * 800);
+  });
+  showToast(`Abriendo ${expiring.length} conversaciones de WhatsApp...`, 'green');
+}
+
+// ===================== MODAL MEMBER =====================
+function openAddMemberModal() {
+  document.getElementById('modal-member-title').textContent = 'Nuevo Miembro';
+  document.getElementById('member-form').reset();
+  document.getElementById('member-id').value = '';
+  document.getElementById('m-start').value = todayStr;
+  openModal('modal-member');
+}
+
+function openEditMember(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('modal-member-title').textContent = 'Editar Miembro';
+  document.getElementById('member-id').value = m.id;
+  document.getElementById('m-name').value = m.name;
+  document.getElementById('m-phone').value = m.phone;
+  document.getElementById('m-plan').value = m.plan;
+  document.getElementById('m-start').value = m.start;
+  document.getElementById('m-expiry').value = m.expiry;
+  document.getElementById('m-payment-method').value = m.paymentMethod || 'Efectivo';
+  document.getElementById('m-notes').value = m.notes || '';
+  openModal('modal-member');
+}
+
+function saveMember(e) {
+  e.preventDefault();
+  const id = document.getElementById('member-id').value;
+  const plan = document.getElementById('m-plan').value;
+  const start = document.getElementById('m-start').value;
+  const expiry = document.getElementById('m-expiry').value || addDays(start, PLANS[plan].days);
+
+  const data = {
+    name: document.getElementById('m-name').value.trim(),
+    phone: document.getElementById('m-phone').value.trim(),
+    plan,
+    start,
+    expiry,
+    paymentMethod: document.getElementById('m-payment-method').value,
+    notes: document.getElementById('m-notes').value.trim()
+  };
+
+  if (id) {
+    const idx = members.findIndex(m => m.id == id);
+    members[idx] = { ...members[idx], ...data };
+    showToast('Miembro actualizado', 'green');
+  } else {
+    const newId = Math.max(...members.map(m => m.id), 0) + 1;
+    members.push({ id: newId, ...data });
+    payments.push({
+      id: Math.max(...payments.map(p => p.id), 0) + 1,
+      memberId: newId,
+      memberName: data.name,
+      plan: data.plan,
+      amount: PLANS[data.plan].price,
+      date: data.start,
+      method: data.paymentMethod
+    });
+    showToast('Miembro registrado exitosamente', 'green');
+  }
+
+  save();
+  closeModal('modal-member');
+  if (currentSection === 'members') renderMembers();
+  if (currentSection === 'dashboard') renderDashboard();
+}
+
+function updateExpiry() {
+  const plan = document.getElementById('m-plan').value;
+  const start = document.getElementById('m-start').value;
+  if (plan && start) {
+    document.getElementById('m-expiry').value = addDays(start, PLANS[plan].days);
+  }
+}
+
+function deleteMember(id) {
+  if (!confirm('¿Eliminar este miembro? Esta acción no se puede deshacer.')) return;
+  members = members.filter(m => m.id !== id);
+  payments = payments.filter(p => p.memberId !== id);
+  checkins = checkins.filter(c => c.memberId !== id);
+  save();
+  renderMembers();
+  showToast('Miembro eliminado', 'red');
+}
+
+// ===================== RENEW =====================
+function openRenewModal(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('renew-member-id').value = id;
+  document.getElementById('renew-member-name').textContent = m.name + ' · ' + m.plan + ' actual';
+  document.getElementById('renew-plan').value = m.plan;
+  openModal('modal-renew');
+}
+
+function confirmRenew() {
+  const id = parseInt(document.getElementById('renew-member-id').value);
+  const plan = document.getElementById('renew-plan').value;
+  const method = document.getElementById('renew-method').value;
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+
+  const newStart = todayStr;
+  const newExpiry = addDays(newStart, PLANS[plan].days);
+
+  m.plan = plan;
+  m.start = newStart;
+  m.expiry = newExpiry;
+  m.paymentMethod = method;
+
+  payments.push({
+    id: Math.max(...payments.map(p => p.id), 0) + 1,
+    memberId: id,
+    memberName: m.name,
+    plan,
+    amount: PLANS[plan].price,
+    date: newStart,
+    method
+  });
+
+  save();
+  closeModal('modal-renew');
+  showToast(`✅ Membresía renovada hasta ${formatDate(newExpiry)}`, 'green');
+  if (currentSection === 'members') renderMembers();
+  if (currentSection === 'dashboard') renderDashboard();
+}
+
+// ===================== MODAL HELPERS =====================
+function openModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+// Close modal on overlay click
+document.querySelectorAll('[id^="modal-"]').forEach(modal => {
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal(modal.id);
+  });
+});
+
+// ===================== TOAST =====================
+function showToast(msg, type = 'green') {
+  const colors = { green: 'bg-green-600', red: 'bg-red-600', yellow: 'bg-yellow-600' };
+  const toast = document.createElement('div');
+  toast.className = `toast ${colors[type] || 'bg-gray-700'} text-white text-sm font-medium shadow-xl`;
+  toast.textContent = msg;
+  document.getElementById('toast-container').appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
+
+// ===================== INIT =====================
+initData();
+updateClock();
+setInterval(updateClock, 1000);
+renderDashboard();
+
+// Mobile nav active state init
+document.getElementById('mnav-dashboard').style.color = '#22c55e';
+</script>
+</body>
+</html>

@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clientes VIP — CRM Restaurante</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .accent { color: #e11d48; }
+  .bg-accent { background-color: #e11d48; }
+  .tab-active { border-bottom: 3px solid #e11d48; color: #e11d48; font-weight: 700; }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+  .tier-bronze { background:#fef3c7; color:#92400e; border:1px solid #fde68a; }
+  .tier-silver { background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; }
+  .tier-gold { background:#fffbeb; color:#b45309; border:1px solid #fcd34d; }
+  .tier-diamond { background:#ede9fe; color:#5b21b6; border:1px solid #c4b5fd; }
+  .allergy-badge { background:#fee2e2; color:#991b1b; border:1px solid #fca5a5; font-size:11px; }
+  .avatar { display:flex; align-items:center; justify-content:center; border-radius:50%; font-weight:700; flex-shrink:0; }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:white; }
+    .print-card { break-inside:avoid; }
+  }
+  .card-hover { transition: box-shadow 0.2s, transform 0.2s; }
+  .card-hover:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.1); transform: translateY(-2px); }
+  .birthday-ring { box-shadow: 0 0 0 3px #fbbf24, 0 0 0 5px #fef3c7; }
+</style>
+</head>
+<body class="bg-rose-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-accent text-white shadow-lg no-print">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="bg-white/20 rounded-xl p-2 text-2xl">💎</div>
+      <div>
+        <h1 class="text-xl font-bold">Clientes VIP</h1>
+        <p class="text-rose-200 text-xs">CRM · Fidelización · Servicio personalizado</p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="switchTab('quickadd')" class="bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5 text-sm font-medium transition">+ Cliente</button>
+    </div>
+  </div>
+</header>
+
+<!-- BIRTHDAY ALERTS -->
+<div id="birthdayAlerts" class="max-w-6xl mx-auto px-4 mt-4 no-print"></div>
+
+<!-- NAV TABS -->
+<div class="max-w-6xl mx-auto px-4 no-print">
+  <nav class="flex gap-1 mt-3 border-b border-gray-200 overflow-x-auto">
+    <button onclick="switchTab('clientes')" id="tab-clientes" class="tab-active px-4 py-3 text-sm whitespace-nowrap">👥 Clientes</button>
+    <button onclick="switchTab('stats')" id="tab-stats" class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700">📊 Estadísticas</button>
+    <button onclick="switchTab('alertas')" id="tab-alertas" class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700">🔔 Alertas</button>
+    <button onclick="switchTab('quickadd')" id="tab-quickadd" class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700">➕ Registro rápido</button>
+  </nav>
+</div>
+
+<main class="max-w-6xl mx-auto px-4 py-6">
+
+<!-- ============ TAB: CLIENTES ============ -->
+<div id="pane-clientes" class="fade-in">
+  <div class="flex flex-col sm:flex-row gap-3 mb-5">
+    <input type="text" id="searchClientes" oninput="renderClientes()" placeholder="Buscar por nombre, teléfono o preferencia…" class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 bg-white">
+    <select id="filterTier" onchange="renderClientes()" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300">
+      <option value="">Todos los niveles</option>
+      <option value="bronze">🥉 Regular</option>
+      <option value="silver">🥈 Frecuente</option>
+      <option value="gold">🥇 VIP</option>
+      <option value="diamond">💎 Premium</option>
+    </select>
+    <select id="sortBy" onchange="renderClientes()" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-rose-300">
+      <option value="visits">Más visitas</option>
+      <option value="recent">Más reciente</option>
+      <option value="name">Nombre A-Z</option>
+      <option value="spend">Mayor gasto</option>
+    </select>
+  </div>
+  <div id="clientesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+</div>
+
+<!-- ============ TAB: STATS ============ -->
+<div id="pane-stats" class="hidden fade-in">
+  <h2 class="text-lg font-bold text-gray-800 mb-5">Estadísticas de Fidelización</h2>
+
+  <!-- Summary cards -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+      <p class="text-3xl font-bold accent" id="stat-total">—</p>
+      <p class="text-xs text-gray-500 mt-1">Total clientes</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+      <p class="text-3xl font-bold text-violet-600" id="stat-premium">—</p>
+      <p class="text-xs text-gray-500 mt-1">VIP + Premium</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+      <p class="text-3xl font-bold text-emerald-600" id="stat-avg">—</p>
+      <p class="text-xs text-gray-500 mt-1">Ticket prom. MXN</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+      <p class="text-3xl font-bold text-amber-500" id="stat-retention">—</p>
+      <p class="text-xs text-gray-500 mt-1">Clientes sin visita 30d</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <h3 class="font-semibold text-gray-700 mb-4">Clientes por tier</h3>
+      <canvas id="tierChart" height="180"></canvas>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <h3 class="font-semibold text-gray-700 mb-4">Ticket promedio por tier (MXN)</h3>
+      <canvas id="spendChart" height="180"></canvas>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <h3 class="font-semibold text-gray-700 mb-4">Top 10 — Clientes más leales (por visitas)</h3>
+    <div id="top10List" class="space-y-2"></div>
+  </div>
+</div>
+
+<!-- ============ TAB: ALERTAS ============ -->
+<div id="pane-alertas" class="hidden fade-in">
+  <h2 class="text-lg font-bold text-gray-800 mb-5">Centro de Alertas y Comunicaciones</h2>
+
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <!-- Birthdays -->
+    <div class="bg-white rounded-2xl shadow-sm border border-amber-100 p-5">
+      <h3 class="font-semibold text-amber-700 mb-3">🎂 Cumpleaños próximos (7 días)</h3>
+      <div id="alert-birthdays" class="space-y-2"></div>
+    </div>
+    <!-- Anniversaries -->
+    <div class="bg-white rounded-2xl shadow-sm border border-pink-100 p-5">
+      <h3 class="font-semibold text-pink-700 mb-3">💑 Aniversarios próximos</h3>
+      <div id="alert-anniversaries" class="space-y-2"></div>
+    </div>
+    <!-- Missing customers -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <h3 class="font-semibold text-gray-700 mb-3">😴 Sin visita +30 días</h3>
+      <div id="alert-missing" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <h3 class="font-semibold text-gray-700 mb-4">📲 Mensajes rápidos para WhatsApp</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="border border-gray-100 rounded-xl p-4">
+        <p class="text-sm font-semibold text-gray-700 mb-1">🎂 Felicitación cumpleaños</p>
+        <p class="text-xs text-gray-500 mb-3">Mensaje personalizado para el día de su cumpleaños</p>
+        <select id="wa-birthday-select" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none">
+          <option value="">Seleccionar cliente…</option>
+        </select>
+        <button onclick="sendWABirthday()" class="w-full bg-green-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-600 transition">📱 Enviar por WhatsApp</button>
+      </div>
+      <div class="border border-gray-100 rounded-xl p-4">
+        <p class="text-sm font-semibold text-gray-700 mb-1">😢 Te extrañamos</p>
+        <p class="text-xs text-gray-500 mb-3">Para clientes que no han visitado en +30 días</p>
+        <select id="wa-miss-select" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none">
+          <option value="">Seleccionar cliente…</option>
+        </select>
+        <button onclick="sendWAMiss()" class="w-full bg-green-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-600 transition">📱 Enviar por WhatsApp</button>
+      </div>
+      <div class="border border-gray-100 rounded-xl p-4">
+        <p class="text-sm font-semibold text-gray-700 mb-1">🎉 Invitación especial</p>
+        <p class="text-xs text-gray-500 mb-3">Invitar a un evento o cena especial</p>
+        <select id="wa-event-select" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none">
+          <option value="">Seleccionar cliente…</option>
+        </select>
+        <input type="text" id="wa-event-name" placeholder="Nombre del evento…" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none">
+        <button onclick="sendWAEvent()" class="w-full bg-green-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-600 transition">📱 Enviar por WhatsApp</button>
+      </div>
+      <div class="border border-gray-100 rounded-xl p-4">
+        <p class="text-sm font-semibold text-gray-700 mb-1">💎 Oferta exclusiva VIP</p>
+        <p class="text-xs text-gray-500 mb-3">Promoción personalizada para clientes Premium</p>
+        <select id="wa-offer-select" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none">
+          <option value="">Seleccionar cliente…</option>
+        </select>
+        <input type="text" id="wa-offer-desc" placeholder="Descripción de la oferta…" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none">
+        <button onclick="sendWAOffer()" class="w-full bg-green-500 text-white rounded-lg py-2 text-sm font-medium hover:bg-green-600 transition">📱 Enviar por WhatsApp</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TAB: QUICK ADD ============ -->
+<div id="pane-quickadd" class="hidden fade-in">
+  <h2 class="text-lg font-bold text-gray-800 mb-1">Registro rápido</h2>
+  <p class="text-sm text-gray-500 mb-5">Agrega un cliente durante su visita. Solo nombre y teléfono son obligatorios.</p>
+
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 max-w-xl">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="sm:col-span-2">
+        <label class="text-xs font-medium text-gray-500 block mb-1">Nombre completo *</label>
+        <input type="text" id="qa-nombre" placeholder="María García López" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Teléfono *</label>
+        <input type="tel" id="qa-telefono" placeholder="+52 55 1234 5678" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Email</label>
+        <input type="email" id="qa-email" placeholder="correo@ejemplo.com" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Cumpleaños</label>
+        <input type="date" id="qa-birthday" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Mesa favorita</label>
+        <input type="text" id="qa-mesa" placeholder="ej. Mesa 5, esquina interior" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+      <div class="sm:col-span-2">
+        <label class="text-xs font-medium text-gray-500 block mb-1">Alergias / Restricciones</label>
+        <input type="text" id="qa-alergias" placeholder="ej. gluten, lácteos, mariscos" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+      <div class="sm:col-span-2">
+        <label class="text-xs font-medium text-gray-500 block mb-1">Preferencias / Notas</label>
+        <textarea id="qa-notas" rows="2" placeholder="ej. Siempre pide agua mineral, le gusta la mesa del ventanal" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Consumo de hoy (MXN)</label>
+        <input type="number" id="qa-consumo" placeholder="0.00" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+    </div>
+    <button onclick="quickAddCliente()" class="mt-5 w-full bg-accent text-white rounded-xl py-3 text-sm font-semibold hover:opacity-90 transition">✅ Registrar cliente y visita</button>
+  </div>
+</div>
+
+</main>
+
+<!-- CUSTOMER DETAIL MODAL -->
+<div id="modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-3" onclick="closeModal(event)">
+  <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto" onclick="e => e.stopPropagation()">
+    <div id="modalContent" class="p-6"></div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center py-6 text-xs text-gray-400 no-print border-t border-gray-100 mt-8">
+  Powered by <strong class="text-gray-600">Novamente Studio</strong> · <span id="footerYear"></span>
+</footer>
+
+<script>
+document.getElementById('footerYear').textContent = new Date().getFullYear();
+
+// ============ DATA ============
+function getClientes() { return JSON.parse(localStorage.getItem('vip_clientes') || '[]'); }
+function setClientes(d) { localStorage.setItem('vip_clientes', JSON.stringify(d)); }
+
+function getTier(visits) {
+  if (visits >= 30) return { key: 'diamond', label: '💎 Premium', cls: 'tier-diamond' };
+  if (visits >= 16) return { key: 'gold', label: '🥇 VIP', cls: 'tier-gold' };
+  if (visits >= 6) return { key: 'silver', label: '🥈 Frecuente', cls: 'tier-silver' };
+  return { key: 'bronze', label: '🥉 Regular', cls: 'tier-bronze' };
+}
+
+function initials(name) {
+  return name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase();
+}
+
+function avatarBg(name) {
+  const colors = ['#e11d48','#7c3aed','#1d4ed8','#0f766e','#b45309','#be185d','#4338ca','#0369a1'];
+  let h = 0; for (let c of name) h = (h * 31 + c.charCodeAt(0)) % colors.length;
+  return colors[h];
+}
+
+function daysToBirthday(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date();
+  const bday = new Date(dateStr);
+  const next = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+  if (next < today) next.setFullYear(today.getFullYear() + 1);
+  return Math.ceil((next - today) / (1000 * 60 * 60 * 24));
+}
+
+function daysSinceVisit(lastVisit) {
+  if (!lastVisit) return 999;
+  return Math.floor((new Date() - new Date(lastVisit)) / (1000 * 60 * 60 * 24));
+}
+
+// ============ DEMO DATA ============
+function loadDemo() {
+  if (getClientes().length > 0) return;
+
+  const today = new Date();
+  function daysAgo(n) { const d = new Date(today); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+  function daysFromNow(n) { const d = new Date(today); d.setDate(d.getDate()+n); const iso = d.toISOString().slice(0,5); return `${today.getFullYear()-35}-${iso.slice(5)}`; }
+
+  const clientes = [
+    {
+      id: 1, nombre: 'Alejandra Fuentes Mora', telefono: '+52 55 1234 5678', email: 'ale.fuentes@gmail.com',
+      cumpleanos: daysFromNow(2), aniversario: '1988-11-15', mesa: 'Mesa 3 (ventanal)',
+      platos: 'Enchiladas verdes, Tarta de queso', bebidas: 'Agua de jamaica, Chardonnay',
+      alergias: ['Nueces', 'Mariscos'], notas: 'Empresaria. Almuerza cada semana con equipo. Le gusta mesa con privacidad.',
+      visitas: [ { fecha: daysAgo(3), gasto: 850, platos: 'Enchiladas verdes, sopa azteca', notas: 'Reunión de negocios, 4 personas' }, { fecha: daysAgo(10), gasto: 320, platos: 'Ensalada César, agua de jamaica', notas: '' }, { fecha: daysAgo(17), gasto: 1200, platos: 'Menú degustación', notas: 'Cumpleaños de colega' } ]
+    },
+    {
+      id: 2, nombre: 'Roberto Salinas Gutiérrez', telefono: '+52 55 2345 6789', email: 'rsalinas@outlook.com',
+      cumpleanos: daysFromNow(5), aniversario: null, mesa: 'Barra (siempre)',
+      platos: 'Tacos de birria, Pozole rojo', bebidas: 'Cerveza artesanal oscura, Mezcal',
+      alergias: [], notas: 'Contador. Viene cada viernes con amigos. Muy generoso con propinas.',
+      visitas: Array.from({length: 22}, (_, i) => ({ fecha: daysAgo(i*7), gasto: 450 + Math.floor(Math.random()*300), platos: 'Tacos de birria', notas: '' }))
+    },
+    {
+      id: 3, nombre: 'Carmen Villanueva Ríos', telefono: '+52 55 3456 7890', email: 'cvillanueva@empresa.mx',
+      cumpleanos: '1979-02-20', aniversario: daysFromNow(4), mesa: 'Mesa 12 (interior tranquila)',
+      platos: 'Mole negro con pollo, Chiles en nogada (temporada)', bebidas: 'Vino tinto Cabernet, Agua mineral',
+      alergias: ['Gluten', 'Lácteos'], notas: 'Directora ejecutiva. Celebra aniversario cada año aquí. Requiere opciones sin gluten.',
+      visitas: Array.from({length: 31}, (_, i) => ({ fecha: daysAgo(i*6), gasto: 980 + Math.floor(Math.random()*500), platos: 'Mole negro', notas: i===0?'Mesa para 2, aniversario':'' }))
+    },
+    {
+      id: 4, nombre: 'Miguel Ángel Torres Cruz', telefono: '+52 55 4567 8901', email: 'matorres@hotmail.com',
+      cumpleanos: '1990-07-08', aniversario: null, mesa: 'Mesa 7 (terraza)',
+      platos: 'Arrachera con papas, Guacamole artesanal', bebidas: 'Cerveza clara, Margarita clásica',
+      alergias: [], notas: 'Chef de otro restaurante. Muy crítico pero leal. Siempre pide algo fuera del menú.',
+      visitas: Array.from({length: 18}, (_, i) => ({ fecha: daysAgo(i*10), gasto: 650 + Math.floor(Math.random()*400), platos: 'Arrachera con papas', notas: '' }))
+    },
+    {
+      id: 5, nombre: 'Sofía Herrera Campos', telefono: '+52 55 5678 9012', email: 'sofi.herrera@gmail.com',
+      cumpleanos: daysFromNow(1), aniversario: null, mesa: 'Mesa 2 (rincón)',
+      platos: 'Pasta de champiñones, Sopa de lima', bebidas: 'Limonada sin azúcar, Té frío',
+      alergias: ['Carne roja', 'Huevo'], notas: 'Vegetariana estricta (no consume carne roja ni huevo). Nutrióloga. Trae a pacientes.',
+      visitas: Array.from({length: 35}, (_, i) => ({ fecha: daysAgo(i*5), gasto: 380 + Math.floor(Math.random()*200), platos: 'Pasta de champiñones', notas: '' }))
+    },
+    {
+      id: 6, nombre: 'Javier Moreno López', telefono: '+52 55 6789 0123', email: null,
+      cumpleanos: '1985-12-03', aniversario: null, mesa: 'Cualquier mesa',
+      platos: 'Sopa azteca, Tamales oaxaqueños', bebidas: 'Café americano doble, Agua natural',
+      alergias: [], notas: 'Jubilado. Viene a desayunar cada semana. Muy platicador con el personal.',
+      visitas: Array.from({length: 9}, (_, i) => ({ fecha: daysAgo(i*14), gasto: 220 + Math.floor(Math.random()*100), platos: 'Sopa azteca', notas: '' }))
+    },
+    {
+      id: 7, nombre: 'Valeria Rosales Méndez', telefono: '+52 55 7890 1234', email: 'vrosales@gmail.com',
+      cumpleanos: '1995-04-22', aniversario: null, mesa: 'Mesa 9 (ventanal norte)',
+      platos: 'Ensalada mediterránea, Ceviche de atún', bebidas: 'Agua de horchata, Sangría sin alcohol',
+      alergias: ['Cacahuates'], notas: 'Influencer gastronómica. Ha publicado sobre el restaurante. Traer platillo especial de bienvenida.',
+      visitas: Array.from({length: 12}, (_, i) => ({ fecha: daysAgo(i*9), gasto: 520 + Math.floor(Math.random()*300), platos: 'Ensalada mediterránea', notas: '' }))
+    },
+    {
+      id: 8, nombre: 'Eduardo Peña Sánchez', telefono: '+52 55 8901 2345', email: null,
+      cumpleanos: '1972-09-14', aniversario: null, mesa: 'Mesa 6 (fondo)',
+      platos: 'Cocido de res, Frijoles de olla', bebidas: 'Cerveza oscura, Mezcal artesanal',
+      alergias: [], notas: 'Político local. Exige discreción. Viene con familia los domingos.',
+      visitas: Array.from({length: 4}, (_, i) => ({ fecha: daysAgo(i*21), gasto: 1800 + Math.floor(Math.random()*800), platos: 'Cocido de res', notas: '' }))
+    },
+    {
+      id: 9, nombre: 'Daniela Campos Ávila', telefono: '+52 55 9012 3456', email: 'daniavila@yahoo.com',
+      cumpleanos: '1993-06-30', aniversario: null, mesa: 'Mesa 1 (entrada)',
+      platos: 'Tlayudas, Quesillo con chapulines', bebidas: 'Mezcal con naranja, Tepache',
+      alergias: [], notas: 'Arquitecta. Le fascina la decoración del lugar. Muy activa en redes sociales.',
+      visitas: Array.from({length: 7}, (_, i) => ({ fecha: daysAgo(i*12), gasto: 490 + Math.floor(Math.random()*250), platos: 'Tlayudas', notas: '' }))
+    },
+    {
+      id: 10, nombre: 'Fernando Castro Ríos', telefono: '+52 55 0123 4567', email: 'fcastro@empresa.com',
+      cumpleanos: '1988-03-17', aniversario: null, mesa: 'Mesa 8 (sala privada si disponible)',
+      platos: 'Costilla BBQ, Chicharrón de res', bebidas: 'Whisky on the rocks, Cerveza artesanal IPA',
+      alergias: [], notas: 'Gerente de ventas. Usa el restaurante para cierres de negocios. Siempre paga con tarjeta corporativa.',
+      visitas: Array.from({length: 21}, (_, i) => ({ fecha: daysAgo(i*8), gasto: 1100 + Math.floor(Math.random()*600), platos: 'Costilla BBQ', notas: i===0?'Reunión corporativa, 8 personas':'' }))
+    },
+    {
+      id: 11, nombre: 'Lucía Mendoza Vargas', telefono: '+52 55 1357 2468', email: 'lmendoza@hotmail.com',
+      cumpleanos: '1991-01-09', aniversario: '1991-05-18', mesa: 'Mesa 4 (jardín)',
+      platos: 'Pollo en mole amarillo, Arroz con leche', bebidas: 'Agua de tamarindo, Vino blanco',
+      alergias: ['Mariscos'], notas: 'Maestra universitaria. Muy puntual. Pide siempre el menú del día.',
+      visitas: Array.from({length: 14}, (_, i) => ({ fecha: daysAgo(i*11), gasto: 350 + Math.floor(Math.random()*150), platos: 'Pollo en mole amarillo', notas: '' }))
+    },
+    {
+      id: 12, nombre: 'Andrés Vega Castillo', telefono: '+52 55 2468 1357', email: null,
+      cumpleanos: '1997-08-25', aniversario: null, mesa: null,
+      platos: 'Tortas ahogadas, Elotes preparados', bebidas: 'Agua fresca del día',
+      alergias: [], notas: 'Estudiante universitario. Viene mucho entre semana. Gasto bajo pero frecuente.',
+      visitas: Array.from({length: 6}, (_, i) => ({ fecha: daysAgo(i*8), gasto: 150 + Math.floor(Math.random()*80), platos: 'Tortas ahogadas', notas: '' }))
+    },
+    {
+      id: 13, nombre: 'Patricia Romero Juárez', telefono: '+52 55 3579 1468', email: 'promero@empresa.mx',
+      cumpleanos: '1975-11-22', aniversario: null, mesa: 'Mesa 11 (esquina privada)',
+      platos: 'Salmón al horno, Gazpacho mexicano', bebidas: 'Prosecco, Agua mineral',
+      alergias: ['Lácteos'], notas: 'Abogada corporativa. Almuerza solo para trabajar con laptop. Pide factura siempre.',
+      visitas: Array.from({length: 27}, (_, i) => ({ fecha: daysAgo(i*7), gasto: 580 + Math.floor(Math.random()*200), platos: 'Salmón al horno', notas: '' }))
+    },
+    {
+      id: 14, nombre: 'Carlos Jiménez Peña', telefono: '+52 55 4680 2579', email: null,
+      cumpleanos: '1983-05-04', aniversario: null, mesa: null,
+      platos: 'Barbacoa de borrego, Consomé', bebidas: 'Pulque curado, Cerveza',
+      alergias: [], notas: 'Viene solo los domingos. Muy tranquilo, lee el periódico mientras come.',
+      visitas: Array.from({length: 3}, (_, i) => ({ fecha: daysAgo(i*28), gasto: 280 + Math.floor(Math.random()*100), platos: 'Barbacoa', notas: '' }))
+    },
+    {
+      id: 15, nombre: 'Mariana Espinoza Torres', telefono: '+52 55 5791 3680', email: 'mespinoza@outlook.com',
+      cumpleanos: '1989-10-18', aniversario: '1989-04-14', mesa: 'Mesa 2 o 3',
+      platos: 'Pozole verde, Tostadas de tinga', bebidas: 'Agua de guanábana, Sangría',
+      alergias: [], notas: 'Psicóloga. Viene con amigas cada quincena. Siempre celebran algo.',
+      visitas: Array.from({length: 16}, (_, i) => ({ fecha: daysAgo(i*15), gasto: 420 + Math.floor(Math.random()*280), platos: 'Pozole verde', notas: i%3===0?'Reunión de amigas':'' }))
+    },
+    {
+      id: 16, nombre: 'Rafael Guzmán Soto', telefono: '+52 55 6802 4791', email: null,
+      cumpleanos: '1970-07-31', aniversario: null, mesa: null,
+      platos: 'Caldo de res, Menudo', bebidas: 'Aguas frescas',
+      alergias: [], notas: 'Vecino del barrio. Viene a desayunar domingos con nietos.',
+      visitas: Array.from({length: 2}, (_, i) => ({ fecha: daysAgo(i*30), gasto: 350, platos: 'Caldo de res', notas: '' }))
+    },
+    {
+      id: 17, nombre: 'Isabela Ruiz Navarro', telefono: '+52 55 7913 5802', email: 'iruiz@firma.com',
+      cumpleanos: '1994-12-15', aniversario: null, mesa: 'Barra o mesa alta',
+      platos: 'Tacos de canasta, Flautas de pollo', bebidas: 'Jugo verde, Agua de pepino-limón',
+      alergias: ['Gluten'], notas: 'Diseñadora gráfica. Trae su MacBook. No consume nada con gluten. Muy detallista.',
+      visitas: Array.from({length: 10}, (_, i) => ({ fecha: daysAgo(i*10), gasto: 280 + Math.floor(Math.random()*120), platos: 'Flautas de pollo (sin trigo)', notas: '' }))
+    },
+    {
+      id: 18, nombre: 'Héctor Morales Luna', telefono: '+52 55 8024 6913', email: null,
+      cumpleanos: '1986-02-28', aniversario: null, mesa: null,
+      platos: 'Chilaquiles rojos, Huevos rancheros', bebidas: 'Café con leche, Jugo de naranja',
+      alergias: [], notas: 'Médico del hospital de enfrente. Viene a desayunar entre cirugías. Muy puntual. Tiene prisa siempre.',
+      visitas: Array.from({length: 8}, (_, i) => ({ fecha: daysAgo(i*9+45), gasto: 180 + Math.floor(Math.random()*80), platos: 'Chilaquiles rojos', notas: '' }))
+    },
+    {
+      id: 19, nombre: 'Natalia Sandoval Bravo', telefono: '+52 55 9135 7024', email: 'nsandoval@gmail.com',
+      cumpleanos: '1998-03-11', aniversario: null, mesa: 'Mesa 5',
+      platos: 'Pizza de huitlacoche, Pasta al pesto', bebidas: 'Agua mineral, Mocktail de frutos rojos',
+      alergias: [], notas: 'Influencer de estilo de vida. Siempre toma fotos. Publicó reel que viralizó el restaurante.',
+      visitas: Array.from({length: 5}, (_, i) => ({ fecha: daysAgo(i*20), gasto: 560 + Math.floor(Math.random()*200), platos: 'Pizza de huitlacoche', notas: i===0?'Sesión de fotos para Instagram':'' }))
+    },
+    {
+      id: 20, nombre: 'Gustavo Reyes Alvarado', telefono: '+52 55 0246 8135', email: 'greyes@empresa.mx',
+      cumpleanos: '1980-09-07', aniversario: null, mesa: 'Mesa privada (sala del fondo)',
+      platos: 'Filete migñon, Risotto de hongos', bebidas: 'Vino tinto reserva, Cognac',
+      alergias: [], notas: 'CEO de empresa constructora. Cenas de negocios. Gasto alto siempre. Solicita lista de vinos con anticipación.',
+      visitas: Array.from({length: 40}, (_, i) => ({ fecha: daysAgo(i*4), gasto: 2200 + Math.floor(Math.random()*1200), platos: 'Filete migñon', notas: i===0?'Cena con directivos extranjeros':i===5?'Celebración de contrato':''}))
+    }
+  ];
+  setClientes(clientes);
+}
+
+// ============ RENDER CLIENTES ============
+function renderClientes() {
+  const clientes = getClientes();
+  const search = document.getElementById('searchClientes').value.toLowerCase();
+  const tierFilter = document.getElementById('filterTier').value;
+  const sortBy = document.getElementById('sortBy').value;
+
+  let filtered = clientes.filter(c => {
+    const tier = getTier(c.visitas.length);
+    const matchSearch = !search || c.nombre.toLowerCase().includes(search) || c.telefono?.includes(search) || c.platos?.toLowerCase().includes(search) || c.notas?.toLowerCase().includes(search);
+    const matchTier = !tierFilter || tier.key === tierFilter;
+    return matchSearch && matchTier;
+  });
+
+  if (sortBy === 'visits') filtered.sort((a, b) => b.visitas.length - a.visitas.length);
+  else if (sortBy === 'recent') filtered.sort((a, b) => { const la = a.visitas[0]?.fecha || ''; const lb = b.visitas[0]?.fecha || ''; return lb.localeCompare(la); });
+  else if (sortBy === 'name') filtered.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  else if (sortBy === 'spend') filtered.sort((a, b) => { const sa = b.visitas.reduce((s,v)=>s+(v.gasto||0),0); const sb = a.visitas.reduce((s,v)=>s+(v.gasto||0),0); return sa - sb; });
+
+  const grid = document.getElementById('clientesGrid');
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="col-span-3 text-center py-12 text-gray-400"><p class="text-4xl mb-2">🔍</p><p class="text-sm">Sin clientes encontrados</p></div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(c => {
+    const tier = getTier(c.visitas.length);
+    const isBirthday = daysToBirthday(c.cumpleanos) !== null && daysToBirthday(c.cumpleanos) <= 7;
+    const isMissing = daysSinceVisit(c.visitas[0]?.fecha) > 30;
+    const totalSpend = c.visitas.reduce((s, v) => s + (v.gasto || 0), 0);
+    const bg = avatarBg(c.nombre);
+    const lastVisit = c.visitas[0]?.fecha || '—';
+
+    return `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 cursor-pointer card-hover" onclick="openClienteDetail(${c.id})">
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <div class="avatar w-12 h-12 text-white text-sm ${isBirthday ? 'birthday-ring' : ''}" style="background:${bg}">${initials(c.nombre)}</div>
+          <div>
+            <h3 class="font-semibold text-gray-800 text-sm leading-tight">${c.nombre}</h3>
+            <p class="text-xs text-gray-400">${c.telefono || '—'}</p>
+          </div>
+        </div>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full ${tier.cls}">${tier.label}</span>
+      </div>
+
+      ${c.alergias?.length ? `<div class="flex flex-wrap gap-1 mb-2">${c.alergias.map(a => `<span class="allergy-badge px-2 py-0.5 rounded-full">⚠️ ${a}</span>`).join('')}</div>` : ''}
+
+      <div class="grid grid-cols-3 gap-2 text-xs text-gray-500 pt-3 border-t border-gray-50">
+        <div><p class="font-semibold text-gray-700 text-base">${c.visitas.length}</p><p>visitas</p></div>
+        <div><p class="font-semibold text-gray-700 text-base">$${Math.round(totalSpend / Math.max(c.visitas.length, 1)).toLocaleString('es-MX')}</p><p>prom/visita</p></div>
+        <div><p class="font-semibold ${isMissing ? 'text-red-400' : 'text-gray-700'} text-xs leading-tight mt-0.5">${lastVisit}</p><p>última visita</p></div>
+      </div>
+
+      ${isBirthday ? '<div class="mt-2 text-xs text-amber-600 font-medium">🎂 Cumpleaños en ' + daysToBirthday(c.cumpleanos) + ' día(s)</div>' : ''}
+      ${isMissing ? '<div class="mt-2 text-xs text-red-400 font-medium">😴 ' + daysSinceVisit(c.visitas[0]?.fecha) + ' días sin visitar</div>' : ''}
+    </div>`;
+  }).join('');
+}
+
+// ============ CUSTOMER DETAIL ============
+function openClienteDetail(id) {
+  const clientes = getClientes();
+  const c = clientes.find(cl => cl.id === id);
+  if (!c) return;
+  const tier = getTier(c.visitas.length);
+  const bg = avatarBg(c.nombre);
+  const totalSpend = c.visitas.reduce((s, v) => s + (v.gasto || 0), 0);
+  const avgSpend = c.visitas.length ? Math.round(totalSpend / c.visitas.length) : 0;
+  const bdDays = daysToBirthday(c.cumpleanos);
+  const missedDays = daysSinceVisit(c.visitas[0]?.fecha);
+
+  document.getElementById('modalContent').innerHTML = `
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-5">
+      <div class="flex items-center gap-4">
+        <div class="avatar w-16 h-16 text-white text-xl ${bdDays !== null && bdDays <= 7 ? 'birthday-ring' : ''}" style="background:${bg}">${initials(c.nombre)}</div>
+        <div>
+          <h2 class="text-xl font-bold text-gray-800">${c.nombre}</h2>
+          <div class="flex items-center gap-2 mt-1 flex-wrap">
+            <span class="text-sm font-medium px-2.5 py-0.5 rounded-full ${tier.cls}">${tier.label}</span>
+            ${bdDays !== null && bdDays <= 7 ? `<span class="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">🎂 Cumpleaños en ${bdDays} día(s)</span>` : ''}
+            ${missedDays > 30 ? `<span class="text-xs bg-red-100 text-red-600 rounded-full px-2 py-0.5">😴 ${missedDays} días sin visitar</span>` : ''}
+          </div>
+        </div>
+      </div>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-3 gap-3 mb-5">
+      <div class="bg-rose-50 rounded-xl p-3 text-center"><p class="text-2xl font-bold text-rose-500">${c.visitas.length}</p><p class="text-xs text-gray-500">Visitas</p></div>
+      <div class="bg-emerald-50 rounded-xl p-3 text-center"><p class="text-2xl font-bold text-emerald-600">$${avgSpend.toLocaleString('es-MX')}</p><p class="text-xs text-gray-500">Prom. visita</p></div>
+      <div class="bg-blue-50 rounded-xl p-3 text-center"><p class="text-2xl font-bold text-blue-600">$${totalSpend.toLocaleString('es-MX')}</p><p class="text-xs text-gray-500">Total gastado</p></div>
+    </div>
+
+    <!-- Info grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+      <div class="bg-gray-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">📱 Teléfono</p><p class="text-gray-800 mt-0.5">${c.telefono || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">📧 Email</p><p class="text-gray-800 mt-0.5">${c.email || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">🎂 Cumpleaños</p><p class="text-gray-800 mt-0.5">${c.cumpleanos || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">💑 Aniversario</p><p class="text-gray-800 mt-0.5">${c.aniversario || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">🪑 Mesa favorita</p><p class="text-gray-800 mt-0.5">${c.mesa || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">🍽️ Siempre pide</p><p class="text-gray-800 mt-0.5">${c.platos || '—'}</p></div>
+    </div>
+
+    ${c.alergias?.length ? `
+    <div class="mb-4 bg-red-50 border border-red-100 rounded-xl p-3">
+      <p class="text-sm font-bold text-red-600 mb-2">⚠️ ALERGIAS / RESTRICCIONES — IMPORTANTE</p>
+      <div class="flex flex-wrap gap-1.5">${c.alergias.map(a => `<span class="allergy-badge px-2.5 py-1 rounded-full font-semibold">${a}</span>`).join('')}</div>
+    </div>` : ''}
+
+    ${c.notas ? `<div class="mb-4 bg-amber-50 border border-amber-100 rounded-xl p-3 text-sm text-amber-800"><strong>📝 Notas:</strong> ${c.notas}</div>` : ''}
+
+    <!-- WhatsApp actions -->
+    <div class="mb-5 flex flex-wrap gap-2">
+      ${c.telefono ? `
+        <button onclick="sendWABirthdayDirect('${c.nombre}','${c.telefono}')" class="text-xs bg-green-500 text-white rounded-lg px-3 py-1.5 hover:bg-green-600 transition">🎂 Felicitar cumpleaños</button>
+        <button onclick="sendWAMissDirect('${c.nombre}','${c.telefono}')" class="text-xs bg-green-500 text-white rounded-lg px-3 py-1.5 hover:bg-green-600 transition">😢 Te extrañamos</button>
+        <button onclick="sendWAOfferDirect('${c.nombre}','${c.telefono}','${tier.label}')" class="text-xs bg-green-500 text-white rounded-lg px-3 py-1.5 hover:bg-green-600 transition">💎 Oferta exclusiva</button>
+      ` : '<p class="text-xs text-gray-400">Sin teléfono registrado</p>'}
+    </div>
+
+    <!-- Add visit -->
+    <div class="border-t border-gray-100 pt-4 mb-4">
+      <p class="text-sm font-semibold text-gray-700 mb-3">Registrar nueva visita</p>
+      <div class="grid grid-cols-2 gap-3">
+        <div><input type="date" id="visit-date-${c.id}" value="${new Date().toISOString().slice(0,10)}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"></div>
+        <div><input type="number" id="visit-spend-${c.id}" placeholder="Consumo MXN" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"></div>
+        <div class="col-span-2"><input type="text" id="visit-notes-${c.id}" placeholder="Notas de la visita…" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"></div>
+      </div>
+      <button onclick="addVisit(${c.id})" class="mt-2 bg-accent text-white rounded-lg px-4 py-2 text-xs font-semibold hover:opacity-90 transition">+ Registrar visita</button>
+    </div>
+
+    <!-- Visit history -->
+    <h3 class="font-semibold text-gray-700 mb-3">Historial de visitas (${c.visitas.length})</h3>
+    <div class="space-y-2 max-h-48 overflow-y-auto">
+      ${c.visitas.slice(0, 20).map(v => `
+        <div class="flex justify-between items-start text-sm border-b border-gray-50 py-2">
+          <div><p class="font-medium text-gray-700">${v.fecha}</p>${v.notas ? `<p class="text-xs text-gray-400">${v.notas}</p>` : ''}</div>
+          <p class="font-semibold text-emerald-600">$${(v.gasto||0).toLocaleString('es-MX')}</p>
+        </div>`).join('')}
+    </div>
+  `;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function closeModal(event) {
+  if (!event || event.target === document.getElementById('modal')) {
+    document.getElementById('modal').style.display = 'none';
+  }
+}
+
+function addVisit(clienteId) {
+  const clientes = getClientes();
+  const c = clientes.find(cl => cl.id === clienteId);
+  if (!c) return;
+  const date = document.getElementById(`visit-date-${clienteId}`)?.value || new Date().toISOString().slice(0,10);
+  const spend = parseFloat(document.getElementById(`visit-spend-${clienteId}`)?.value) || 0;
+  const notes = document.getElementById(`visit-notes-${clienteId}`)?.value || '';
+  c.visitas.unshift({ fecha: date, gasto: spend, notas: notes });
+  setClientes(clientes);
+  openClienteDetail(clienteId);
+  renderClientes();
+}
+
+// ============ STATS ============
+let tierChartInst, spendChartInst;
+function renderStats() {
+  const clientes = getClientes();
+  const tiers = { bronze: 0, silver: 0, gold: 0, diamond: 0 };
+  const spends = { bronze: [], silver: [], gold: [], diamond: [] };
+
+  clientes.forEach(c => {
+    const tier = getTier(c.visitas.length).key;
+    tiers[tier]++;
+    const avg = c.visitas.length ? c.visitas.reduce((s, v) => s + (v.gasto||0), 0) / c.visitas.length : 0;
+    spends[tier].push(avg);
+  });
+
+  const totalSpendAll = clientes.reduce((s, c) => s + c.visitas.reduce((vs, v) => vs + (v.gasto||0), 0), 0);
+  const totalVisits = clientes.reduce((s, c) => s + c.visitas.length, 0);
+  const avgTicket = totalVisits ? Math.round(totalSpendAll / totalVisits) : 0;
+  const missing = clientes.filter(c => daysSinceVisit(c.visitas[0]?.fecha) > 30).length;
+
+  document.getElementById('stat-total').textContent = clientes.length;
+  document.getElementById('stat-premium').textContent = tiers.gold + tiers.diamond;
+  document.getElementById('stat-avg').textContent = '$' + avgTicket.toLocaleString('es-MX');
+  document.getElementById('stat-retention').textContent = missing;
+
+  if (tierChartInst) tierChartInst.destroy();
+  tierChartInst = new Chart(document.getElementById('tierChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['🥉 Regular', '🥈 Frecuente', '🥇 VIP', '💎 Premium'],
+      datasets: [{ data: [tiers.bronze, tiers.silver, tiers.gold, tiers.diamond], backgroundColor: ['#fbbf24','#94a3b8','#f59e0b','#7c3aed'], borderWidth: 0 }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+  });
+
+  const avgSpends = {
+    bronze: spends.bronze.length ? Math.round(spends.bronze.reduce((s,v)=>s+v,0)/spends.bronze.length) : 0,
+    silver: spends.silver.length ? Math.round(spends.silver.reduce((s,v)=>s+v,0)/spends.silver.length) : 0,
+    gold: spends.gold.length ? Math.round(spends.gold.reduce((s,v)=>s+v,0)/spends.gold.length) : 0,
+    diamond: spends.diamond.length ? Math.round(spends.diamond.reduce((s,v)=>s+v,0)/spends.diamond.length) : 0,
+  };
+
+  if (spendChartInst) spendChartInst.destroy();
+  spendChartInst = new Chart(document.getElementById('spendChart'), {
+    type: 'bar',
+    data: {
+      labels: ['🥉 Regular','🥈 Frecuente','🥇 VIP','💎 Premium'],
+      datasets: [{ label: 'Ticket promedio', data: [avgSpends.bronze, avgSpends.silver, avgSpends.gold, avgSpends.diamond], backgroundColor: ['#fbbf24','#94a3b8','#f59e0b','#7c3aed'], borderRadius: 8 }]
+    },
+    options: { responsive: true, scales: { y: { ticks: { callback: v => '$' + v.toLocaleString('es-MX') }, grid: { color: '#f9fafb' } }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } }
+  });
+
+  const top10 = clientes.slice().sort((a, b) => b.visitas.length - a.visitas.length).slice(0, 10);
+  const maxV = top10[0]?.visitas.length || 1;
+  document.getElementById('top10List').innerHTML = top10.map((c, i) => {
+    const tier = getTier(c.visitas.length);
+    return `
+    <div class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition" onclick="openClienteDetail(${c.id})">
+      <span class="text-sm font-bold text-gray-400 w-5">${i+1}</span>
+      <div class="avatar w-8 h-8 text-white text-xs" style="background:${avatarBg(c.nombre)}">${initials(c.nombre)}</div>
+      <div class="flex-1">
+        <div class="flex justify-between text-sm mb-0.5">
+          <span class="font-medium text-gray-700">${c.nombre}</span>
+          <span class="text-xs ${tier.cls} px-1.5 py-0.5 rounded-full">${c.visitas.length} visitas</span>
+        </div>
+        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full rounded-full bg-rose-400" style="width:${Math.round((c.visitas.length/maxV)*100)}%"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============ ALERTS ============
+function renderAlertas() {
+  const clientes = getClientes();
+  const today = new Date();
+
+  // Birthday alerts in next 7 days
+  const bdays = clientes.filter(c => {
+    const d = daysToBirthday(c.cumpleanos);
+    return d !== null && d <= 7;
+  }).sort((a, b) => daysToBirthday(a.cumpleanos) - daysToBirthday(b.cumpleanos));
+
+  document.getElementById('alert-birthdays').innerHTML = bdays.length
+    ? bdays.map(c => `
+      <div class="bg-amber-50 rounded-xl p-2.5 text-xs flex justify-between items-center">
+        <div>
+          <p class="font-semibold text-gray-700">${c.nombre}</p>
+          <p class="text-amber-600">En ${daysToBirthday(c.cumpleanos)} día(s)</p>
+        </div>
+        ${c.telefono ? `<button onclick="sendWABirthdayDirect('${c.nombre}','${c.telefono}')" class="bg-green-500 text-white rounded-lg px-2 py-1 text-xs hover:bg-green-600 transition">📱</button>` : ''}
+      </div>`).join('')
+    : '<p class="text-xs text-gray-400">Sin cumpleaños próximos</p>';
+
+  // Anniversary alerts
+  const annivs = clientes.filter(c => {
+    if (!c.aniversario) return false;
+    const d = daysToBirthday(c.aniversario);
+    return d !== null && d <= 14;
+  });
+
+  document.getElementById('alert-anniversaries').innerHTML = annivs.length
+    ? annivs.map(c => `
+      <div class="bg-pink-50 rounded-xl p-2.5 text-xs flex justify-between items-center">
+        <div>
+          <p class="font-semibold text-gray-700">${c.nombre}</p>
+          <p class="text-pink-600">En ${daysToBirthday(c.aniversario)} día(s)</p>
+        </div>
+        ${c.telefono ? `<button onclick="sendWAEventDirect('${c.nombre}','${c.telefono}','Cena de aniversario')" class="bg-green-500 text-white rounded-lg px-2 py-1 text-xs hover:bg-green-600 transition">📱</button>` : ''}
+      </div>`).join('')
+    : '<p class="text-xs text-gray-400">Sin aniversarios próximos</p>';
+
+  // Missing customers
+  const missing = clientes.filter(c => daysSinceVisit(c.visitas[0]?.fecha) > 30)
+    .sort((a, b) => daysSinceVisit(b.visitas[0]?.fecha) - daysSinceVisit(a.visitas[0]?.fecha))
+    .slice(0, 5);
+
+  document.getElementById('alert-missing').innerHTML = missing.length
+    ? missing.map(c => `
+      <div class="bg-gray-50 rounded-xl p-2.5 text-xs flex justify-between items-center">
+        <div>
+          <p class="font-semibold text-gray-700">${c.nombre}</p>
+          <p class="text-gray-500">${daysSinceVisit(c.visitas[0]?.fecha)} días</p>
+        </div>
+        ${c.telefono ? `<button onclick="sendWAMissDirect('${c.nombre}','${c.telefono}')" class="bg-green-500 text-white rounded-lg px-2 py-1 text-xs hover:bg-green-600 transition">📱</button>` : ''}
+      </div>`).join('')
+    : '<p class="text-xs text-gray-400">Todos han visitado recientemente ✅</p>';
+
+  // Populate selects
+  const allSelects = ['wa-birthday-select','wa-miss-select','wa-event-select','wa-offer-select'];
+  allSelects.forEach(sid => {
+    const sel = document.getElementById(sid);
+    sel.innerHTML = '<option value="">Seleccionar cliente…</option>' + clientes.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+  });
+}
+
+// ============ BIRTHDAY HEADER ALERTS ============
+function renderBirthdayHeader() {
+  const clientes = getClientes();
+  const bdays = clientes.filter(c => {
+    const d = daysToBirthday(c.cumpleanos);
+    return d !== null && d <= 3;
+  });
+  const box = document.getElementById('birthdayAlerts');
+  if (!bdays.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-3">
+      <span class="text-2xl">🎂</span>
+      <div class="flex-1">
+        <p class="text-sm font-semibold text-amber-800">Cumpleaños próximos (próximos 3 días)</p>
+        <p class="text-xs text-amber-700">${bdays.map(c => `<strong>${c.nombre}</strong> (${daysToBirthday(c.cumpleanos) === 0 ? 'HOY' : 'en ' + daysToBirthday(c.cumpleanos) + ' día(s)'})`).join(' · ')}</p>
+      </div>
+    </div>`;
+}
+
+// ============ WHATSAPP FUNCTIONS ============
+function sendWABirthdayDirect(nombre, telefono) {
+  const msg = encodeURIComponent(`🎂 ¡Feliz cumpleaños, ${nombre.split(' ')[0]}! 🎉\n\nDe parte de todo el equipo de *La Hacienda del Sabor*, te deseamos un día lleno de alegría y sabor. 🍽️\n\n¡Nos encantaría celebrarlo contigo! Te esperamos con una sorpresa especial. 🎁\n\n¡Hasta pronto!`);
+  window.open(`https://wa.me/${telefono.replace(/\D/g,'')}?text=${msg}`, '_blank');
+}
+
+function sendWAMissDirect(nombre, telefono) {
+  const msg = encodeURIComponent(`👋 ¡Hola, ${nombre.split(' ')[0]}!\n\nTe extrañamos en *La Hacienda del Sabor*. Ha pasado un tiempo desde tu última visita y queremos recordarte que tienes una mesa esperándote. 😊\n\n¡Ven a disfrutar tus platillos favoritos con nosotros!\n\n_Te esperamos con los brazos abiertos._ 🍽️`);
+  window.open(`https://wa.me/${telefono.replace(/\D/g,'')}?text=${msg}`, '_blank');
+}
+
+function sendWAEventDirect(nombre, telefono, evento) {
+  const msg = encodeURIComponent(`🎉 ¡Hola, ${nombre.split(' ')[0]}!\n\nTe invitamos a *${evento}* en La Hacienda del Sabor.\n\n🗓️ Fecha y hora a coordinar contigo\n📍 La Hacienda del Sabor\n\n¿Puedes confirmarnos tu asistencia? ¡Te estamos esperando! 🥂`);
+  window.open(`https://wa.me/${telefono.replace(/\D/g,'')}?text=${msg}`, '_blank');
+}
+
+function sendWAOfferDirect(nombre, telefono, tier) {
+  const msg = encodeURIComponent(`💎 ¡Hola, ${nombre.split(' ')[0]}!\n\nComo cliente *${tier}* de La Hacienda del Sabor, tienes acceso a una oferta exclusiva solo para ti.\n\n¿Te interesa conocerla? ¡Escríbenos y te damos los detalles! 🎁\n\n_Exclusivo para nuestros clientes más especiales._`);
+  window.open(`https://wa.me/${telefono.replace(/\D/g,'')}?text=${msg}`, '_blank');
+}
+
+function sendWABirthday() {
+  const id = parseInt(document.getElementById('wa-birthday-select').value);
+  if (!id) return;
+  const c = getClientes().find(cl => cl.id === id);
+  if (c?.telefono) sendWABirthdayDirect(c.nombre, c.telefono);
+}
+function sendWAMiss() {
+  const id = parseInt(document.getElementById('wa-miss-select').value);
+  if (!id) return;
+  const c = getClientes().find(cl => cl.id === id);
+  if (c?.telefono) sendWAMissDirect(c.nombre, c.telefono);
+}
+function sendWAEvent() {
+  const id = parseInt(document.getElementById('wa-event-select').value);
+  const evento = document.getElementById('wa-event-name').value || 'evento especial';
+  if (!id) return;
+  const c = getClientes().find(cl => cl.id === id);
+  if (c?.telefono) sendWAEventDirect(c.nombre, c.telefono, evento);
+}
+function sendWAOffer() {
+  const id = parseInt(document.getElementById('wa-offer-select').value);
+  if (!id) return;
+  const c = getClientes().find(cl => cl.id === id);
+  if (c?.telefono) { const tier = getTier(c.visitas.length); sendWAOfferDirect(c.nombre, c.telefono, tier.label); }
+}
+
+// ============ QUICK ADD ============
+function quickAddCliente() {
+  const nombre = document.getElementById('qa-nombre').value.trim();
+  const telefono = document.getElementById('qa-telefono').value.trim();
+  if (!nombre || !telefono) { alert('Nombre y teléfono son requeridos.'); return; }
+
+  const clientes = getClientes();
+  const gasto = parseFloat(document.getElementById('qa-consumo').value) || 0;
+  const newC = {
+    id: Date.now(),
+    nombre,
+    telefono,
+    email: document.getElementById('qa-email').value,
+    cumpleanos: document.getElementById('qa-birthday').value,
+    mesa: document.getElementById('qa-mesa').value,
+    alergias: document.getElementById('qa-alergias').value ? document.getElementById('qa-alergias').value.split(',').map(a => a.trim()).filter(Boolean) : [],
+    notas: document.getElementById('qa-notas').value,
+    platos: '', bebidas: '', aniversario: null,
+    visitas: gasto > 0 ? [{ fecha: new Date().toISOString().slice(0,10), gasto, notas: 'Primera visita registrada', platos: '' }] : []
+  };
+  clientes.push(newC);
+  setClientes(clientes);
+
+  ['qa-nombre','qa-telefono','qa-email','qa-birthday','qa-mesa','qa-alergias','qa-notas','qa-consumo'].forEach(id => { document.getElementById(id).value = ''; });
+  alert(`✅ Cliente "${nombre}" registrado exitosamente.`);
+  switchTab('clientes');
+}
+
+// ============ TABS ============
+const TABS = ['clientes','stats','alertas','quickadd'];
+function switchTab(tab) {
+  TABS.forEach(t => {
+    document.getElementById(`pane-${t}`).classList.add('hidden');
+    const btn = document.getElementById(`tab-${t}`);
+    if (btn) btn.className = 'px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700';
+  });
+  document.getElementById(`pane-${tab}`).classList.remove('hidden');
+  const activeBtn = document.getElementById(`tab-${tab}`);
+  if (activeBtn) activeBtn.className = 'tab-active px-4 py-3 text-sm whitespace-nowrap';
+  if (tab === 'clientes') renderClientes();
+  if (tab === 'stats') renderStats();
+  if (tab === 'alertas') renderAlertas();
+}
+
+// ============ INIT ============
+loadDemo();
+renderBirthdayHeader();
+renderClientes();
+</script>
+</body>
+</html>

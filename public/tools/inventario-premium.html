@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario Premium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        brand: { DEFAULT: '#16a34a', light: '#22c55e', dark: '#15803d', muted: '#bbf7d0' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #f8fafc; }
+  .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); }
+  .fade-in { animation: fadeIn 0.3s ease forwards; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .badge-ok { background:#dcfce7; color:#15803d; }
+  .badge-low { background:#fef9c3; color:#a16207; }
+  .badge-out { background:#fee2e2; color:#b91c1c; }
+  .dot-ok { background:#16a34a; }
+  .dot-low { background:#ca8a04; }
+  .dot-out { background:#ef4444; }
+  .hover-row:hover { background:#f0fdf4; transition:background 0.15s; }
+  .btn-primary { background:#16a34a; color:#fff; transition:all 0.2s; }
+  .btn-primary:hover { background:#15803d; transform:translateY(-1px); box-shadow:0 4px 12px rgba(22,163,74,0.35); }
+  .btn-ghost { background:#f1f5f9; color:#475569; transition:all 0.2s; }
+  .btn-ghost:hover { background:#e2e8f0; }
+  .input-field { border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 14px; width:100%; outline:none; transition:border 0.2s; background:#fff; font-size:14px; }
+  .input-field:focus { border-color:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,0.1); }
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:100; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .card-stat { transition:transform 0.2s, box-shadow 0.2s; }
+  .card-stat:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,0.08); }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:#fff; }
+    .glass { background:#fff; box-shadow:none; }
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="glass shadow-sm sticky top-0 z-50 border-b border-slate-200 no-print">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-brand flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/></svg>
+      </div>
+      <div>
+        <h1 class="font-bold text-slate-800 text-base leading-tight">Inventario Premium</h1>
+        <p class="text-xs text-slate-500">Control de stock inteligente</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="showAlerts()" class="relative btn-ghost px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span id="alertBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">0</span>
+        Alertas
+      </button>
+      <button onclick="openAddModal()" class="btn-primary px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Agregar
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Main -->
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="glass rounded-2xl p-4 shadow-sm card-stat border border-slate-100">
+      <p class="text-xs text-slate-500 mb-1">Total Productos</p>
+      <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
+    </div>
+    <div class="glass rounded-2xl p-4 shadow-sm card-stat border border-slate-100">
+      <p class="text-xs text-slate-500 mb-1">Valor Inventario</p>
+      <p id="statValue" class="text-2xl font-bold text-brand">$0</p>
+    </div>
+    <div class="glass rounded-2xl p-4 shadow-sm card-stat border border-slate-100">
+      <p class="text-xs text-slate-500 mb-1">Stock Bajo</p>
+      <p id="statLow" class="text-2xl font-bold text-yellow-600">0</p>
+    </div>
+    <div class="glass rounded-2xl p-4 shadow-sm card-stat border border-slate-100">
+      <p class="text-xs text-slate-500 mb-1">Sin Stock</p>
+      <p id="statOut" class="text-2xl font-bold text-red-500">0</p>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="glass rounded-2xl shadow-sm border border-slate-100 p-4 mb-4 no-print">
+    <div class="flex flex-col md:flex-row gap-3">
+      <div class="relative flex-1">
+        <svg class="absolute left-3 top-3 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
+        <input id="searchInput" type="text" placeholder="Buscar producto, SKU..." class="input-field pl-9" oninput="renderProducts()">
+      </div>
+      <select id="filterCat" class="input-field md:w-44" onchange="renderProducts()">
+        <option value="">Todas las categorías</option>
+      </select>
+      <select id="filterStock" class="input-field md:w-40" onchange="renderProducts()">
+        <option value="">Todos los estados</option>
+        <option value="ok">Stock OK</option>
+        <option value="low">Stock Bajo</option>
+        <option value="out">Sin Stock</option>
+      </select>
+      <div class="flex gap-2">
+        <button onclick="setView('grid')" id="btnGrid" class="btn-primary px-3 py-2 rounded-xl" title="Vista cuadrícula">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        </button>
+        <button onclick="setView('list')" id="btnList" class="btn-ghost px-3 py-2 rounded-xl" title="Vista lista">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        </button>
+        <button onclick="exportCSV()" class="btn-ghost px-3 py-2 rounded-xl text-sm font-medium" title="Exportar CSV">CSV</button>
+        <button onclick="printReport()" class="btn-ghost px-3 py-2 rounded-xl text-sm font-medium no-print" title="Imprimir">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Grid/List -->
+  <div id="productContainer" class="fade-in"></div>
+
+  <!-- Movements Section -->
+  <div class="mt-8">
+    <h2 class="text-lg font-bold text-slate-800 mb-4">Últimos Movimientos</h2>
+    <div class="glass rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <div id="movementsList" class="divide-y divide-slate-100"></div>
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="text-center py-6 text-xs text-slate-400 mt-8">
+  Powered by <span class="font-semibold text-brand">Novamente Studio</span> · Inventario Premium v1.0
+</footer>
+
+<!-- Add/Edit Modal -->
+<div id="modalProduct" class="modal-overlay" onclick="if(event.target===this)closeModal('modalProduct')">
+  <div class="glass rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden fade-in">
+    <div class="bg-brand p-5 flex items-center justify-between">
+      <h2 id="modalTitle" class="text-white font-bold text-lg">Agregar Producto</h2>
+      <button onclick="closeModal('modalProduct')" class="text-white/70 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 grid grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+      <input type="hidden" id="editId">
+      <div class="col-span-2">
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Nombre del producto *</label>
+        <input id="pName" class="input-field" placeholder="Ej: Alimento para perro 5kg">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">SKU</label>
+        <input id="pSku" class="input-field" placeholder="PRD-001">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Categoría</label>
+        <input id="pCat" class="input-field" placeholder="Alimentos, Accesorios...">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Precio venta ($)</label>
+        <input id="pPrice" type="number" class="input-field" placeholder="0.00">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Costo ($)</label>
+        <input id="pCost" type="number" class="input-field" placeholder="0.00">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Stock actual</label>
+        <input id="pStock" type="number" class="input-field" placeholder="0">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Alerta mínimo</label>
+        <input id="pMin" type="number" class="input-field" placeholder="5">
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex gap-3">
+      <button onclick="closeModal('modalProduct')" class="btn-ghost flex-1 py-3 rounded-xl font-semibold text-sm">Cancelar</button>
+      <button onclick="saveProduct()" class="btn-primary flex-1 py-3 rounded-xl font-semibold text-sm">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Movement Modal -->
+<div id="modalMovement" class="modal-overlay" onclick="if(event.target===this)closeModal('modalMovement')">
+  <div class="glass rounded-3xl shadow-2xl w-full max-w-md mx-4 fade-in">
+    <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+      <h2 class="font-bold text-slate-800 text-lg">Registrar Movimiento</h2>
+      <button onclick="closeModal('modalMovement')" class="text-slate-400 hover:text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="mvProductId">
+      <p id="mvProductName" class="text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-2 rounded-xl"></p>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Tipo</label>
+        <select id="mvType" class="input-field">
+          <option value="entry">Entrada (Compra / Devolución)</option>
+          <option value="exit">Salida (Venta / Pérdida)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Cantidad</label>
+        <input id="mvQty" type="number" min="1" class="input-field" placeholder="1">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Nota (opcional)</label>
+        <input id="mvNote" class="input-field" placeholder="Factura, proveedor...">
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex gap-3">
+      <button onclick="closeModal('modalMovement')" class="btn-ghost flex-1 py-3 rounded-xl font-semibold text-sm">Cancelar</button>
+      <button onclick="saveMovement()" class="btn-primary flex-1 py-3 rounded-xl font-semibold text-sm">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Alerts Modal -->
+<div id="modalAlerts" class="modal-overlay" onclick="if(event.target===this)closeModal('modalAlerts')">
+  <div class="glass rounded-3xl shadow-2xl w-full max-w-md mx-4 fade-in">
+    <div class="bg-red-500 p-5 flex items-center justify-between rounded-t-3xl">
+      <h2 class="text-white font-bold text-lg">Alertas de Stock</h2>
+      <button onclick="closeModal('modalAlerts')" class="text-white/70 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="alertsList" class="p-5 space-y-3 max-h-96 overflow-y-auto"></div>
+  </div>
+</div>
+
+<script>
+let products = [];
+let movements = [];
+let currentView = 'grid';
+let editingId = null;
+
+const DEMO_PRODUCTS = [
+  { id:1, name:'Alimento perro adulto 5kg', sku:'ALI-001', cat:'Alimentos', price:420, cost:280, stock:24, min:5 },
+  { id:2, name:'Alimento perro cachorro 3kg', sku:'ALI-002', cat:'Alimentos', price:380, cost:240, stock:3, min:5 },
+  { id:3, name:'Alimento gato adulto 2kg', sku:'ALI-003', cat:'Alimentos', price:290, cost:180, stock:0, min:4 },
+  { id:4, name:'Alimento gato senior 1.5kg', sku:'ALI-004', cat:'Alimentos', price:260, cost:165, stock:8, min:4 },
+  { id:5, name:'Collar ajustable talla M', sku:'ACC-001', cat:'Accesorios', price:95, cost:45, stock:15, min:5 },
+  { id:6, name:'Collar ajustable talla L', sku:'ACC-002', cat:'Accesorios', price:110, cost:52, stock:2, min:5 },
+  { id:7, name:'Correa retráctil 5m', sku:'ACC-003', cat:'Accesorios', price:185, cost:90, stock:7, min:3 },
+  { id:8, name:'Cama para perro mediana', sku:'ACC-004', cat:'Accesorios', price:450, cost:220, stock:0, min:2 },
+  { id:9, name:'Arena sanitaria 5L', sku:'HIG-001', cat:'Higiene', price:130, cost:70, stock:18, min:6 },
+  { id:10, name:'Shampoo para perros 500ml', sku:'HIG-002', cat:'Higiene', price:145, cost:75, stock:4, min:5 },
+  { id:11, name:'Cortauñas profesional', sku:'HIG-003', cat:'Higiene', price:165, cost:80, stock:9, min:3 },
+  { id:12, name:'Cepillo deslizador', sku:'HIG-004', cat:'Higiene', price:120, cost:58, stock:6, min:3 },
+  { id:13, name:'Juguete kong perro mediano', sku:'JUG-001', cat:'Juguetes', price:210, cost:110, stock:11, min:4 },
+  { id:14, name:'Pelota de goma con sonajas', sku:'JUG-002', cat:'Juguetes', price:75, cost:32, stock:1, min:5 },
+  { id:15, name:'Ratón de tela para gato', sku:'JUG-003', cat:'Juguetes', price:55, cost:22, stock:20, min:8 },
+  { id:16, name:'Rascador torre gato', sku:'JUG-004', cat:'Juguetes', price:520, cost:280, stock:3, min:2 },
+  { id:17, name:'Antipulgas spot-on perro', sku:'SAL-001', cat:'Salud', price:195, cost:105, stock:12, min:5 },
+  { id:18, name:'Antipulgas spot-on gato', sku:'SAL-002', cat:'Salud', price:175, cost:95, stock:0, min:5 },
+  { id:19, name:'Vitaminas masticables', sku:'SAL-003', cat:'Salud', price:235, cost:130, stock:7, min:4 },
+  { id:20, name:'Champú antipulgas 300ml', sku:'SAL-004', cat:'Salud', price:160, cost:82, stock:5, min:4 },
+];
+
+const DEMO_MOVEMENTS = [
+  { id:1, productId:2, productName:'Alimento perro cachorro 3kg', type:'exit', qty:5, note:'Venta directa', date: new Date(Date.now()-86400000*2).toISOString() },
+  { id:2, productId:6, productName:'Collar ajustable talla L', type:'exit', qty:3, note:'Venta directa', date: new Date(Date.now()-86400000*1).toISOString() },
+  { id:3, productId:1, productName:'Alimento perro adulto 5kg', type:'entry', qty:10, note:'Compra Proveedor A', date: new Date(Date.now()-3600000*4).toISOString() },
+  { id:4, productId:9, productName:'Arena sanitaria 5L', type:'entry', qty:12, note:'Compra Proveedor B', date: new Date(Date.now()-3600000*2).toISOString() },
+];
+
+function save() {
+  localStorage.setItem('inv_products', JSON.stringify(products));
+  localStorage.setItem('inv_movements', JSON.stringify(movements));
+}
+
+function load() {
+  const p = localStorage.getItem('inv_products');
+  const m = localStorage.getItem('inv_movements');
+  products = p ? JSON.parse(p) : [...DEMO_PRODUCTS];
+  movements = m ? JSON.parse(m) : [...DEMO_MOVEMENTS];
+}
+
+function stockStatus(product) {
+  if (product.stock <= 0) return 'out';
+  if (product.stock <= product.min) return 'low';
+  return 'ok';
+}
+
+function statusLabel(s) {
+  if (s === 'out') return 'Sin Stock';
+  if (s === 'low') return 'Stock Bajo';
+  return 'Stock OK';
+}
+
+function fmtMXN(n) {
+  return '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(d) {
+  return new Date(d).toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+function updateStats() {
+  const total = products.length;
+  const value = products.reduce((s,p) => s + p.cost * p.stock, 0);
+  const low = products.filter(p => stockStatus(p) === 'low').length;
+  const out = products.filter(p => stockStatus(p) === 'out').length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statValue').textContent = fmtMXN(value);
+  document.getElementById('statLow').textContent = low;
+  document.getElementById('statOut').textContent = out;
+  const alertCount = low + out;
+  const badge = document.getElementById('alertBadge');
+  if (alertCount > 0) {
+    badge.textContent = alertCount;
+    badge.classList.remove('hidden');
+    badge.classList.add('flex');
+  } else {
+    badge.classList.add('hidden');
+    badge.classList.remove('flex');
+  }
+}
+
+function populateCategories() {
+  const cats = [...new Set(products.map(p => p.cat))].sort();
+  const sel = document.getElementById('filterCat');
+  const val = sel.value;
+  sel.innerHTML = '<option value="">Todas las categorías</option>';
+  cats.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    if (c === val) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function filteredProducts() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  const cat = document.getElementById('filterCat').value;
+  const st = document.getElementById('filterStock').value;
+  return products.filter(p => {
+    const matchQ = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+    const matchCat = !cat || p.cat === cat;
+    const matchSt = !st || stockStatus(p) === st;
+    return matchQ && matchCat && matchSt;
+  });
+}
+
+function renderProducts() {
+  const fp = filteredProducts();
+  const container = document.getElementById('productContainer');
+  if (fp.length === 0) {
+    container.innerHTML = '<div class="text-center py-16 text-slate-400"><svg class="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/></svg><p class="font-medium">Sin productos</p><p class="text-sm mt-1">Intenta con otra búsqueda o filtro</p></div>';
+    return;
+  }
+  if (currentView === 'grid') {
+    container.innerHTML = '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">' +
+      fp.map(p => renderCard(p)).join('') + '</div>';
+  } else {
+    container.innerHTML = '<div class="glass rounded-2xl shadow-sm border border-slate-100 overflow-hidden">' +
+      '<table class="w-full text-sm"><thead><tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide"><th class="text-left px-4 py-3">Producto</th><th class="text-left px-4 py-3 hidden md:table-cell">SKU</th><th class="text-left px-4 py-3 hidden md:table-cell">Categoría</th><th class="text-right px-4 py-3">Stock</th><th class="text-right px-4 py-3">Precio</th><th class="text-center px-4 py-3">Estado</th><th class="px-4 py-3"></th></tr></thead><tbody>' +
+      fp.map(p => renderRow(p)).join('') + '</tbody></table></div>';
+  }
+  updateStats();
+  populateCategories();
+}
+
+function renderCard(p) {
+  const st = stockStatus(p);
+  const dotClass = 'dot-' + st;
+  const badgeClass = 'badge-' + st;
+  return `<div class="glass rounded-2xl border border-slate-100 shadow-sm p-4 hover:shadow-md transition-all duration-200 fade-in">
+    <div class="flex items-start justify-between mb-3">
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-slate-800 text-sm leading-tight truncate">${p.name}</p>
+        <p class="text-xs text-slate-400 mt-0.5">${p.sku} · ${p.cat}</p>
+      </div>
+      <span class="ml-2 flex-shrink-0 w-2 h-2 rounded-full mt-1.5 ${dotClass}"></span>
+    </div>
+    <div class="flex items-end justify-between mb-3">
+      <div>
+        <p class="text-xs text-slate-400">Stock</p>
+        <p class="text-2xl font-bold text-slate-800">${p.stock}</p>
+        <p class="text-xs text-slate-400">mín: ${p.min}</p>
+      </div>
+      <div class="text-right">
+        <p class="text-xs text-slate-400">Venta</p>
+        <p class="font-bold text-brand">${fmtMXN(p.price)}</p>
+        <p class="text-xs text-slate-400">Costo: ${fmtMXN(p.cost)}</p>
+      </div>
+    </div>
+    <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${badgeClass} mb-3">${statusLabel(st)}</span>
+    <div class="flex gap-2">
+      <button onclick="openMovement(${p.id})" class="flex-1 text-xs font-semibold py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">Movimiento</button>
+      <button onclick="openEditModal(${p.id})" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      </button>
+      <button onclick="deleteProduct(${p.id})" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-red-100 text-slate-400 hover:text-red-500 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+function renderRow(p) {
+  const st = stockStatus(p);
+  const badgeClass = 'badge-' + st;
+  return `<tr class="hover-row border-t border-slate-100">
+    <td class="px-4 py-3">
+      <p class="font-semibold text-slate-800 text-sm">${p.name}</p>
+    </td>
+    <td class="px-4 py-3 text-slate-500 hidden md:table-cell">${p.sku}</td>
+    <td class="px-4 py-3 text-slate-500 hidden md:table-cell">${p.cat}</td>
+    <td class="px-4 py-3 text-right font-bold text-slate-800">${p.stock}</td>
+    <td class="px-4 py-3 text-right font-semibold text-brand">${fmtMXN(p.price)}</td>
+    <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${badgeClass}">${statusLabel(st)}</span></td>
+    <td class="px-4 py-3">
+      <div class="flex justify-end gap-1">
+        <button onclick="openMovement(${p.id})" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium transition-colors">Mov.</button>
+        <button onclick="openEditModal(${p.id})" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs transition-colors">Editar</button>
+        <button onclick="deleteProduct(${p.id})" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-red-100 text-slate-400 hover:text-red-500 text-xs transition-colors">Eliminar</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function renderMovements() {
+  const list = document.getElementById('movementsList');
+  const recent = [...movements].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,10);
+  if (recent.length === 0) {
+    list.innerHTML = '<div class="text-center py-8 text-slate-400 text-sm">Sin movimientos registrados</div>';
+    return;
+  }
+  list.innerHTML = recent.map(m => `
+    <div class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+      <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${m.type==='entry' ? 'bg-green-100' : 'bg-red-100'}">
+        <svg class="w-4 h-4 ${m.type==='entry' ? 'text-green-600' : 'text-red-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          ${m.type==='entry'
+            ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>'
+            : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>'}
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-slate-700 truncate">${m.productName}</p>
+        <p class="text-xs text-slate-400">${m.note || (m.type==='entry' ? 'Entrada' : 'Salida')}</p>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-sm font-bold ${m.type==='entry' ? 'text-green-600' : 'text-red-500'}">${m.type==='entry' ? '+' : '-'}${m.qty}</p>
+        <p class="text-xs text-slate-400">${fmtDate(m.date)}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('btnGrid').className = v === 'grid' ? 'btn-primary px-3 py-2 rounded-xl' : 'btn-ghost px-3 py-2 rounded-xl';
+  document.getElementById('btnList').className = v === 'list' ? 'btn-primary px-3 py-2 rounded-xl' : 'btn-ghost px-3 py-2 rounded-xl';
+  renderProducts();
+}
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Agregar Producto';
+  ['pName','pSku','pCat','pPrice','pCost','pStock','pMin','editId'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('modalProduct').classList.add('open');
+}
+
+function openEditModal(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Editar Producto';
+  document.getElementById('editId').value = id;
+  document.getElementById('pName').value = p.name;
+  document.getElementById('pSku').value = p.sku;
+  document.getElementById('pCat').value = p.cat;
+  document.getElementById('pPrice').value = p.price;
+  document.getElementById('pCost').value = p.cost;
+  document.getElementById('pStock').value = p.stock;
+  document.getElementById('pMin').value = p.min;
+  document.getElementById('modalProduct').classList.add('open');
+}
+
+function saveProduct() {
+  const name = document.getElementById('pName').value.trim();
+  if (!name) { alert('El nombre es requerido'); return; }
+  const prod = {
+    name,
+    sku: document.getElementById('pSku').value.trim() || 'SKU-' + Date.now(),
+    cat: document.getElementById('pCat').value.trim() || 'General',
+    price: parseFloat(document.getElementById('pPrice').value) || 0,
+    cost: parseFloat(document.getElementById('pCost').value) || 0,
+    stock: parseInt(document.getElementById('pStock').value) || 0,
+    min: parseInt(document.getElementById('pMin').value) || 3,
+  };
+  if (editingId) {
+    const idx = products.findIndex(p => p.id === editingId);
+    products[idx] = { ...products[idx], ...prod };
+  } else {
+    prod.id = Date.now();
+    products.push(prod);
+  }
+  save();
+  closeModal('modalProduct');
+  renderProducts();
+  renderMovements();
+}
+
+function deleteProduct(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  products = products.filter(p => p.id !== id);
+  save();
+  renderProducts();
+}
+
+function openMovement(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('mvProductId').value = id;
+  document.getElementById('mvProductName').textContent = p.name + ' — Stock actual: ' + p.stock;
+  document.getElementById('mvQty').value = '';
+  document.getElementById('mvNote').value = '';
+  document.getElementById('mvType').value = 'entry';
+  document.getElementById('modalMovement').classList.add('open');
+}
+
+function saveMovement() {
+  const id = parseInt(document.getElementById('mvProductId').value);
+  const qty = parseInt(document.getElementById('mvQty').value);
+  const type = document.getElementById('mvType').value;
+  const note = document.getElementById('mvNote').value.trim();
+  if (!qty || qty < 1) { alert('Ingresa una cantidad válida'); return; }
+  const idx = products.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  if (type === 'exit' && products[idx].stock < qty) {
+    if (!confirm('El stock actual es menor a la salida. ¿Continuar?')) return;
+  }
+  products[idx].stock = Math.max(0, products[idx].stock + (type === 'entry' ? qty : -qty));
+  movements.push({ id: Date.now(), productId: id, productName: products[idx].name, type, qty, note, date: new Date().toISOString() });
+  save();
+  closeModal('modalMovement');
+  renderProducts();
+  renderMovements();
+}
+
+function showAlerts() {
+  const alerts = products.filter(p => stockStatus(p) !== 'ok');
+  const list = document.getElementById('alertsList');
+  if (alerts.length === 0) {
+    list.innerHTML = '<div class="text-center py-6 text-slate-400 text-sm">Sin alertas activas</div>';
+  } else {
+    list.innerHTML = alerts.map(p => {
+      const st = stockStatus(p);
+      return `<div class="flex items-center gap-3 p-3 rounded-xl ${st==='out' ? 'bg-red-50' : 'bg-yellow-50'}">
+        <span class="w-2 h-2 rounded-full flex-shrink-0 dot-${st}"></span>
+        <div class="flex-1">
+          <p class="text-sm font-semibold text-slate-800">${p.name}</p>
+          <p class="text-xs text-slate-500">${p.sku} · Stock: ${p.stock} · Mín: ${p.min}</p>
+        </div>
+        <span class="text-xs font-bold badge-${st} px-2 py-0.5 rounded-full">${statusLabel(st)}</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('modalAlerts').classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function exportCSV() {
+  const rows = [['Nombre','SKU','Categoría','Precio','Costo','Stock','Stock Mín','Estado']];
+  products.forEach(p => rows.push([p.name,p.sku,p.cat,p.price,p.cost,p.stock,p.min,statusLabel(stockStatus(p))]));
+  const csv = rows.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'inventario_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+function printReport() {
+  window.print();
+}
+
+function init() {
+  load();
+  renderProducts();
+  renderMovements();
+}
+
+init();
+</script>
+</body>
+</html>

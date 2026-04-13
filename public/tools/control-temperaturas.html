@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Temperaturas HACCP</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .gradient-header { background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%); }
+  .card { background: white; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; font-size: 11px; }
+    .card { box-shadow: none !important; border: 1px solid #d1d5db !important; page-break-inside: avoid; }
+    .print-title { display: block !important; }
+    @page { margin: 15mm; }
+  }
+  .print-title { display: none; font-size: 18px; font-weight: 800; color: #0891b2; margin-bottom: 12px; }
+  .status-ok { background: #dcfce7; color: #166534; }
+  .status-warn { background: #fef9c3; color: #854d0e; }
+  .status-alert { background: #fee2e2; color: #991b1b; }
+  .status-ok-dot { color: #16a34a; }
+  .status-warn-dot { color: #ca8a04; }
+  .status-alert-dot { color: #dc2626; }
+  .tab-btn { padding: 8px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; transition: all 0.15s; cursor: pointer; }
+  .tab-btn.active { background: #0891b2; color: white; }
+  .tab-btn:not(.active) { color: #6b7280; }
+  .tab-btn:not(.active):hover { background: #ecfeff; color: #0891b2; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+  .modal-overlay.hidden { display: none; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #0891b2; outline-offset: -1px; }
+  .heatmap-cell { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; cursor: pointer; transition: transform 0.1s; }
+  .heatmap-cell:hover { transform: scale(1.15); }
+  .heat-ok { background: #bbf7d0; color: #14532d; }
+  .heat-warn { background: #fef08a; color: #713f12; }
+  .heat-bad { background: #fecaca; color: #7f1d1d; }
+  .heat-none { background: #f3f4f6; color: #9ca3af; }
+  .temp-display { font-size: 2.5rem; font-weight: 800; line-height: 1; }
+  .equipment-card { border-left: 4px solid; transition: all 0.2s; }
+  .equipment-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(8,145,178,0.12); }
+  .compliance-ring { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+  .reading-row { transition: background 0.15s; }
+  .reading-row:hover { background: #ecfeff; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Print Title -->
+<div class="print-title max-w-7xl mx-auto px-4 pt-4">
+  Registro de Temperaturas HACCP — <span id="print-date"></span>
+</div>
+
+<!-- Header -->
+<header class="gradient-header text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h1 class="text-2xl font-800 tracking-tight">Control de Temperaturas HACCP</h1>
+        <p class="text-cyan-200 text-sm mt-0.5">Registro sanitario · Seguridad alimentaria · Inspecciones</p>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="openLogModal()" class="bg-white text-cyan-700 font-600 px-4 py-2 rounded-xl text-sm hover:bg-cyan-50 transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Nueva Lectura
+        </button>
+        <button onclick="window.print()" class="bg-cyan-800 text-white font-600 px-4 py-2 rounded-xl text-sm hover:bg-cyan-900 transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          Reporte Inspector
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<div class="max-w-7xl mx-auto px-4 py-4 no-print">
+  <div class="flex gap-2 flex-wrap">
+    <button class="tab-btn active" onclick="setTab('hoy', this)">Hoy</button>
+    <button class="tab-btn" onclick="setTab('calendario', this)">Calendario</button>
+    <button class="tab-btn" onclick="setTab('reporte', this)">Reporte Mensual</button>
+  </div>
+</div>
+
+<!-- HOY TAB -->
+<div id="tab-hoy" class="max-w-7xl mx-auto px-4 pb-12 space-y-6">
+
+  <!-- Compliance Score + Equipment Status -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+    <!-- Compliance -->
+    <div class="card p-5 flex flex-col items-center justify-center">
+      <div class="text-sm font-600 text-gray-500 uppercase tracking-wide mb-3">Cumplimiento Este Mes</div>
+      <div class="relative w-32 h-32">
+        <svg viewBox="0 0 120 120" class="w-32 h-32 -rotate-90">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="12"/>
+          <circle id="compliance-arc" cx="60" cy="60" r="50" fill="none" stroke="#0891b2" stroke-width="12"
+            stroke-dasharray="314" stroke-dashoffset="314" stroke-linecap="round"/>
+        </svg>
+        <div class="absolute inset-0 flex flex-col items-center justify-center">
+          <span id="compliance-pct" class="text-3xl font-800 text-gray-800">—%</span>
+          <span class="text-xs text-gray-400 font-600">cumplimiento</span>
+        </div>
+      </div>
+      <div id="compliance-label" class="mt-2 text-sm font-600"></div>
+    </div>
+
+    <!-- Equipment Grid -->
+    <div class="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <!-- Equipment cards rendered by JS -->
+      <div id="equipment-cards"></div>
+    </div>
+  </div>
+
+  <!-- Today's Readings Table -->
+  <div class="card overflow-hidden">
+    <div class="p-4 border-b border-gray-100">
+      <h3 class="font-700 text-gray-800">Lecturas de Hoy — <span id="today-date-header"></span></h3>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100">
+          <tr>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Hora</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Equipo</th>
+            <th class="text-right px-4 py-3 font-600 text-gray-600">Temperatura</th>
+            <th class="text-center px-4 py-3 font-600 text-gray-600">Estado</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Empleado</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Acción Correctiva</th>
+            <th class="px-4 py-3 no-print"></th>
+          </tr>
+        </thead>
+        <tbody id="today-tbody"></tbody>
+      </table>
+    </div>
+    <div id="today-empty" class="text-center py-10 text-gray-400 text-sm hidden">
+      No hay lecturas registradas hoy. <br><span class="text-cyan-600 font-600 cursor-pointer" onclick="openLogModal()">+ Agregar primera lectura</span>
+    </div>
+  </div>
+</div>
+
+<!-- CALENDARIO TAB -->
+<div id="tab-calendario" class="max-w-7xl mx-auto px-4 pb-12 hidden">
+  <div class="card p-6">
+    <h3 class="font-700 text-gray-800 text-lg mb-2">Mapa de Cumplimiento — Últimas 4 Semanas</h3>
+    <p class="text-sm text-gray-500 mb-5">Verde = todas lecturas OK · Amarillo = alguna advertencia · Rojo = alerta crítica · Gris = sin datos</p>
+    <div id="heatmap-container"></div>
+    <div class="flex gap-4 mt-4 text-xs">
+      <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded heat-ok inline-block"></span> Todo OK</span>
+      <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded heat-warn inline-block"></span> Advertencia</span>
+      <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded heat-bad inline-block"></span> Alerta crítica</span>
+      <span class="flex items-center gap-1.5"><span class="w-4 h-4 rounded heat-none inline-block"></span> Sin datos</span>
+    </div>
+  </div>
+</div>
+
+<!-- REPORTE TAB -->
+<div id="tab-reporte" class="max-w-7xl mx-auto px-4 pb-12 hidden">
+
+  <!-- Summary stats -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="card p-4 text-center">
+      <div class="text-3xl font-800 text-cyan-700" id="rep-total-readings">—</div>
+      <div class="text-xs text-gray-500 font-600 mt-1">Lecturas Totales</div>
+    </div>
+    <div class="card p-4 text-center">
+      <div class="text-3xl font-800 text-green-600" id="rep-ok-readings">—</div>
+      <div class="text-xs text-gray-500 font-600 mt-1">En Rango</div>
+    </div>
+    <div class="card p-4 text-center">
+      <div class="text-3xl font-800 text-red-500" id="rep-out-readings">—</div>
+      <div class="text-xs text-gray-500 font-600 mt-1">Fuera de Rango</div>
+    </div>
+    <div class="card p-4 text-center">
+      <div class="text-3xl font-800 text-amber-600" id="rep-compliance">—%</div>
+      <div class="text-xs text-gray-500 font-600 mt-1">Cumplimiento</div>
+    </div>
+  </div>
+
+  <!-- Full readings table -->
+  <div class="card overflow-hidden">
+    <div class="p-4 border-b border-gray-100 flex gap-3 flex-wrap items-center">
+      <h3 class="font-700 text-gray-800 flex-1">Historial Completo del Mes</h3>
+      <select id="rep-filter-equip" onchange="renderReport()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm no-print">
+        <option value="">Todos los equipos</option>
+      </select>
+      <select id="rep-filter-status" onchange="renderReport()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm no-print">
+        <option value="">Todos</option>
+        <option value="ok">OK</option>
+        <option value="warn">Advertencia</option>
+        <option value="alert">Alerta</option>
+      </select>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100">
+          <tr>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Fecha</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Hora</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Equipo</th>
+            <th class="text-right px-4 py-3 font-600 text-gray-600">Temperatura</th>
+            <th class="text-center px-4 py-3 font-600 text-gray-600">Estado</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Empleado</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Acción Correctiva</th>
+          </tr>
+        </thead>
+        <tbody id="report-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Log Modal -->
+<div id="log-modal" class="modal-overlay hidden no-print">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+    <div class="gradient-header text-white p-5 rounded-t-2xl flex justify-between items-center">
+      <h2 class="text-lg font-700">Nueva Lectura de Temperatura</h2>
+      <button onclick="closeLogModal()" class="hover:opacity-70 text-xl">✕</button>
+    </div>
+    <form id="log-form" class="p-5 space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Fecha *</label>
+          <input id="lf-date" type="date" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Hora *</label>
+          <input id="lf-time" type="time" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-600 text-gray-700 mb-1">Equipo *</label>
+          <select id="lf-equip" required onchange="updateTempHint()" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+            <option value="">Seleccionar equipo...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Temperatura (°C) *</label>
+          <input id="lf-temp" type="number" step="0.1" required oninput="evaluateTemp()" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="0.0">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Empleado *</label>
+          <input id="lf-employee" type="text" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="Nombre completo">
+        </div>
+      </div>
+      <div id="temp-hint" class="text-xs text-gray-500 bg-cyan-50 rounded-xl px-3 py-2 hidden"></div>
+      <div id="temp-status-preview" class="rounded-xl px-4 py-3 font-600 text-sm hidden"></div>
+      <div id="corrective-section" class="hidden">
+        <label class="block text-sm font-600 text-red-700 mb-1">⚠ Acción Correctiva (obligatorio) *</label>
+        <textarea id="lf-corrective" rows="2" class="w-full border border-red-200 rounded-xl px-3 py-2 text-sm" placeholder="Describe qué acción se tomó para corregir la temperatura..."></textarea>
+      </div>
+      <div class="flex gap-3 pt-1">
+        <button type="submit" class="flex-1 bg-cyan-600 text-white font-600 py-2.5 rounded-xl hover:bg-cyan-700 transition">Guardar Lectura</button>
+        <button type="button" onclick="closeLogModal()" class="px-6 border border-gray-200 rounded-xl text-sm font-600 hover:bg-gray-50 transition">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="bg-white border-t border-gray-100 py-4 text-center text-xs text-gray-400 no-print mt-8">
+  Powered by <span class="font-700 text-cyan-600">Novamente Studio</span> &copy; <span id="footer-year"></span>
+</footer>
+
+<script>
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+document.getElementById('print-date').textContent = new Date().toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'});
+
+const EQUIPMENT = [
+  { id: 'REF1', name: 'Refrigerador 1', type: 'fridge', minTemp: 0, maxTemp: 4 },
+  { id: 'REF2', name: 'Refrigerador 2', type: 'fridge', minTemp: 0, maxTemp: 4 },
+  { id: 'CON1', name: 'Congelador 1',   type: 'freezer', minTemp: -22, maxTemp: -18 },
+  { id: 'CON2', name: 'Congelador 2',   type: 'freezer', minTemp: -22, maxTemp: -18 },
+  { id: 'BAR1', name: 'Barra Fría',     type: 'fridge', minTemp: 0, maxTemp: 6 },
+  { id: 'EXH1', name: 'Exhibidor',      type: 'fridge', minTemp: 2, maxTemp: 8 },
+];
+
+const EMPLOYEES = ['Carlos Mendoza', 'Ana López', 'Luis Torres', 'María Ramos', 'Jorge García'];
+
+function getStatus(temp, equip) {
+  const { minTemp, maxTemp } = equip;
+  if (temp >= minTemp && temp <= maxTemp) return 'ok';
+  const diff = Math.min(Math.abs(temp - minTemp), Math.abs(temp - maxTemp));
+  if (diff <= 2) return 'warn';
+  return 'alert';
+}
+
+function statusLabel(s) {
+  if (s === 'ok') return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-700 status-ok">✓ OK</span>';
+  if (s === 'warn') return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-700 status-warn">⚠ Advertencia</span>';
+  return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-700 status-alert">✕ Alerta</span>';
+}
+
+function generateDemoReadings() {
+  const today = new Date();
+  const readings = [];
+  let id = 1;
+  const times = ['08:00', '13:00', '20:00'];
+  const tempVariance = {
+    'REF1': { base: 2, range: 2 },
+    'REF2': { base: 3, range: 2 },
+    'CON1': { base: -20, range: 3 },
+    'CON2': { base: -19, range: 3 },
+    'BAR1': { base: 4, range: 3 },
+    'EXH1': { base: 5, range: 3 },
+  };
+
+  // 14 days of history
+  for (let day = 13; day >= 0; day--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - day);
+    const dateStr = d.toISOString().split('T')[0];
+
+    for (const time of times) {
+      for (const equip of EQUIPMENT) {
+        const v = tempVariance[equip.id];
+        let temp = v.base + (Math.random() - 0.5) * v.range;
+        temp = parseFloat(temp.toFixed(1));
+
+        // Force 2-3 incidents
+        let forcedOut = false;
+        if ((day === 5 && equip.id === 'REF1' && time === '13:00') ||
+            (day === 8 && equip.id === 'CON1' && time === '20:00') ||
+            (day === 2 && equip.id === 'BAR1' && time === '08:00')) {
+          temp = equip.type === 'fridge' ? 8 : -14;
+          forcedOut = true;
+        }
+
+        const status = getStatus(temp, equip);
+        const emp = EMPLOYEES[Math.floor(Math.random() * EMPLOYEES.length)];
+        readings.push({
+          id: id++,
+          date: dateStr,
+          time,
+          equipId: equip.id,
+          temp,
+          status,
+          employee: emp,
+          corrective: (status !== 'ok' && forcedOut) ?
+            (equip.type === 'fridge' ? 'Se revisó sello de puerta, se ajustó termostato. Temperatura normalizada en 1 hora.' : 'Se verificó compresor, se llamó a técnico. Producto trasladado a congelador auxiliar.') :
+            (status !== 'ok' ? 'Se revisó equipo y se normalizó temperatura.' : ''),
+        });
+      }
+    }
+  }
+  return readings;
+}
+
+let readings = [];
+
+function loadData() {
+  const stored = localStorage.getItem('haccp_temps_v2');
+  if (stored) {
+    readings = JSON.parse(stored);
+  } else {
+    readings = generateDemoReadings();
+    saveData();
+  }
+}
+
+function saveData() {
+  localStorage.setItem('haccp_temps_v2', JSON.stringify(readings));
+}
+
+function getToday() { return new Date().toISOString().split('T')[0]; }
+function getMonthStart() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+}
+
+function calcCompliance(recs) {
+  if (!recs.length) return 100;
+  const ok = recs.filter(r => r.status === 'ok').length;
+  return Math.round((ok / recs.length) * 100);
+}
+
+function renderEquipmentCards() {
+  const today = getToday();
+  const todayReadings = readings.filter(r => r.date === today);
+  const container = document.getElementById('equipment-cards');
+  container.className = 'grid grid-cols-2 sm:grid-cols-3 gap-3 w-full';
+  container.innerHTML = EQUIPMENT.map(eq => {
+    const eqReadings = todayReadings.filter(r => r.equipId === eq.id);
+    const lastReading = eqReadings.sort((a, b) => b.time.localeCompare(a.time))[0];
+    const status = lastReading ? lastReading.status : 'none';
+    const tempDisplay = lastReading ? `${lastReading.temp}°C` : '—';
+    const borderColor = status === 'ok' ? '#16a34a' : status === 'warn' ? '#ca8a04' : status === 'alert' ? '#dc2626' : '#9ca3af';
+    const dotClass = status === 'ok' ? 'status-ok-dot' : status === 'warn' ? 'status-warn-dot' : status === 'alert' ? 'status-alert-dot' : 'text-gray-400';
+    const icon = eq.type === 'freezer' ? '🧊' : '❄️';
+    return `<div class="card p-4 equipment-card" style="border-left-color:${borderColor}">
+      <div class="flex justify-between items-start mb-2">
+        <span class="text-lg">${icon}</span>
+        <span class="${dotClass} text-lg font-800">${status === 'ok' ? '✓' : status === 'warn' ? '⚠' : status === 'alert' ? '✕' : '•'}</span>
+      </div>
+      <div class="text-sm font-700 text-gray-800 mb-1">${eq.name}</div>
+      <div class="temp-display ${status === 'ok' ? 'text-green-600' : status === 'warn' ? 'text-amber-600' : status === 'alert' ? 'text-red-600' : 'text-gray-400'}">${tempDisplay}</div>
+      <div class="text-xs text-gray-400 mt-1">Rango: ${eq.minTemp}° a ${eq.maxTemp}°C</div>
+      <div class="text-xs text-gray-500 mt-0.5">${eqReadings.length} lectura${eqReadings.length !== 1 ? 's' : ''} hoy</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTodayTable() {
+  const today = getToday();
+  document.getElementById('today-date-header').textContent = new Date().toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  const todayRecs = readings.filter(r => r.date === today).sort((a, b) => b.time.localeCompare(a.time));
+  const tbody = document.getElementById('today-tbody');
+  const empty = document.getElementById('today-empty');
+  if (!todayRecs.length) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  tbody.innerHTML = todayRecs.map(r => {
+    const eq = EQUIPMENT.find(e => e.id === r.equipId);
+    const icon = eq?.type === 'freezer' ? '🧊' : '❄️';
+    return `<tr class="border-b border-gray-50 reading-row">
+      <td class="px-4 py-3 font-600 text-gray-700">${r.time}</td>
+      <td class="px-4 py-3 text-gray-800">${icon} ${eq?.name || r.equipId}</td>
+      <td class="px-4 py-3 text-right font-800 text-lg ${r.status==='ok'?'text-green-600':r.status==='warn'?'text-amber-600':'text-red-600'}">${r.temp}°C</td>
+      <td class="px-4 py-3 text-center">${statusLabel(r.status)}</td>
+      <td class="px-4 py-3 text-gray-600 text-sm">${r.employee}</td>
+      <td class="px-4 py-3 text-xs text-gray-500 max-w-xs">${r.corrective || (r.status!=='ok'?'<span class="text-red-500 font-600">Sin acción registrada</span>':'—')}</td>
+      <td class="px-4 py-3 no-print">
+        <button onclick="deleteReading(${r.id})" class="text-red-400 hover:text-red-600 text-xs p-1 transition">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderComplianceScore() {
+  const monthRecs = readings.filter(r => r.date >= getMonthStart());
+  const pct = calcCompliance(monthRecs);
+  const arc = document.getElementById('compliance-arc');
+  const circumference = 314;
+  arc.style.strokeDashoffset = circumference - (circumference * pct / 100);
+  arc.style.stroke = pct >= 95 ? '#16a34a' : pct >= 85 ? '#ca8a04' : '#dc2626';
+  document.getElementById('compliance-pct').textContent = `${pct}%`;
+  const label = document.getElementById('compliance-label');
+  if (pct >= 95) label.innerHTML = '<span class="text-green-600">✓ Excelente</span>';
+  else if (pct >= 85) label.innerHTML = '<span class="text-amber-600">⚠ Mejorable</span>';
+  else label.innerHTML = '<span class="text-red-600">✕ Crítico</span>';
+}
+
+function renderHeatmap() {
+  const today = new Date();
+  const container = document.getElementById('heatmap-container');
+  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+  // Build 4 weeks grid
+  let html = '<div class="overflow-x-auto"><div class="flex gap-1 mb-2">';
+  html += '<div class="w-12"></div>';
+  days.forEach(d => html += `<div class="w-8 text-center text-xs text-gray-400 font-600">${d}</div>`);
+  html += '</div>';
+
+  // 4 weeks back
+  for (let week = 3; week >= 0; week--) {
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay() - (week * 7));
+    const label = `${weekStart.getDate()}/${weekStart.getMonth()+1}`;
+    html += `<div class="flex gap-1 items-center mb-1">`;
+    html += `<div class="w-12 text-xs text-gray-400 font-600 text-right pr-2">${label}</div>`;
+
+    for (let dow = 0; dow < 7; dow++) {
+      const cellDate = new Date(weekStart);
+      cellDate.setDate(weekStart.getDate() + dow);
+      const dateStr = cellDate.toISOString().split('T')[0];
+      const dayRecs = readings.filter(r => r.date === dateStr);
+      const isFuture = cellDate > today;
+      let cellClass = 'heat-none';
+      let title = 'Sin datos';
+      if (!isFuture && dayRecs.length > 0) {
+        const hasAlert = dayRecs.some(r => r.status === 'alert');
+        const hasWarn = dayRecs.some(r => r.status === 'warn');
+        if (hasAlert) { cellClass = 'heat-bad'; title = `${dayRecs.length} lecturas · Alerta crítica`; }
+        else if (hasWarn) { cellClass = 'heat-warn'; title = `${dayRecs.length} lecturas · Advertencia`; }
+        else { cellClass = 'heat-ok'; title = `${dayRecs.length} lecturas · Todo OK`; }
+      } else if (isFuture) { cellClass = 'heat-none'; title = ''; }
+      html += `<div class="heatmap-cell ${cellClass}" title="${dateStr}: ${title}">${cellDate.getDate()}</div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderReport() {
+  const monthRecs = readings.filter(r => r.date >= getMonthStart());
+  const filterEquip = document.getElementById('rep-filter-equip').value;
+  const filterStatus = document.getElementById('rep-filter-status').value;
+
+  const total = monthRecs.length;
+  const ok = monthRecs.filter(r => r.status === 'ok').length;
+  const out = monthRecs.filter(r => r.status !== 'ok').length;
+  const pct = calcCompliance(monthRecs);
+
+  document.getElementById('rep-total-readings').textContent = total;
+  document.getElementById('rep-ok-readings').textContent = ok;
+  document.getElementById('rep-out-readings').textContent = out;
+  document.getElementById('rep-compliance').textContent = `${pct}%`;
+
+  let filtered = monthRecs.filter(r => {
+    const matchEquip = !filterEquip || r.equipId === filterEquip;
+    const matchStatus = !filterStatus || r.status === filterStatus;
+    return matchEquip && matchStatus;
+  }).sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
+
+  document.getElementById('report-tbody').innerHTML = filtered.map(r => {
+    const eq = EQUIPMENT.find(e => e.id === r.equipId);
+    const icon = eq?.type === 'freezer' ? '🧊' : '❄️';
+    return `<tr class="border-b border-gray-50 reading-row text-sm">
+      <td class="px-4 py-2.5 text-gray-600">${r.date}</td>
+      <td class="px-4 py-2.5 text-gray-600">${r.time}</td>
+      <td class="px-4 py-2.5 text-gray-800">${icon} ${eq?.name || r.equipId}</td>
+      <td class="px-4 py-2.5 text-right font-800 ${r.status==='ok'?'text-green-600':r.status==='warn'?'text-amber-600':'text-red-600'}">${r.temp}°C</td>
+      <td class="px-4 py-2.5 text-center">${statusLabel(r.status)}</td>
+      <td class="px-4 py-2.5 text-gray-600">${r.employee}</td>
+      <td class="px-4 py-2.5 text-xs text-gray-500 max-w-xs">${r.corrective || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function populateEquipFilter() {
+  const sel = document.getElementById('rep-filter-equip');
+  EQUIPMENT.forEach(eq => {
+    const opt = document.createElement('option');
+    opt.value = eq.id;
+    opt.textContent = eq.name;
+    sel.appendChild(opt);
+  });
+}
+
+function populateLogEquip() {
+  const sel = document.getElementById('lf-equip');
+  EQUIPMENT.forEach(eq => {
+    const opt = document.createElement('option');
+    opt.value = eq.id;
+    opt.textContent = `${eq.name} (${eq.type === 'fridge' ? `Refrig: ${eq.minTemp}–${eq.maxTemp}°C` : `Congel: ${eq.minTemp}–${eq.maxTemp}°C`})`;
+    sel.appendChild(opt);
+  });
+}
+
+function updateTempHint() {
+  const id = document.getElementById('lf-equip').value;
+  const eq = EQUIPMENT.find(e => e.id === id);
+  const hint = document.getElementById('temp-hint');
+  if (eq) {
+    hint.textContent = `Rango seguro: ${eq.minTemp}°C a ${eq.maxTemp}°C`;
+    hint.classList.remove('hidden');
+  } else {
+    hint.classList.add('hidden');
+  }
+  evaluateTemp();
+}
+
+function evaluateTemp() {
+  const id = document.getElementById('lf-equip').value;
+  const eq = EQUIPMENT.find(e => e.id === id);
+  const temp = parseFloat(document.getElementById('lf-temp').value);
+  const preview = document.getElementById('temp-status-preview');
+  const corrSection = document.getElementById('corrective-section');
+  if (!eq || isNaN(temp)) { preview.classList.add('hidden'); corrSection.classList.add('hidden'); return; }
+  const status = getStatus(temp, eq);
+  preview.classList.remove('hidden');
+  if (status === 'ok') {
+    preview.className = 'rounded-xl px-4 py-3 font-600 text-sm status-ok';
+    preview.textContent = '✓ Temperatura en rango seguro';
+    corrSection.classList.add('hidden');
+    document.getElementById('lf-corrective').required = false;
+  } else if (status === 'warn') {
+    preview.className = 'rounded-xl px-4 py-3 font-600 text-sm status-warn';
+    preview.textContent = `⚠ Advertencia: ${Math.abs(temp - (temp < eq.minTemp ? eq.minTemp : eq.maxTemp)).toFixed(1)}°C fuera del rango seguro`;
+    corrSection.classList.remove('hidden');
+    document.getElementById('lf-corrective').required = true;
+  } else {
+    preview.className = 'rounded-xl px-4 py-3 font-600 text-sm status-alert';
+    preview.textContent = `✕ ALERTA CRÍTICA: ${Math.abs(temp - (temp < eq.minTemp ? eq.minTemp : eq.maxTemp)).toFixed(1)}°C fuera del rango`;
+    corrSection.classList.remove('hidden');
+    document.getElementById('lf-corrective').required = true;
+  }
+}
+
+function openLogModal() {
+  const now = new Date();
+  document.getElementById('lf-date').value = now.toISOString().split('T')[0];
+  document.getElementById('lf-time').value = now.toTimeString().slice(0,5);
+  document.getElementById('lf-temp').value = '';
+  document.getElementById('lf-employee').value = '';
+  document.getElementById('lf-corrective').value = '';
+  document.getElementById('lf-equip').value = '';
+  document.getElementById('temp-hint').classList.add('hidden');
+  document.getElementById('temp-status-preview').classList.add('hidden');
+  document.getElementById('corrective-section').classList.add('hidden');
+  document.getElementById('log-modal').classList.remove('hidden');
+}
+
+function closeLogModal() {
+  document.getElementById('log-modal').classList.add('hidden');
+}
+
+document.getElementById('log-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const id_equip = document.getElementById('lf-equip').value;
+  const eq = EQUIPMENT.find(e => e.id === id_equip);
+  const temp = parseFloat(document.getElementById('lf-temp').value);
+  const status = eq ? getStatus(temp, eq) : 'ok';
+  const corrective = document.getElementById('lf-corrective').value;
+  if (status !== 'ok' && !corrective.trim()) {
+    alert('Debes registrar la acción correctiva cuando la temperatura está fuera de rango.');
+    return;
+  }
+  readings.push({
+    id: Date.now(),
+    date: document.getElementById('lf-date').value,
+    time: document.getElementById('lf-time').value,
+    equipId: id_equip,
+    temp,
+    status,
+    employee: document.getElementById('lf-employee').value,
+    corrective,
+  });
+  saveData();
+  closeLogModal();
+  refreshAll();
+});
+
+function deleteReading(id) {
+  if (!confirm('¿Eliminar esta lectura?')) return;
+  readings = readings.filter(r => r.id !== id);
+  saveData();
+  refreshAll();
+}
+
+let activeTab = 'hoy';
+
+function setTab(tab, el) {
+  activeTab = tab;
+  ['hoy', 'calendario', 'reporte'].forEach(t => document.getElementById(`tab-${t}`).classList.add('hidden'));
+  document.getElementById(`tab-${tab}`).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  if (tab === 'calendario') renderHeatmap();
+  if (tab === 'reporte') renderReport();
+}
+
+function refreshAll() {
+  renderEquipmentCards();
+  renderTodayTable();
+  renderComplianceScore();
+  if (activeTab === 'calendario') renderHeatmap();
+  if (activeTab === 'reporte') renderReport();
+}
+
+loadData();
+populateEquipFilter();
+populateLogEquip();
+refreshAll();
+</script>
+</body>
+</html>

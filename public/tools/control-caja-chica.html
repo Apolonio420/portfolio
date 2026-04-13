@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Caja Chica</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #f0fdf4; }
+  .emerald-grad { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+  .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .tab-btn { padding: 8px 18px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; }
+  .tab-btn.active { background: #059669; color: #fff; }
+  .tab-btn:not(.active) { color: #065f46; background: #d1fae5; }
+  input, select, textarea { outline: none; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 8px 12px; font-size: 14px; width: 100%; transition: border .15s; font-family: 'Plus Jakarta Sans',sans-serif; }
+  input:focus, select:focus, textarea:focus { border-color: #059669; }
+  .btn-emerald { background: #059669; color: #fff; border-radius: 10px; padding: 9px 20px; font-weight: 700; font-size: 13px; cursor: pointer; transition: background .15s; border: none; }
+  .btn-emerald:hover { background: #047857; }
+  .btn-outline { border: 1.5px solid #059669; color: #059669; border-radius: 10px; padding: 8px 18px; font-weight: 700; font-size: 13px; cursor: pointer; background: #fff; transition: all .15s; }
+  .btn-outline:hover { background: #d1fae5; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { background: #fff; border-radius: 20px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; padding: 28px; }
+  .section-title { font-size: 18px; font-weight: 800; color: #065f46; margin-bottom: 12px; }
+  .exp-row { border-radius: 12px; transition: all .15s; }
+  .exp-row:hover { background: #f0fdf4; }
+  .approval-pending { border-left: 3px solid #f59e0b; }
+  .approval-approved { border-left: 3px solid #059669; }
+  .approval-rejected { border-left: 3px solid #ef4444; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #d1fae5; } ::-webkit-scrollbar-thumb { background: #6ee7b7; border-radius: 3px; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; }
+    .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- HEADER -->
+<header class="emerald-grad text-white no-print">
+  <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">💵</div>
+      <div>
+        <div class="font-bold text-lg leading-tight">Control Caja Chica</div>
+        <div class="text-emerald-100 text-xs">Gestión de gastos menores</div>
+      </div>
+    </div>
+    <!-- Balance chips -->
+    <div class="flex items-center gap-3 flex-wrap">
+      <div class="bg-white/20 rounded-xl px-3 py-2 text-center">
+        <div class="text-xs text-emerald-100">Saldo inicial</div>
+        <div class="font-800 text-lg" id="header-opening">$0</div>
+      </div>
+      <div class="bg-white/20 rounded-xl px-3 py-2 text-center">
+        <div class="text-xs text-emerald-100">Saldo actual</div>
+        <div class="font-800 text-lg" id="header-balance">$0</div>
+      </div>
+      <button onclick="openSetBalance()" class="bg-white/20 hover:bg-white/30 text-white font-bold px-3 py-2 rounded-xl text-sm transition">⚙️ Configurar</button>
+    </div>
+  </div>
+</header>
+
+<!-- TABS -->
+<nav class="no-print bg-white border-b border-emerald-100 sticky top-0 z-40">
+  <div class="max-w-5xl mx-auto px-4 py-2 flex gap-2 overflow-x-auto">
+    <button onclick="showView('gastos')" class="tab-btn active" id="tab-gastos">💳 Gastos</button>
+    <button onclick="showView('registrar')" class="tab-btn" id="tab-registrar">➕ Registrar Gasto</button>
+    <button onclick="showView('resumen')" class="tab-btn" id="tab-resumen">📊 Resumen Mensual</button>
+    <button onclick="showView('reconciliacion')" class="tab-btn" id="tab-reconciliacion">🔍 Reconciliación</button>
+    <button onclick="showView('aprobaciones')" class="tab-btn" id="tab-aprobaciones">✅ Aprobaciones <span id="approval-badge" class="hidden ml-1 bg-red-500 text-white text-xs rounded-full px-1.5">0</span></button>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="max-w-5xl mx-auto px-4 py-6 no-print">
+
+  <!-- GASTOS LIST -->
+  <div id="view-gastos">
+    <div class="flex flex-wrap gap-3 items-center justify-between mb-4">
+      <div class="flex gap-2 flex-wrap">
+        <select id="filter-cat" onchange="renderExpenses()" class="w-auto text-sm">
+          <option value="">Todas las categorías</option>
+          <option>Oficina</option><option>Limpieza</option><option>Transporte</option>
+          <option>Comida</option><option>Reparaciones</option><option>Varios</option>
+        </select>
+        <input type="month" id="filter-month" onchange="renderExpenses()" class="w-auto text-sm">
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="shareResumenWA()" class="btn-outline text-sm" style="border-color:#16a34a;color:#16a34a">WhatsApp</button>
+        <button onclick="exportCSV()" class="btn-outline text-sm">📤 Exportar CSV</button>
+        <button onclick="printReport()" class="btn-outline text-sm">🖨 Imprimir</button>
+      </div>
+    </div>
+    <div id="expenses-list" class="space-y-2"></div>
+    <div id="expenses-total" class="mt-4"></div>
+  </div>
+
+  <!-- REGISTRAR GASTO -->
+  <div id="view-registrar" class="hidden">
+    <div class="card p-6 max-w-lg">
+      <h2 class="section-title">➕ Registrar Gasto</h2>
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-600 text-gray-500 block mb-1">Fecha</label><input type="date" id="exp-date"></div>
+          <div><label class="text-xs font-600 text-gray-500 block mb-1">Monto ($MXN)</label><input type="number" id="exp-amount" placeholder="0.00" step="0.01" min="0"></div>
+        </div>
+        <div><label class="text-xs font-600 text-gray-500 block mb-1">Descripción</label><input type="text" id="exp-desc" placeholder="Ej. Resmas de papel, café para oficina..."></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-600 text-gray-500 block mb-1">Categoría</label>
+            <select id="exp-cat"><option>Oficina</option><option>Limpieza</option><option>Transporte</option><option>Comida</option><option>Reparaciones</option><option>Varios</option></select>
+          </div>
+          <div><label class="text-xs font-600 text-gray-500 block mb-1">No. Recibo (opcional)</label><input type="text" id="exp-receipt" placeholder="REC-001"></div>
+        </div>
+        <div id="approval-warning" class="hidden bg-yellow-50 border border-yellow-300 rounded-xl p-3 text-sm text-yellow-800">
+          ⚠️ Este gasto supera $500 MXN y <strong>requiere autorización</strong> del supervisor.
+        </div>
+        <button onclick="saveExpense()" class="btn-emerald w-full">Guardar Gasto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESUMEN MENSUAL -->
+  <div id="view-resumen" class="hidden">
+    <div class="flex flex-wrap gap-3 items-center mb-4">
+      <select id="chart-month" onchange="buildCharts()" class="w-auto text-sm">
+        <option value="">— Seleccionar mes —</option>
+      </select>
+    </div>
+    <div id="resumen-content"></div>
+  </div>
+
+  <!-- RECONCILIACIÓN -->
+  <div id="view-reconciliacion" class="hidden">
+    <div class="card p-6 max-w-md">
+      <h2 class="section-title">🔍 Reconciliación de Caja</h2>
+      <div class="space-y-4">
+        <div class="bg-emerald-50 rounded-xl p-4">
+          <div class="text-sm text-gray-600 mb-1">Saldo esperado (según sistema)</div>
+          <div class="text-3xl font-800 text-emerald-700" id="rec-expected">$0.00</div>
+        </div>
+        <div><label class="text-xs font-600 text-gray-500 block mb-1">Conteo físico de efectivo ($MXN)</label>
+          <input type="number" id="rec-actual" placeholder="0.00" step="0.01" oninput="calcVariance()" class="text-lg font-600">
+        </div>
+        <div id="rec-result" class="hidden bg-gray-50 rounded-xl p-4">
+          <div class="text-sm text-gray-600 mb-1">Varianza</div>
+          <div class="text-2xl font-800" id="rec-variance"></div>
+          <div class="text-xs text-gray-500 mt-1" id="rec-note"></div>
+        </div>
+        <button onclick="saveReconciliation()" class="btn-emerald w-full">Guardar Reconciliación</button>
+      </div>
+      <div class="mt-5">
+        <div class="text-sm font-700 text-gray-600 mb-3">Historial de reconciliaciones</div>
+        <div id="rec-history" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APROBACIONES -->
+  <div id="view-aprobaciones" class="hidden">
+    <div class="card p-6 max-w-lg">
+      <h2 class="section-title">✅ Gastos pendientes de aprobación</h2>
+      <div id="approvals-list"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- MODAL SET BALANCE -->
+<div id="modal-balance" class="modal-bg hidden">
+  <div class="modal">
+    <div class="flex justify-between items-center mb-5">
+      <h2 class="text-xl font-800 text-emerald-900">Configurar Caja Chica</h2>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none">&times;</button>
+    </div>
+    <div class="space-y-3">
+      <div><label class="text-xs font-600 text-gray-500 block mb-1">Saldo inicial del día ($MXN)</label>
+        <input type="number" id="bal-amount" placeholder="Ej. 3000.00" step="0.01" min="0">
+      </div>
+      <div><label class="text-xs font-600 text-gray-500 block mb-1">Fecha de apertura</label>
+        <input type="date" id="bal-date">
+      </div>
+      <div><label class="text-xs font-600 text-gray-500 block mb-1">Responsable</label>
+        <input type="text" id="bal-name" placeholder="Nombre del responsable">
+      </div>
+      <div class="flex gap-3 justify-end">
+        <button onclick="closeModal()" class="btn-outline">Cancelar</button>
+        <button onclick="saveBalance()" class="btn-emerald">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL APPROVAL -->
+<div id="modal-approval" class="modal-bg hidden">
+  <div class="modal">
+    <div class="flex justify-between items-center mb-5">
+      <h2 class="text-xl font-800 text-emerald-900">Autorización de Supervisor</h2>
+      <button onclick="document.getElementById('modal-approval').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+    </div>
+    <div id="approval-detail-text" class="bg-yellow-50 rounded-xl p-4 mb-4 text-sm text-gray-700"></div>
+    <div class="mb-4">
+      <label class="text-xs font-600 text-gray-500 block mb-1">Contraseña del supervisor</label>
+      <input type="password" id="approval-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')processApproval()">
+    </div>
+    <div id="approval-error" class="hidden text-red-600 text-sm mb-3">Contraseña incorrecta. Intenta de nuevo.</div>
+    <div class="flex gap-3">
+      <button onclick="processApproval('reject')" class="btn-outline flex-1 text-red-600 border-red-400">Rechazar</button>
+      <button onclick="processApproval('approve')" class="btn-emerald flex-1">✅ Aprobar</button>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="no-print text-center py-6 text-xs text-emerald-700 opacity-60 mt-8">
+  Powered by <strong>Novamente Studio</strong> — control-caja-chica v1.0
+</footer>
+
+<script>
+// ===================== DATA =====================
+const CATS = ['Oficina','Limpieza','Transporte','Comida','Reparaciones','Varios'];
+const CAT_COLORS = {Oficina:'#3b82f6',Limpieza:'#8b5cf6',Transporte:'#f59e0b',Comida:'#ef4444',Reparaciones:'#f97316',Varios:'#6b7280'};
+const SUPERVISOR_PASSWORD = 'super';
+const APPROVAL_THRESHOLD = 500;
+
+// Demo: 2 weeks of expenses (mid-March 2026)
+const DEMO_EXPENSES = [
+  {id:1,date:'2026-03-01',desc:'Resmas de papel bond',amount:320,category:'Oficina',receipt:'REC-001',status:'approved'},
+  {id:2,date:'2026-03-01',desc:'Café y azúcar para descansos',amount:180,category:'Comida',receipt:'REC-002',status:'approved'},
+  {id:3,date:'2026-03-02',desc:'Detergente y jaladores de piso',amount:145,category:'Limpieza',receipt:'REC-003',status:'approved'},
+  {id:4,date:'2026-03-03',desc:'Uber al banco (depósito)',amount:95,category:'Transporte',receipt:'',status:'approved'},
+  {id:5,date:'2026-03-03',desc:'Tóner impresora HP LaserJet',amount:780,category:'Oficina',receipt:'REC-004',status:'approved'},
+  {id:6,date:'2026-03-04',desc:'Comida equipo (reunión mensual)',amount:650,category:'Comida',receipt:'REC-005',status:'approved'},
+  {id:7,date:'2026-03-05',desc:'Bolsas de basura y guantes',amount:85,category:'Limpieza',receipt:'REC-006',status:'approved'},
+  {id:8,date:'2026-03-06',desc:'Taxi regreso visita cliente',amount:120,category:'Transporte',receipt:'',status:'approved'},
+  {id:9,date:'2026-03-07',desc:'Reparación llave del baño',amount:600,category:'Reparaciones',receipt:'REC-007',status:'approved'},
+  {id:10,date:'2026-03-08',desc:'Post-its y plumas',amount:95,category:'Oficina',receipt:'',status:'approved'},
+  {id:11,date:'2026-03-09',desc:'Agua garrafón x4',amount:120,category:'Varios',receipt:'REC-008',status:'approved'},
+  {id:12,date:'2026-03-10',desc:'Comida entrega urgente',amount:210,category:'Comida',receipt:'',status:'approved'},
+  {id:13,date:'2026-03-11',desc:'Cambio de chapa oficina',amount:550,category:'Reparaciones',receipt:'REC-009',status:'pending'},
+  {id:14,date:'2026-03-12',desc:'Gasolina camioneta reparto',amount:480,category:'Transporte',receipt:'REC-010',status:'approved'},
+  {id:15,date:'2026-03-13',desc:'Papelería: carpetas y separadores',amount:230,category:'Oficina',receipt:'',status:'approved'},
+  {id:16,date:'2026-03-14',desc:'Cena proveedores',amount:1200,category:'Comida',receipt:'REC-011',status:'pending'},
+];
+
+const DEMO_CONFIG = {
+  openingBalance: 5000,
+  openingDate: '2026-03-01',
+  responsable: 'Mireya González'
+};
+
+let expenses = [];
+let config = {};
+let reconciliations = [];
+let pendingApprovalId = null;
+let donutChart = null;
+let lineChart = null;
+
+function load() {
+  const s = localStorage.getItem('cajachica');
+  if(s) {
+    const d = JSON.parse(s);
+    expenses = d.expenses || [];
+    config = d.config || {};
+    reconciliations = d.reconciliations || [];
+  } else {
+    expenses = JSON.parse(JSON.stringify(DEMO_EXPENSES));
+    config = JSON.parse(JSON.stringify(DEMO_CONFIG));
+    reconciliations = [];
+    saveAll();
+  }
+}
+function saveAll() {
+  localStorage.setItem('cajachica', JSON.stringify({expenses, config, reconciliations}));
+}
+
+function currentBalance() {
+  const approved = expenses.filter(e=>e.status==='approved').reduce((s,e)=>s+e.amount,0);
+  return (config.openingBalance||0) - approved;
+}
+
+function updateHeader() {
+  document.getElementById('header-opening').textContent = fmt(config.openingBalance||0);
+  document.getElementById('header-balance').textContent = fmt(currentBalance());
+}
+
+function fmt(n) { return '$'+n.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+// ===================== VIEWS =====================
+const VIEWS = ['gastos','registrar','resumen','reconciliacion','aprobaciones'];
+function showView(v) {
+  VIEWS.forEach(x=>{ const el=document.getElementById('view-'+x); if(el) el.classList.add('hidden'); });
+  document.getElementById('view-'+v).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  const t=document.getElementById('tab-'+v); if(t) t.classList.add('active');
+  if(v==='gastos') renderExpenses();
+  if(v==='resumen') buildChartMonths();
+  if(v==='reconciliacion') buildReconciliation();
+  if(v==='aprobaciones') buildApprovals();
+}
+
+// ===================== EXPENSES =====================
+function renderExpenses() {
+  const catFilter = document.getElementById('filter-cat').value;
+  const monthFilter = document.getElementById('filter-month').value;
+  let list = expenses.filter(e=>{
+    const mMatch = !monthFilter || e.date.startsWith(monthFilter);
+    const cMatch = !catFilter || e.category===catFilter;
+    return mMatch && cMatch;
+  }).sort((a,b)=>b.date.localeCompare(a.date));
+
+  const statusClass = {approved:'approval-approved',pending:'approval-pending',rejected:'approval-rejected'};
+  const statusLabel = {approved:'<span class="badge bg-green-100 text-green-700">Aprobado</span>',pending:'<span class="badge bg-yellow-100 text-yellow-700">Pendiente</span>',rejected:'<span class="badge bg-red-100 text-red-700">Rechazado</span>'};
+  const catColor = {Oficina:'bg-blue-100 text-blue-700',Limpieza:'bg-purple-100 text-purple-700',Transporte:'bg-amber-100 text-amber-700',Comida:'bg-red-100 text-red-700',Reparaciones:'bg-orange-100 text-orange-700',Varios:'bg-gray-100 text-gray-700'};
+
+  const cont = document.getElementById('expenses-list');
+  if(!list.length){ cont.innerHTML='<div class="card p-8 text-center text-gray-400">No hay gastos registrados.</div>'; return; }
+
+  cont.innerHTML = list.map(e=>`
+    <div class="card px-4 py-3 exp-row ${statusClass[e.status]||''}">
+      <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-600 text-gray-800 text-sm">${e.desc}</span>
+            ${e.receipt?`<span class="text-xs text-gray-400">#${e.receipt}</span>`:''}
+          </div>
+          <div class="flex items-center gap-2 mt-1 flex-wrap">
+            <span class="badge ${catColor[e.category]||'bg-gray-100 text-gray-600'} text-xs">${e.category}</span>
+            <span class="text-xs text-gray-400">${formatDate(e.date)}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="font-800 text-lg ${e.status==='rejected'?'text-gray-400 line-through':'text-emerald-700'}">${fmt(e.amount)}</span>
+          ${statusLabel[e.status]||''}
+          ${e.status==='pending'?`<button onclick="openApprovalModal(${e.id})" class="btn-emerald text-xs px-3 py-1.5">Autorizar</button>`:''}
+          <button onclick="deleteExpense(${e.id})" class="text-gray-300 hover:text-red-500 text-lg font-bold px-1">&times;</button>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const approved = list.filter(e=>e.status==='approved').reduce((s,e)=>s+e.amount,0);
+  document.getElementById('expenses-total').innerHTML=`
+    <div class="card p-4 flex flex-wrap gap-6 justify-end">
+      <div class="text-sm"><span class="text-gray-500">Gastos mostrados:</span> <span class="font-700 text-gray-800">${list.length}</span></div>
+      <div class="text-sm"><span class="text-gray-500">Total aprobado:</span> <span class="font-700 text-emerald-700">${fmt(approved)}</span></div>
+    </div>`;
+}
+
+function formatDate(d) {
+  if(!d) return '—';
+  const [y,m,day]=d.split('-');
+  const months=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return `${parseInt(day)} ${months[parseInt(m)-1]} ${y}`;
+}
+
+function deleteExpense(id) {
+  if(!confirm('¿Eliminar este gasto?')) return;
+  expenses = expenses.filter(e=>e.id!==id);
+  saveAll(); renderExpenses(); updateHeader();
+}
+
+// ===================== REGISTRAR =====================
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('exp-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('bal-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('filter-month').value = new Date().toISOString().slice(0,7);
+  buildApprovBadge();
+});
+
+function checkApprovalWarning() {
+  const a = parseFloat(document.getElementById('exp-amount').value)||0;
+  document.getElementById('approval-warning').classList.toggle('hidden', a<=APPROVAL_THRESHOLD);
+}
+document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('exp-amount').addEventListener('input',checkApprovalWarning); });
+
+function saveExpense() {
+  const date = document.getElementById('exp-date').value;
+  const amount = parseFloat(document.getElementById('exp-amount').value)||0;
+  const desc = document.getElementById('exp-desc').value.trim();
+  const category = document.getElementById('exp-cat').value;
+  const receipt = document.getElementById('exp-receipt').value.trim();
+  if(!date){ alert('Selecciona la fecha.'); return; }
+  if(!desc){ alert('Ingresa una descripción.'); return; }
+  if(amount<=0){ alert('Ingresa un monto válido.'); return; }
+
+  const status = amount > APPROVAL_THRESHOLD ? 'pending' : 'approved';
+  const exp = { id: Date.now(), date, desc, amount, category, receipt, status };
+  expenses.push(exp);
+  saveAll(); updateHeader(); buildApprovBadge();
+  // clear form
+  document.getElementById('exp-desc').value='';
+  document.getElementById('exp-amount').value='';
+  document.getElementById('exp-receipt').value='';
+  document.getElementById('approval-warning').classList.add('hidden');
+  if(status==='pending') { alert(`Gasto de ${fmt(amount)} registrado como PENDIENTE de aprobación.`); showView('aprobaciones'); }
+  else { showView('gastos'); }
+}
+
+// ===================== APPROVAL =====================
+function buildApprovBadge() {
+  const count = expenses.filter(e=>e.status==='pending').length;
+  const badge = document.getElementById('approval-badge');
+  badge.textContent = count;
+  badge.classList.toggle('hidden', count===0);
+}
+
+function openApprovalModal(id) {
+  pendingApprovalId = id;
+  const e = expenses.find(x=>x.id===id);
+  if(!e) return;
+  document.getElementById('approval-detail-text').innerHTML=`
+    <strong>${e.desc}</strong><br>
+    Monto: <strong>${fmt(e.amount)}</strong> &bull; Categoría: ${e.category} &bull; Fecha: ${formatDate(e.date)}`;
+  document.getElementById('approval-password').value='';
+  document.getElementById('approval-error').classList.add('hidden');
+  document.getElementById('modal-approval').classList.remove('hidden');
+}
+
+function processApproval(action) {
+  if(!action) return;
+  if(action==='approve') {
+    const pw = document.getElementById('approval-password').value;
+    if(pw!==SUPERVISOR_PASSWORD) { document.getElementById('approval-error').classList.remove('hidden'); return; }
+  }
+  const exp = expenses.find(x=>x.id===pendingApprovalId);
+  if(exp) { exp.status = action==='approve' ? 'approved' : 'rejected'; }
+  saveAll(); updateHeader(); buildApprovBadge();
+  document.getElementById('modal-approval').classList.add('hidden');
+  buildApprovals(); renderExpenses();
+}
+
+function buildApprovals() {
+  const list = expenses.filter(e=>e.status==='pending');
+  const cont = document.getElementById('approvals-list');
+  if(!list.length){ cont.innerHTML='<div class="text-center text-gray-400 py-8">No hay gastos pendientes de aprobación 🎉</div>'; return; }
+  cont.innerHTML = list.map(e=>`
+    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-3">
+      <div class="flex justify-between items-start gap-3 flex-wrap">
+        <div>
+          <div class="font-600 text-gray-800">${e.desc}</div>
+          <div class="text-sm text-gray-500">${e.category} &bull; ${formatDate(e.date)} ${e.receipt?'&bull; '+e.receipt:''}</div>
+        </div>
+        <div class="text-xl font-800 text-amber-700">${fmt(e.amount)}</div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button onclick="openApprovalModal(${e.id})" class="btn-emerald text-sm flex-1">Ingresar contraseña supervisora</button>
+      </div>
+    </div>`).join('');
+}
+
+// ===================== RESUMEN MENSUAL =====================
+function buildChartMonths() {
+  const months = [...new Set(expenses.map(e=>e.date.slice(0,7)))].sort().reverse();
+  const sel = document.getElementById('chart-month');
+  sel.innerHTML = months.map(m=>`<option value="${m}">${m}</option>`).join('');
+  if(months.length) { sel.value = months[0]; buildCharts(); }
+}
+
+function buildCharts() {
+  const month = document.getElementById('chart-month').value;
+  const list = expenses.filter(e=>e.date.startsWith(month) && e.status==='approved');
+  const total = list.reduce((s,e)=>s+e.amount,0);
+
+  // By category
+  const byCat = {};
+  CATS.forEach(c=>byCat[c]=0);
+  list.forEach(e=>byCat[e.category]=(byCat[e.category]||0)+e.amount);
+
+  // Daily trend
+  const byDay = {};
+  list.forEach(e=>{ byDay[e.date]=(byDay[e.date]||0)+e.amount; });
+  const days = Object.keys(byDay).sort();
+
+  const cont = document.getElementById('resumen-content');
+  cont.innerHTML=`
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div class="card p-4 text-center"><div class="text-2xl font-800 text-emerald-700">${fmt(total)}</div><div class="text-xs text-gray-500 mt-1">Total gastado</div></div>
+      <div class="card p-4 text-center"><div class="text-2xl font-800 text-emerald-700">${list.length}</div><div class="text-xs text-gray-500 mt-1">Gastos registrados</div></div>
+      <div class="card p-4 text-center"><div class="text-2xl font-800 text-amber-700">${fmt(total/Math.max(list.length,1))}</div><div class="text-xs text-gray-500 mt-1">Promedio por gasto</div></div>
+      <div class="card p-4 text-center"><div class="text-2xl font-800 text-gray-700">${fmt(Math.max(...list.map(e=>e.amount),0))}</div><div class="text-xs text-gray-500 mt-1">Gasto más alto</div></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+      <div class="card p-5"><div class="text-sm font-700 text-gray-600 mb-3">Gastos por categoría</div><div style="max-height:240px;display:flex;align-items:center;justify-content:center;"><canvas id="donut-chart"></canvas></div></div>
+      <div class="card p-5"><div class="text-sm font-700 text-gray-600 mb-3">Tendencia diaria</div><div style="max-height:240px;"><canvas id="line-chart"></canvas></div></div>
+    </div>
+    <div class="card p-5">
+      <div class="text-sm font-700 text-gray-600 mb-3">Detalle por categoría</div>
+      <div class="space-y-2">
+        ${CATS.filter(c=>byCat[c]>0).sort((a,b)=>byCat[b]-byCat[a]).map(c=>`
+          <div class="flex items-center gap-3">
+            <span class="w-28 text-sm font-500 text-gray-700">${c}</span>
+            <div class="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div class="h-3 rounded-full" style="width:${(byCat[c]/total*100).toFixed(0)}%;background:${CAT_COLORS[c]||'#6b7280'}"></div>
+            </div>
+            <span class="text-sm font-700 text-gray-700 w-28 text-right">${fmt(byCat[c])}</span>
+            <span class="text-xs text-gray-400 w-12 text-right">${(byCat[c]/total*100).toFixed(1)}%</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  // Donut chart
+  if(donutChart) donutChart.destroy();
+  const donutCtx = document.getElementById('donut-chart').getContext('2d');
+  const activeCats = CATS.filter(c=>byCat[c]>0);
+  donutChart = new Chart(donutCtx, {
+    type:'doughnut',
+    data:{ labels:activeCats, datasets:[{data:activeCats.map(c=>byCat[c]), backgroundColor:activeCats.map(c=>CAT_COLORS[c]||'#6b7280'), borderWidth:2}] },
+    options:{ responsive:true, maintainAspectRatio:true, plugins:{ legend:{ position:'bottom', labels:{ font:{ size:11, family:'Plus Jakarta Sans' } } } } }
+  });
+
+  // Line chart
+  if(lineChart) lineChart.destroy();
+  const lineCtx = document.getElementById('line-chart').getContext('2d');
+  lineChart = new Chart(lineCtx, {
+    type:'line',
+    data:{ labels:days.map(d=>d.split('-')[2]), datasets:[{label:'Gasto diario',data:days.map(d=>byDay[d]),fill:true,borderColor:'#059669',backgroundColor:'rgba(5,150,105,.1)',tension:.4,pointBackgroundColor:'#059669'}] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{ callback:v=>'$'+v, font:{size:10,family:'Plus Jakarta Sans'} } }, x:{ ticks:{ font:{size:10} } } } }
+  });
+}
+
+// ===================== RECONCILIACIÓN =====================
+function buildReconciliation() {
+  const expected = currentBalance();
+  document.getElementById('rec-expected').textContent = fmt(expected);
+  const hist = reconciliations.slice().reverse().slice(0,5);
+  const cont = document.getElementById('rec-history');
+  if(!hist.length){ cont.innerHTML='<p class="text-gray-400 text-sm">Sin historial de reconciliaciones.</p>'; return; }
+  cont.innerHTML = hist.map(r=>`
+    <div class="card px-4 py-3">
+      <div class="flex justify-between text-sm">
+        <div><span class="font-600 text-gray-700">${formatDate(r.date)}</span><span class="text-gray-400 ml-2">por ${r.user||'—'}</span></div>
+        <span class="${r.variance===0?'text-green-700':r.variance>0?'text-blue-600':'text-red-600'} font-700">${r.variance>=0?'+':''}${fmt(r.variance)}</span>
+      </div>
+    </div>`).join('');
+}
+
+function calcVariance() {
+  const expected = currentBalance();
+  const actual = parseFloat(document.getElementById('rec-actual').value)||0;
+  const variance = actual - expected;
+  document.getElementById('rec-result').classList.remove('hidden');
+  const varEl = document.getElementById('rec-variance');
+  varEl.textContent = (variance>=0?'+':'')+fmt(variance);
+  varEl.className = 'text-2xl font-800 '+(variance===0?'text-green-700':variance>0?'text-blue-600':'text-red-600');
+  document.getElementById('rec-note').textContent = variance===0 ? '✅ Caja cuadrada perfectamente.' : variance>0 ? '⬆️ Sobrante de caja.' : '⬇️ Faltante de caja. Revisar gastos no registrados.';
+}
+
+function saveReconciliation() {
+  const actual = parseFloat(document.getElementById('rec-actual').value);
+  if(isNaN(actual)){ alert('Ingresa el conteo físico.'); return; }
+  const expected = currentBalance();
+  reconciliations.push({ date: new Date().toISOString().split('T')[0], expected, actual, variance: actual-expected, user: config.responsable||'Usuario' });
+  saveAll(); buildReconciliation();
+  document.getElementById('rec-actual').value='';
+  document.getElementById('rec-result').classList.add('hidden');
+  alert('Reconciliación guardada.');
+}
+
+// ===================== BALANCE CONFIG =====================
+function openSetBalance() {
+  document.getElementById('bal-amount').value = config.openingBalance||'';
+  document.getElementById('bal-date').value = config.openingDate||new Date().toISOString().split('T')[0];
+  document.getElementById('bal-name').value = config.responsable||'';
+  document.getElementById('modal-balance').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal-balance').classList.add('hidden'); }
+function saveBalance() {
+  config.openingBalance = parseFloat(document.getElementById('bal-amount').value)||0;
+  config.openingDate = document.getElementById('bal-date').value;
+  config.responsable = document.getElementById('bal-name').value.trim();
+  saveAll(); updateHeader(); closeModal();
+}
+
+// ===================== EXPORT / PRINT =====================
+function exportCSV() {
+  const rows = [['Fecha','Descripción','Categoría','Monto','Recibo','Estado']];
+  expenses.forEach(e=>rows.push([e.date,e.desc,e.category,e.amount,e.receipt||'',e.status]));
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='caja-chica.csv'; a.click();
+}
+
+function printReport() {
+  const catFilter = document.getElementById('filter-cat').value;
+  const monthFilter = document.getElementById('filter-month').value;
+  let list = expenses.filter(e=>{
+    const mMatch = !monthFilter || e.date.startsWith(monthFilter);
+    const cMatch = !catFilter || e.category===catFilter;
+    return mMatch && cMatch;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+
+  const total = list.filter(e=>e.status==='approved').reduce((s,e)=>s+e.amount,0);
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reporte Caja Chica</title>
+  <style>* { font-family: Arial,sans-serif; } body { padding:25px; max-width:800px; margin:auto; }
+  h1 { color:#065f46; border-bottom:2px solid #059669; padding-bottom:8px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:16px; }
+  th { background:#d1fae5; padding:6px 8px; text-align:left; }
+  td { padding:5px 8px; border-bottom:1px solid #f0fdf4; }
+  .footer { margin-top:20px; font-size:10px; color:#aaa; text-align:center; }
+  .total { font-weight:bold; font-size:14px; text-align:right; margin-top:12px; color:#059669; }
+  </style></head><body>
+  <h1>Reporte Caja Chica — ${monthFilter||'Todos'}</h1>
+  <p>Responsable: ${config.responsable||'—'} &bull; Saldo inicial: ${fmt(config.openingBalance||0)} &bull; Saldo actual: ${fmt(currentBalance())}</p>
+  <table><thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Recibo</th><th>Estado</th><th>Monto</th></tr></thead>
+  <tbody>${list.map(e=>`<tr><td>${e.date}</td><td>${e.desc}</td><td>${e.category}</td><td>${e.receipt||'—'}</td><td>${e.status==='approved'?'Aprobado':e.status==='pending'?'Pendiente':'Rechazado'}</td><td>$${e.amount.toFixed(2)}</td></tr>`).join('')}</tbody>
+  </table>
+  <div class="total">Total aprobado: ${fmt(total)}</div>
+  <div class="footer">Powered by Novamente Studio &bull; Control Caja Chica</div>
+  </body></html>`);
+  w.document.close(); w.print();
+}
+
+// ===================== WHATSAPP RESUMEN =====================
+function shareResumenWA() {
+  const bal = currentBalance ? currentBalance() : 0;
+  const approved = expenses.filter(e=>e.status==='approved');
+  const totalSpent = approved.reduce((s,e)=>s+e.amount,0);
+  const pending = expenses.filter(e=>e.status==='pending').length;
+  const msg = `*Resumen Caja Chica*\nSaldo actual: $${bal.toFixed(2)} MXN\nTotal gastado (aprobado): $${totalSpent.toFixed(2)}\nGastos pendientes de aprobacion: ${pending}\n\n_Generado desde Control Caja Chica — Novamente Studio_`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+// ===================== INIT =====================
+load();
+updateHeader();
+renderExpenses();
+buildApprovBadge();
+</script>
+</body>
+</html>

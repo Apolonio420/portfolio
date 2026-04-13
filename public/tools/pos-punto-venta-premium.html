@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POS Punto de Venta</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        pos: { 900:'#0a0a0f', 800:'#12121a', 700:'#1a1a28', 600:'#222234', 500:'#2d2d45', 400:'#3a3a58', 300:'#5a5a80', 200:'#8080aa', 100:'#b0b0d0' },
+        accent: { 500:'#6366f1', 600:'#4f46e5', 400:'#818cf8' },
+        success: { 500:'#22c55e', 400:'#4ade80' },
+        warn: { 500:'#f59e0b', 400:'#fbbf24' },
+        danger: { 500:'#ef4444', 400:'#f87171' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background:#0a0a0f; color:#e2e8f0; }
+  .pos-card { background:#12121a; border:1px solid rgba(255,255,255,0.06); }
+  .pos-card-hover { transition:all 0.2s; cursor:pointer; }
+  .pos-card-hover:hover { border-color:rgba(99,102,241,0.4); background:#1a1a28; transform:scale(1.02); }
+  .pos-card-hover:active { transform:scale(0.98); }
+  .btn-pos { transition:all 0.15s; font-weight:700; }
+  .btn-pos:active { transform:scale(0.96); }
+  .btn-green { background:#15803d; color:#bbf7d0; }
+  .btn-green:hover { background:#166534; }
+  .btn-blue { background:#1d4ed8; color:#bfdbfe; }
+  .btn-blue:hover { background:#1e40af; }
+  .btn-red { background:#991b1b; color:#fecaca; }
+  .btn-red:hover { background:#7f1d1d; }
+  .btn-accent { background:linear-gradient(135deg,#6366f1,#4f46e5); color:white; box-shadow:0 4px 20px rgba(99,102,241,0.4); }
+  .btn-accent:hover { box-shadow:0 6px 28px rgba(99,102,241,0.6); }
+  .tag { display:inline-flex; align-items:center; padding:2px 10px; border-radius:9999px; font-size:11px; font-weight:700; }
+  .slide-in { animation:slideIn 0.25s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes slideIn { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:translateX(0)} }
+  .num-pad button { background:#1a1a28; border:1px solid rgba(255,255,255,0.06); color:#e2e8f0; font-size:1.125rem; font-weight:700; border-radius:12px; padding:16px; transition:all 0.1s; }
+  .num-pad button:hover { background:#2d2d45; border-color:rgba(99,102,241,0.3); }
+  .num-pad button:active { transform:scale(0.94); background:#3a3a58; }
+  ::-webkit-scrollbar{width:4px;height:4px} ::-webkit-scrollbar-track{background:#12121a} ::-webkit-scrollbar-thumb{background:#3a3a58;border-radius:4px}
+  .ticket-line { border-bottom:1px dashed #2d2d45; padding:6px 0; }
+  @media print {
+    .no-print { display:none!important; }
+    body { background:white!important; color:black!important; font-size:12px!important; }
+    #ticket-print { display:block!important; }
+    * { color:black!important; background:white!important; border-color:#ccc!important; }
+    .pos-card { box-shadow:none!important; }
+  }
+  #ticket-print { display:none; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- HEADER -->
+<header class="pos-card border-b border-white/5 sticky top-0 z-50 no-print">
+  <div class="max-w-full px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 btn-accent rounded-xl flex items-center justify-center text-sm font-black shadow-lg">POS</div>
+      <div>
+        <h1 class="font-black text-white text-sm">Punto de Venta</h1>
+        <p class="text-xs text-indigo-400" id="header-date"></p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="hidden sm:flex items-center gap-1 text-xs text-green-400 bg-green-400/10 px-3 py-1 rounded-full">
+        <span class="w-1.5 h-1.5 bg-green-400 rounded-full"></span> En línea
+      </span>
+      <span class="text-xs text-pos-100 bg-pos-700 px-3 py-1 rounded-full" id="caja-status">Caja Abierta</span>
+    </div>
+  </div>
+</header>
+
+<!-- NAV TABS -->
+<div class="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto no-print" style="background:#0a0a0f">
+  <button onclick="showTab('venta')" id="tab-venta" class="tab-btn text-xs font-bold px-4 py-2 rounded-xl whitespace-nowrap btn-accent">Venta</button>
+  <button onclick="showTab('historial')" id="tab-historial" class="tab-btn text-xs font-bold px-4 py-2 rounded-xl whitespace-nowrap pos-card border border-white/5 text-pos-100 hover:border-indigo-500/30">Historial</button>
+  <button onclick="showTab('catalogo')" id="tab-catalogo" class="tab-btn text-xs font-bold px-4 py-2 rounded-xl whitespace-nowrap pos-card border border-white/5 text-pos-100 hover:border-indigo-500/30">Catálogo</button>
+  <button onclick="showTab('caja')" id="tab-caja" class="tab-btn text-xs font-bold px-4 py-2 rounded-xl whitespace-nowrap pos-card border border-white/5 text-pos-100 hover:border-indigo-500/30">Caja</button>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="max-w-full px-4 pb-20">
+
+<!-- VENTA TAB -->
+<div id="view-venta" class="slide-in">
+  <div class="flex gap-4 mt-3" style="height:calc(100vh - 150px)">
+    <!-- LEFT: Products -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <input id="search-prod" type="text" placeholder="Buscar producto..." oninput="renderProductGrid()" class="w-full text-sm bg-pos-700 border border-white/5 rounded-xl px-4 py-2.5 text-white placeholder-pos-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3">
+      <div class="flex gap-2 mb-3 overflow-x-auto pb-1">
+        <button onclick="filterCatPOS('todos')" data-cat="todos" class="cat-pos text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap btn-accent">Todo</button>
+        <button onclick="filterCatPOS('ropa')" data-cat="ropa" class="cat-pos text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap pos-card border border-white/5 text-pos-100">Ropa</button>
+        <button onclick="filterCatPOS('calzado')" data-cat="calzado" class="cat-pos text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap pos-card border border-white/5 text-pos-100">Calzado</button>
+        <button onclick="filterCatPOS('accesorios')" data-cat="accesorios" class="cat-pos text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap pos-card border border-white/5 text-pos-100">Accesorios</button>
+        <button onclick="filterCatPOS('hogar')" data-cat="hogar" class="cat-pos text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap pos-card border border-white/5 text-pos-100">Hogar</button>
+      </div>
+      <div id="prod-grid" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 overflow-y-auto flex-1"></div>
+    </div>
+    <!-- RIGHT: Ticket -->
+    <div class="w-72 lg:w-80 flex flex-col flex-shrink-0">
+      <div class="pos-card rounded-2xl flex flex-col flex-1 overflow-hidden">
+        <div class="p-4 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <p class="font-black text-white text-sm">Ticket #<span id="ticket-num">0001</span></p>
+            <p class="text-xs text-pos-200" id="ticket-time"></p>
+          </div>
+          <button onclick="clearTicket()" class="text-xs text-red-400 hover:text-red-300 font-semibold transition-colors">Limpiar</button>
+        </div>
+        <div id="ticket-items" class="flex-1 overflow-y-auto p-3 space-y-1"></div>
+        <div id="ticket-empty" class="flex-1 flex items-center justify-center text-pos-300 text-sm hidden">Selecciona productos</div>
+        <div class="p-4 border-t border-white/5 space-y-2">
+          <div class="flex items-center gap-2">
+            <input id="discount-val" type="number" placeholder="Descuento" class="flex-1 text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2 text-white placeholder-pos-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <select id="discount-type" class="text-sm bg-pos-700 border border-white/5 rounded-xl px-2 py-2 text-white focus:outline-none">
+              <option value="pct">%</option>
+              <option value="mxn">$</option>
+            </select>
+          </div>
+          <div class="space-y-1 text-sm">
+            <div class="flex justify-between text-pos-200"><span>Subtotal</span><span id="t-subtotal">$0.00</span></div>
+            <div class="flex justify-between text-warn-400"><span>Descuento</span><span id="t-descuento">-$0.00</span></div>
+            <div class="flex justify-between text-pos-200"><span>IVA 16%</span><span id="t-iva">$0.00</span></div>
+            <div class="flex justify-between text-white font-black text-base pt-1 border-t border-white/10"><span>TOTAL</span><span id="t-total" class="text-accent-400">$0.00</span></div>
+          </div>
+          <div class="grid grid-cols-3 gap-1.5 pt-1">
+            <button onclick="openPago('efectivo')" class="btn-pos btn-green rounded-xl py-2.5 text-xs">Efectivo</button>
+            <button onclick="openPago('tarjeta')" class="btn-pos btn-blue rounded-xl py-2.5 text-xs">Tarjeta</button>
+            <button onclick="openPago('transferencia')" class="btn-pos rounded-xl py-2.5 text-xs" style="background:#7c3aed;color:#ede9fe;">Transfer.</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORIAL TAB -->
+<div id="view-historial" class="hidden slide-in mt-3">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+    <div class="pos-card rounded-2xl p-4"><p class="text-xs text-pos-200 mb-1">Ventas hoy</p><p id="h-ventas" class="text-2xl font-black text-white">0</p></div>
+    <div class="pos-card rounded-2xl p-4"><p class="text-xs text-pos-200 mb-1">Total del día</p><p id="h-total" class="text-2xl font-black text-accent-400">$0</p></div>
+    <div class="pos-card rounded-2xl p-4"><p class="text-xs text-pos-200 mb-1">Ticket promedio</p><p id="h-ticket" class="text-2xl font-black text-warn-400">$0</p></div>
+    <div class="pos-card rounded-2xl p-4"><p class="text-xs text-pos-200 mb-1">Semana</p><p id="h-semana" class="text-2xl font-black text-success-400">$0</p></div>
+  </div>
+  <div class="grid sm:grid-cols-3 gap-4 mb-4">
+    <div class="sm:col-span-2 pos-card rounded-2xl p-5">
+      <h3 class="font-bold text-white text-sm mb-3">Ventas recientes</h3>
+      <div id="historial-list" class="space-y-2"></div>
+    </div>
+    <div class="pos-card rounded-2xl p-5">
+      <h3 class="font-bold text-white text-sm mb-3">Top Productos</h3>
+      <div id="top-prods" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CATALOGO TAB -->
+<div id="view-catalogo" class="hidden slide-in mt-3">
+  <div class="pos-card rounded-2xl p-4 mb-4">
+    <h3 class="font-bold text-white text-sm mb-3">Agregar producto</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <input id="cp-nombre" type="text" placeholder="Nombre" class="text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2.5 text-white placeholder-pos-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 col-span-2 sm:col-span-1">
+      <input id="cp-precio" type="number" placeholder="Precio" class="text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2.5 text-white placeholder-pos-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+      <input id="cp-stock" type="number" placeholder="Stock" class="text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2.5 text-white placeholder-pos-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+      <select id="cp-cat" class="text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2.5 text-white focus:outline-none">
+        <option value="ropa">Ropa</option>
+        <option value="calzado">Calzado</option>
+        <option value="accesorios">Accesorios</option>
+        <option value="hogar">Hogar</option>
+      </select>
+      <input id="cp-codigo" type="text" placeholder="Código (opcional)" class="text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2.5 text-white placeholder-pos-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+    </div>
+    <button onclick="addProduct()" class="mt-3 btn-pos btn-accent rounded-xl px-5 py-2.5 text-sm">Agregar Producto</button>
+  </div>
+  <div id="catalogo-list" class="space-y-2"></div>
+</div>
+
+<!-- CAJA TAB -->
+<div id="view-caja" class="hidden slide-in mt-3">
+  <div class="grid sm:grid-cols-2 gap-4 mb-4">
+    <div class="pos-card rounded-2xl p-5">
+      <h3 class="font-bold text-white mb-4">Estado de Caja</h3>
+      <div class="space-y-3">
+        <div><p class="text-xs text-pos-200 mb-1">Fondo inicial</p>
+          <div class="flex gap-2">
+            <input id="caja-apertura" type="number" placeholder="$0.00" class="flex-1 text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2 text-white placeholder-pos-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <button onclick="setCajaFondo()" class="btn-pos btn-green rounded-xl px-4 py-2 text-sm">Aplicar</button>
+          </div>
+        </div>
+        <div class="space-y-2 pt-2 border-t border-white/5">
+          <div class="flex justify-between text-sm"><span class="text-pos-200">Fondo inicial</span><span class="text-white" id="caja-fondo-display">$0.00</span></div>
+          <div class="flex justify-between text-sm"><span class="text-pos-200">Ventas efectivo</span><span class="text-success-400" id="caja-efectivo-ventas">$0.00</span></div>
+          <div class="flex justify-between text-sm"><span class="text-pos-200">Entradas extra</span><span class="text-accent-400" id="caja-entradas">$0.00</span></div>
+          <div class="flex justify-between text-sm"><span class="text-pos-200">Salidas</span><span class="text-danger-400" id="caja-salidas">-$0.00</span></div>
+          <div class="flex justify-between font-black text-base pt-2 border-t border-white/5"><span class="text-white">Total en caja</span><span class="text-accent-400" id="caja-total">$0.00</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="pos-card rounded-2xl p-5">
+      <h3 class="font-bold text-white mb-4">Movimientos de caja</h3>
+      <div class="flex gap-2 mb-3">
+        <input id="mov-desc" type="text" placeholder="Descripción" class="flex-1 text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2 text-white placeholder-pos-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+        <input id="mov-monto" type="number" placeholder="Monto" class="w-24 text-sm bg-pos-700 border border-white/5 rounded-xl px-3 py-2 text-white placeholder-pos-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+      </div>
+      <div class="flex gap-2 mb-4">
+        <button onclick="movCaja('entrada')" class="flex-1 btn-pos btn-green rounded-xl py-2 text-sm">+ Entrada</button>
+        <button onclick="movCaja('salida')" class="flex-1 btn-pos btn-red rounded-xl py-2 text-sm">- Salida</button>
+      </div>
+      <div id="movimientos-list" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end main -->
+
+<!-- MODAL PAGO -->
+<div id="modal-pago" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-4 no-print">
+  <div class="pos-card rounded-3xl p-6 w-full max-w-sm slide-in border border-white/10">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-black text-white text-lg">Cobrar <span id="pago-metodo-label"></span></h3>
+      <button onclick="closeModal('modal-pago')" class="text-pos-300 hover:text-white text-2xl">&times;</button>
+    </div>
+    <div class="text-center mb-5">
+      <p class="text-pos-200 text-sm mb-1">Total a cobrar</p>
+      <p id="pago-total-display" class="text-4xl font-black text-accent-400">$0.00</p>
+    </div>
+    <div id="pago-efectivo-section" class="hidden mb-4">
+      <p class="text-pos-200 text-xs mb-2">Recibido del cliente</p>
+      <div class="num-pad grid grid-cols-3 gap-2 mb-3">
+        <button onclick="numInput('1')">1</button><button onclick="numInput('2')">2</button><button onclick="numInput('3')">3</button>
+        <button onclick="numInput('4')">4</button><button onclick="numInput('5')">5</button><button onclick="numInput('6')">6</button>
+        <button onclick="numInput('7')">7</button><button onclick="numInput('8')">8</button><button onclick="numInput('9')">9</button>
+        <button onclick="numInput('.')">.</button><button onclick="numInput('0')">0</button><button onclick="numInput('back')" class="text-danger-400">⌫</button>
+      </div>
+      <div class="flex items-center gap-3 p-3 rounded-xl bg-pos-700">
+        <span class="text-pos-200 text-sm">Recibido:</span>
+        <span id="pago-recibido" class="text-white font-black text-lg flex-1">$0.00</span>
+        <span id="pago-cambio-label" class="text-success-400 text-sm font-bold hidden">Cambio: <span id="pago-cambio">$0.00</span></span>
+      </div>
+    </div>
+    <button onclick="procesarPago()" id="btn-procesar-pago" class="w-full btn-pos btn-accent rounded-xl py-3.5 font-black text-base transition-all">Procesar Pago</button>
+  </div>
+</div>
+
+<!-- TICKET PRINT -->
+<div id="ticket-print" class="p-6 max-w-xs mx-auto">
+  <div class="text-center mb-4 border-b pb-4">
+    <h2 class="text-xl font-black">La Tienda</h2>
+    <p class="text-sm text-gray-600">RFC: AAA123456AAA</p>
+    <p class="text-sm text-gray-600" id="print-fecha"></p>
+  </div>
+  <div class="mb-2"><span class="font-bold">Ticket #</span><span id="print-num"></span></div>
+  <div class="mb-3" id="print-items"></div>
+  <div class="border-t pt-3 space-y-1 text-sm">
+    <div class="flex justify-between"><span>Subtotal</span><span id="print-sub"></span></div>
+    <div class="flex justify-between"><span>Descuento</span><span id="print-desc"></span></div>
+    <div class="flex justify-between"><span>IVA 16%</span><span id="print-iva"></span></div>
+    <div class="flex justify-between font-black text-base border-t mt-1 pt-1"><span>TOTAL</span><span id="print-total"></span></div>
+    <div class="flex justify-between"><span>Pago con</span><span id="print-metodo"></span></div>
+    <div class="flex justify-between"><span>Cambio</span><span id="print-cambio"></span></div>
+  </div>
+  <div class="text-center mt-4 text-sm text-gray-600 border-t pt-3">
+    <p>¡Gracias por su compra!</p>
+    <p class="text-xs mt-1">Powered by Novamente Studio</p>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="fixed bottom-0 left-0 right-0 text-center py-2 text-xs text-pos-300 no-print" style="background:#0a0a0f;border-top:1px solid rgba(255,255,255,0.04)">
+  Powered by <span class="text-indigo-400 font-semibold">Novamente Studio</span>
+</footer>
+
+<script>
+let posData = JSON.parse(localStorage.getItem('pos_data') || 'null');
+const defaultProducts = [
+  {id:1,nombre:'Playera Básica',precio:199,stock:25,cat:'ropa',codigo:'PLY001'},
+  {id:2,nombre:'Playera Premium',precio:349,stock:18,cat:'ropa',codigo:'PLY002'},
+  {id:3,nombre:'Pantalón Jogger',precio:459,stock:12,cat:'ropa',codigo:'PAN001'},
+  {id:4,nombre:'Sudadera Hoodie',precio:699,stock:8,cat:'ropa',codigo:'SUD001'},
+  {id:5,nombre:'Shorts Deportivo',precio:279,stock:20,cat:'ropa',codigo:'SHO001'},
+  {id:6,nombre:'Tenis Casual',precio:899,stock:15,cat:'calzado',codigo:'TEN001'},
+  {id:7,nombre:'Tenis Deportivo',precio:1299,stock:10,cat:'calzado',codigo:'TEN002'},
+  {id:8,nombre:'Botas de Piel',precio:1599,stock:6,cat:'calzado',codigo:'BOT001'},
+  {id:9,nombre:'Sandalia Verano',precio:399,stock:22,cat:'calzado',codigo:'SAN001'},
+  {id:10,nombre:'Sombrero',precio:249,stock:14,cat:'accesorios',codigo:'SOM001'},
+  {id:11,nombre:'Cinturón Piel',precio:299,stock:16,cat:'accesorios',codigo:'CIN001'},
+  {id:12,nombre:'Mochila Urban',precio:549,stock:9,cat:'accesorios',codigo:'MOC001'},
+  {id:13,nombre:'Bufanda Lana',precio:199,stock:30,cat:'accesorios',codigo:'BUF001'},
+  {id:14,nombre:'Cojín Decorativo',precio:229,stock:20,cat:'hogar',codigo:'COJ001'},
+  {id:15,nombre:'Vela Aromatica',precio:149,stock:35,cat:'hogar',codigo:'VEL001'},
+  {id:16,nombre:'Cuadro Moderno',precio:649,stock:7,cat:'hogar',codigo:'CUA001'},
+  {id:17,nombre:'Portaretrato Set',precio:299,stock:18,cat:'hogar',codigo:'POR001'},
+  {id:18,nombre:'Frazada Polar',precio:499,stock:11,cat:'hogar',codigo:'FRA001'},
+  {id:19,nombre:'Aretes Dorados',precio:179,stock:25,cat:'accesorios',codigo:'ARE001'},
+  {id:20,nombre:'Collar Plata',precio:349,stock:13,cat:'accesorios',codigo:'COL001'},
+];
+if (!posData) {
+  posData = {
+    productos: defaultProducts,
+    ventas: [],
+    caja: { fondo: 500, movimientos: [] },
+    nextTicket: 1,
+    nextProdId: 21
+  };
+  // Demo sales
+  const now = Date.now();
+  posData.ventas = [
+    {id:'0001',fecha:new Date(now-3600000).toISOString(),items:[{nombre:'Playera Básica',precio:199,qty:2},{nombre:'Tenis Casual',precio:899,qty:1}],subtotal:1297,descuento:0,iva:207.52,total:1297,metodo:'efectivo',cambio:203},
+    {id:'0002',fecha:new Date(now-7200000).toISOString(),items:[{nombre:'Mochila Urban',precio:549,qty:1}],subtotal:549,descuento:54.9,iva:79.06,total:494.1,metodo:'tarjeta',cambio:0},
+    {id:'0003',fecha:new Date(now-10800000).toISOString(),items:[{nombre:'Sudadera Hoodie',precio:699,qty:1},{nombre:'Aretes Dorados',precio:179,qty:1}],subtotal:878,descuento:0,iva:140.48,total:878,metodo:'transferencia',cambio:0},
+  ];
+  posData.nextTicket = 4;
+  posData.caja.movimientos = [{tipo:'entrada',desc:'Fondo apertura',monto:500,fecha:new Date().toISOString()}];
+  savePOS();
+}
+function savePOS() { localStorage.setItem('pos_data', JSON.stringify(posData)); }
+
+let ticket = [];
+let currentCatPOS = 'todos';
+let pagoMetodo = 'efectivo';
+let numBuffer = '';
+
+// HEADER
+document.getElementById('header-date').textContent = new Date().toLocaleDateString('es-MX', {weekday:'long', day:'numeric', month:'long'});
+document.getElementById('ticket-time').textContent = new Date().toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'});
+document.getElementById('ticket-num').textContent = String(posData.nextTicket).padStart(4,'0');
+
+function showTab(tab) {
+  ['venta','historial','catalogo','caja'].forEach(t => {
+    document.getElementById('view-'+t).classList.add('hidden');
+    const btn = document.getElementById('tab-'+t);
+    btn.className = 'tab-btn text-xs font-bold px-4 py-2 rounded-xl whitespace-nowrap pos-card border border-white/5 text-pos-100 hover:border-indigo-500/30';
+  });
+  document.getElementById('view-'+tab).classList.remove('hidden');
+  document.getElementById('tab-'+tab).className = 'tab-btn text-xs font-bold px-4 py-2 rounded-xl whitespace-nowrap btn-accent';
+  if (tab === 'venta') renderProductGrid();
+  if (tab === 'historial') renderHistorial();
+  if (tab === 'catalogo') renderCatalogo();
+  if (tab === 'caja') renderCaja();
+}
+
+function filterCatPOS(cat) {
+  currentCatPOS = cat;
+  document.querySelectorAll('.cat-pos').forEach(b => {
+    if (b.dataset.cat === cat) b.className = b.className.replace('pos-card border border-white/5 text-pos-100','btn-accent');
+    else b.className = b.className.replace('btn-accent','pos-card border border-white/5 text-pos-100');
+  });
+  renderProductGrid();
+}
+
+function renderProductGrid() {
+  const q = (document.getElementById('search-prod')?.value || '').toLowerCase();
+  let prods = posData.productos;
+  if (currentCatPOS !== 'todos') prods = prods.filter(p => p.cat === currentCatPOS);
+  if (q) prods = prods.filter(p => p.nombre.toLowerCase().includes(q) || p.codigo?.toLowerCase().includes(q));
+  const CAT_COLORS = {ropa:'#1d4ed8',calzado:'#7c3aed',accesorios:'#b45309',hogar:'#065f46'};
+  document.getElementById('prod-grid').innerHTML = prods.map(p => {
+    const inT = ticket.find(t => t.id === p.id);
+    const low = p.stock <= 3;
+    return `<div class="pos-card pos-card-hover rounded-xl p-3 flex flex-col" onclick="addToTicket(${p.id})">
+      <div class="w-full h-16 rounded-lg mb-2 flex items-center justify-center text-xs font-bold text-white/80" style="background:${CAT_COLORS[p.cat]||'#374151'}20;border:1px solid ${CAT_COLORS[p.cat]||'#374151'}40">
+        <span style="color:${CAT_COLORS[p.cat]||'#9ca3af'}">${p.codigo||p.cat}</span>
+      </div>
+      <p class="text-white font-semibold text-xs leading-tight mb-1">${p.nombre}</p>
+      <div class="flex items-center justify-between mt-auto pt-1">
+        <span class="text-accent-400 font-black text-sm">$${p.precio}</span>
+        <span class="text-xs ${low?'text-danger-400':'text-pos-300'}">${low?'⚠ '+p.stock:p.stock} pzs</span>
+      </div>
+      ${inT ? `<div class="mt-1.5 text-center text-xs font-bold text-success-400 bg-success-400/10 rounded-lg py-0.5">${inT.qty} en ticket</div>` : ''}
+    </div>`;
+  }).join('') || '<p class="text-pos-300 text-sm col-span-full text-center py-8">No se encontraron productos</p>';
+}
+
+function addToTicket(id) {
+  const prod = posData.productos.find(p => p.id === id);
+  if (!prod || prod.stock <= 0) { alert('Sin stock disponible'); return; }
+  const existing = ticket.find(t => t.id === id);
+  if (existing) existing.qty++;
+  else ticket.push({...prod, qty:1});
+  updateTicket();
+  renderProductGrid();
+}
+
+function updateTicket() {
+  const discVal = parseFloat(document.getElementById('discount-val')?.value) || 0;
+  const discType = document.getElementById('discount-type')?.value || 'pct';
+  const subtotal = ticket.reduce((s,t) => s + t.precio*t.qty, 0);
+  const discAmount = discType === 'pct' ? subtotal*(discVal/100) : Math.min(discVal, subtotal);
+  const base = subtotal - discAmount;
+  const iva = base * 0.16;
+  const total = base + iva;
+
+  document.getElementById('t-subtotal').textContent = '$' + subtotal.toFixed(2);
+  document.getElementById('t-descuento').textContent = '-$' + discAmount.toFixed(2);
+  document.getElementById('t-iva').textContent = '$' + iva.toFixed(2);
+  document.getElementById('t-total').textContent = '$' + total.toFixed(2);
+
+  const el = document.getElementById('ticket-items');
+  const empty = document.getElementById('ticket-empty');
+  if (ticket.length === 0) { el.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  el.innerHTML = ticket.map(t => `
+    <div class="flex items-center gap-2 p-2 rounded-xl bg-pos-700/50 text-sm">
+      <div class="flex-1 min-w-0">
+        <p class="text-white font-semibold text-xs truncate">${t.nombre}</p>
+        <p class="text-pos-200 text-xs">$${t.precio} c/u</p>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="changeTicketQty(${t.id},-1)" class="w-6 h-6 bg-pos-500 rounded-lg text-pos-100 font-bold hover:bg-danger-500/50 transition-colors text-center leading-6">-</button>
+        <span class="text-white font-bold text-xs w-5 text-center">${t.qty}</span>
+        <button onclick="changeTicketQty(${t.id},1)" class="w-6 h-6 bg-pos-500 rounded-lg text-pos-100 font-bold hover:bg-success-500/50 transition-colors text-center leading-6">+</button>
+      </div>
+      <span class="text-accent-400 font-black text-xs w-14 text-right">$${(t.precio*t.qty).toFixed(0)}</span>
+    </div>
+  `).join('');
+}
+
+function changeTicketQty(id, delta) {
+  const idx = ticket.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  ticket[idx].qty += delta;
+  if (ticket[idx].qty <= 0) ticket.splice(idx, 1);
+  updateTicket();
+  renderProductGrid();
+}
+
+function clearTicket() { ticket = []; updateTicket(); renderProductGrid(); }
+
+function openPago(metodo) {
+  if (ticket.length === 0) { alert('Agrega productos al ticket'); return; }
+  pagoMetodo = metodo;
+  numBuffer = '';
+  const labels = {efectivo:'Efectivo 💵', tarjeta:'Tarjeta 💳', transferencia:'Transferencia 📱'};
+  document.getElementById('pago-metodo-label').textContent = labels[metodo];
+  const total = parseFloat(document.getElementById('t-total').textContent.replace('$',''));
+  document.getElementById('pago-total-display').textContent = '$' + total.toFixed(2);
+  document.getElementById('pago-efectivo-section').classList.toggle('hidden', metodo !== 'efectivo');
+  document.getElementById('pago-recibido').textContent = '$0.00';
+  document.getElementById('pago-cambio-label').classList.add('hidden');
+  openModal('modal-pago');
+}
+
+function numInput(v) {
+  if (v === 'back') { numBuffer = numBuffer.slice(0,-1); }
+  else if (v === '.' && numBuffer.includes('.')) return;
+  else numBuffer += v;
+  const received = parseFloat(numBuffer) || 0;
+  const total = parseFloat(document.getElementById('t-total').textContent.replace('$',''));
+  document.getElementById('pago-recibido').textContent = '$' + (received||0).toFixed(2);
+  const cambio = received - total;
+  if (cambio >= 0) {
+    document.getElementById('pago-cambio-label').classList.remove('hidden');
+    document.getElementById('pago-cambio').textContent = '$' + cambio.toFixed(2);
+  } else {
+    document.getElementById('pago-cambio-label').classList.add('hidden');
+  }
+}
+
+function procesarPago() {
+  const total = parseFloat(document.getElementById('t-total').textContent.replace('$',''));
+  const subtotal = parseFloat(document.getElementById('t-subtotal').textContent.replace('$',''));
+  const descuento = parseFloat(document.getElementById('t-descuento').textContent.replace('-$',''));
+  const iva = parseFloat(document.getElementById('t-iva').textContent.replace('$',''));
+  const received = parseFloat(numBuffer) || (pagoMetodo !== 'efectivo' ? total : 0);
+  if (pagoMetodo === 'efectivo' && received < total) { alert('El monto recibido es insuficiente'); return; }
+  const cambio = Math.max(0, received - total);
+  const ticketId = String(posData.nextTicket).padStart(4,'0');
+
+  const venta = {
+    id: ticketId,
+    fecha: new Date().toISOString(),
+    items: ticket.map(t => ({nombre:t.nombre, precio:t.precio, qty:t.qty})),
+    subtotal, descuento, iva, total, metodo: pagoMetodo, cambio
+  };
+  posData.ventas.unshift(venta);
+  // Deduct stock
+  ticket.forEach(t => {
+    const prod = posData.productos.find(p => p.id === t.id);
+    if (prod) prod.stock = Math.max(0, prod.stock - t.qty);
+  });
+  posData.nextTicket++;
+  savePOS();
+
+  // Print ticket
+  printTicket(venta);
+  closeModal('modal-pago');
+  clearTicket();
+  document.getElementById('ticket-num').textContent = String(posData.nextTicket).padStart(4,'0');
+  renderProductGrid();
+}
+
+function printTicket(v) {
+  document.getElementById('print-fecha').textContent = new Date(v.fecha).toLocaleString('es-MX');
+  document.getElementById('print-num').textContent = v.id;
+  document.getElementById('print-items').innerHTML = v.items.map(i => `<div class="flex justify-between text-sm border-b pb-1 mb-1"><span>${i.qty}x ${i.nombre}</span><span>$${(i.precio*i.qty).toFixed(2)}</span></div>`).join('');
+  document.getElementById('print-sub').textContent = '$' + v.subtotal.toFixed(2);
+  document.getElementById('print-desc').textContent = '-$' + v.descuento.toFixed(2);
+  document.getElementById('print-iva').textContent = '$' + v.iva.toFixed(2);
+  document.getElementById('print-total').textContent = '$' + v.total.toFixed(2);
+  document.getElementById('print-metodo').textContent = v.metodo;
+  document.getElementById('print-cambio').textContent = '$' + v.cambio.toFixed(2);
+  window.print();
+}
+
+function renderHistorial() {
+  const today = new Date().toDateString();
+  const week = new Date(); week.setDate(week.getDate()-7);
+  const todayV = posData.ventas.filter(v => new Date(v.fecha).toDateString() === today);
+  const weekV = posData.ventas.filter(v => new Date(v.fecha) > week);
+  const totalHoy = todayV.reduce((s,v) => s+v.total, 0);
+  const totalSemana = weekV.reduce((s,v) => s+v.total, 0);
+  document.getElementById('h-ventas').textContent = todayV.length;
+  document.getElementById('h-total').textContent = '$' + totalHoy.toFixed(0);
+  document.getElementById('h-ticket').textContent = '$' + (todayV.length ? (totalHoy/todayV.length).toFixed(0) : 0);
+  document.getElementById('h-semana').textContent = '$' + totalSemana.toFixed(0);
+
+  const METODO_BADGE = {efectivo:'text-green-400 bg-green-400/10', tarjeta:'text-blue-400 bg-blue-400/10', transferencia:'text-purple-400 bg-purple-400/10'};
+  document.getElementById('historial-list').innerHTML = posData.ventas.slice(0,15).map(v => `
+    <div class="flex items-center justify-between p-3 rounded-xl bg-pos-700/50 hover:bg-pos-600/50 transition-colors">
+      <div>
+        <div class="flex items-center gap-2 mb-0.5">
+          <p class="text-white font-bold text-sm">#${v.id}</p>
+          <span class="tag ${METODO_BADGE[v.metodo]||'text-pos-200 bg-pos-500'}">${v.metodo}</span>
+        </div>
+        <p class="text-pos-200 text-xs">${new Date(v.fecha).toLocaleString('es-MX',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</p>
+        <p class="text-pos-300 text-xs">${v.items.length} producto(s)</p>
+      </div>
+      <div class="text-right">
+        <p class="text-accent-400 font-black text-base">$${v.total.toFixed(2)}</p>
+        ${v.descuento > 0 ? `<p class="text-warn-400 text-xs">-$${v.descuento.toFixed(0)} dto</p>` : ''}
+      </div>
+    </div>
+  `).join('') || '<p class="text-pos-300 text-sm text-center py-6">Sin ventas registradas</p>';
+
+  // Top products
+  const cnt = {};
+  posData.ventas.forEach(v => v.items.forEach(i => { cnt[i.nombre] = (cnt[i.nombre]||0) + i.qty; }));
+  const top = Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxQ = top[0]?.[1]||1;
+  document.getElementById('top-prods').innerHTML = top.map(([n,q]) => `
+    <div class="flex items-center gap-2">
+      <p class="text-xs text-pos-100 w-32 truncate">${n}</p>
+      <div class="flex-1 bg-pos-700 rounded-full h-1.5"><div class="h-full bg-gradient-to-r from-accent-600 to-accent-400 rounded-full" style="width:${q/maxQ*100}%"></div></div>
+      <span class="text-xs text-accent-400 font-bold">${q}</span>
+    </div>
+  `).join('') || '<p class="text-xs text-pos-300 text-center py-4">Sin datos</p>';
+}
+
+function renderCatalogo() {
+  document.getElementById('catalogo-list').innerHTML = posData.productos.map(p => `
+    <div class="pos-card rounded-xl p-3 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style="background:${p.stock<=3?'#7f1d1d':'#1e3a5f'}">
+        ${p.stock<=3?'⚠':p.stock}
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-white font-semibold text-sm truncate">${p.nombre}</p>
+        <p class="text-pos-200 text-xs">${p.codigo||''} · ${p.cat}</p>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-accent-400 font-black text-sm">$${p.precio}</p>
+        <div class="flex items-center gap-1 mt-1">
+          <button onclick="adjustStock(${p.id},-1)" class="w-5 h-5 bg-pos-600 rounded text-pos-100 text-xs hover:bg-danger-500/40 transition-colors">-</button>
+          <span class="text-white text-xs font-bold w-6 text-center">${p.stock}</span>
+          <button onclick="adjustStock(${p.id},1)" class="w-5 h-5 bg-pos-600 rounded text-pos-100 text-xs hover:bg-success-500/40 transition-colors">+</button>
+        </div>
+      </div>
+      <button onclick="deleteProd(${p.id})" class="text-danger-500 hover:text-danger-400 transition-colors text-lg ml-1">×</button>
+    </div>
+  `).join('');
+}
+
+function adjustStock(id, delta) {
+  const p = posData.productos.find(x => x.id === id);
+  if (p) { p.stock = Math.max(0, p.stock + delta); savePOS(); renderCatalogo(); }
+}
+
+function deleteProd(id) {
+  if (!confirm('¿Eliminar producto?')) return;
+  posData.productos = posData.productos.filter(p => p.id !== id);
+  savePOS(); renderCatalogo();
+}
+
+function addProduct() {
+  const nombre = document.getElementById('cp-nombre').value.trim();
+  const precio = parseFloat(document.getElementById('cp-precio').value);
+  if (!nombre || !precio) { alert('Ingresa nombre y precio'); return; }
+  posData.productos.push({
+    id: posData.nextProdId++,
+    nombre, precio,
+    stock: parseInt(document.getElementById('cp-stock').value) || 0,
+    cat: document.getElementById('cp-cat').value,
+    codigo: document.getElementById('cp-codigo').value.trim() || 'PROD' + posData.nextProdId
+  });
+  savePOS();
+  ['cp-nombre','cp-precio','cp-stock','cp-codigo'].forEach(id => document.getElementById(id).value = '');
+  renderCatalogo();
+}
+
+function setCajaFondo() {
+  const fondo = parseFloat(document.getElementById('caja-apertura').value) || 0;
+  posData.caja.fondo = fondo;
+  savePOS(); renderCaja();
+}
+
+function movCaja(tipo) {
+  const desc = document.getElementById('mov-desc').value.trim();
+  const monto = parseFloat(document.getElementById('mov-monto').value);
+  if (!monto) { alert('Ingresa un monto'); return; }
+  posData.caja.movimientos.unshift({tipo, desc: desc||tipo, monto, fecha: new Date().toISOString()});
+  savePOS();
+  document.getElementById('mov-desc').value = ''; document.getElementById('mov-monto').value = '';
+  renderCaja();
+}
+
+function renderCaja() {
+  const today = new Date().toDateString();
+  const ventasEfectivo = posData.ventas.filter(v => v.metodo==='efectivo' && new Date(v.fecha).toDateString()===today).reduce((s,v)=>s+v.total,0);
+  const entradas = posData.caja.movimientos.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+m.monto,0);
+  const salidas = posData.caja.movimientos.filter(m=>m.tipo==='salida').reduce((s,m)=>s+m.monto,0);
+  const total = posData.caja.fondo + ventasEfectivo + entradas - salidas;
+  document.getElementById('caja-fondo-display').textContent = '$' + posData.caja.fondo.toFixed(2);
+  document.getElementById('caja-efectivo-ventas').textContent = '$' + ventasEfectivo.toFixed(2);
+  document.getElementById('caja-entradas').textContent = '$' + entradas.toFixed(2);
+  document.getElementById('caja-salidas').textContent = '-$' + salidas.toFixed(2);
+  document.getElementById('caja-total').textContent = '$' + total.toFixed(2);
+  document.getElementById('caja-apertura').value = posData.caja.fondo || '';
+  document.getElementById('movimientos-list').innerHTML = posData.caja.movimientos.slice(0,10).map(m => `
+    <div class="flex items-center justify-between text-xs py-1.5 border-b border-pos-700/50">
+      <div><p class="text-pos-100">${m.desc}</p><p class="text-pos-300">${new Date(m.fecha).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</p></div>
+      <span class="${m.tipo==='entrada'?'text-success-400':'text-danger-400'} font-bold">${m.tipo==='entrada'?'+':'-'}$${m.monto.toFixed(2)}</span>
+    </div>
+  `).join('') || '<p class="text-pos-300 text-xs text-center py-3">Sin movimientos</p>';
+}
+
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// Keyboard shortcut: Escape to close modals
+document.addEventListener('keydown', e => { if (e.key==='Escape') ['modal-pago'].forEach(id=>closeModal(id)); });
+document.getElementById('discount-val').addEventListener('input', updateTicket);
+
+// Init
+showTab('venta');
+</script>
+</body>
+</html>

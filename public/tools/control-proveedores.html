@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Proveedores</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .accent { color: #7c3aed; }
+  .accent-bg { background: #7c3aed; }
+  .accent-bg-light { background: #ede9fe; }
+  .accent-border { border-color: #7c3aed; }
+  .tab-active { background: #7c3aed; color: white; }
+  .tab-inactive { background: white; color: #374151; }
+  .badge-contado { background:#dcfce7; color:#166534; }
+  .badge-15 { background:#fef9c3; color:#854d0e; }
+  .badge-30 { background:#fee2e2; color:#991b1b; }
+  .status-pedido { background:#dbeafe; color:#1e40af; }
+  .status-entregado { background:#dcfce7; color:#166534; }
+  .status-parcial { background:#fef9c3; color:#854d0e; }
+  .status-cancelado { background:#fee2e2; color:#991b1b; }
+  .star-filled { color:#f59e0b; }
+  .star-empty { color:#d1d5db; }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal { background:white; border-radius:16px; max-width:640px; width:100%; max-height:90vh; overflow-y:auto; }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:white; }
+    .print-section { page-break-inside:avoid; }
+  }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:#f3f4f6; }
+  ::-webkit-scrollbar-thumb { background:#c4b5fd; border-radius:3px; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Header -->
+<header class="accent-bg text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold">Control de Proveedores</h1>
+      <p class="text-purple-200 text-sm">Directorio · Pedidos · Comparador</p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="openModal('modalProveedor')" class="bg-white text-purple-700 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-purple-50 transition">+ Proveedor</button>
+      <button onclick="openModal('modalPedido')" class="bg-purple-800 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-purple-900 transition">+ Pedido</button>
+    </div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="no-print bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto py-2">
+    <button onclick="setTab('directorio')" id="tab-directorio" class="tab-btn tab-active px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Directorio</button>
+    <button onclick="setTab('pedidos')" id="tab-pedidos" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Pedidos</button>
+    <button onclick="setTab('historial')" id="tab-historial" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Historial</button>
+    <button onclick="setTab('comparador')" id="tab-comparador" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Comparador</button>
+    <button onclick="setTab('gastos')" id="tab-gastos" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Gastos</button>
+  </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+<!-- TAB: DIRECTORIO -->
+<div id="view-directorio">
+  <div class="flex flex-wrap gap-2 mb-4 no-print">
+    <input id="buscarProveedor" oninput="renderDirectorio()" placeholder="Buscar proveedor..." class="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-48 focus:outline-none focus:border-purple-400">
+    <select id="filtroCategoria" onchange="renderDirectorio()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+      <option value="">Todas las categorías</option>
+      <option>Carnes</option><option>Lácteos</option><option>Frutas/Verduras</option>
+      <option>Abarrotes</option><option>Bebidas</option><option>Limpieza</option><option>Desechables</option>
+    </select>
+  </div>
+  <div id="listaProveedores" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+</div>
+
+<!-- TAB: PEDIDOS (nueva orden) -->
+<div id="view-pedidos" class="hidden">
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+    <h2 class="text-lg font-bold text-gray-800 mb-4">Nueva Orden de Compra</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Proveedor</label>
+        <select id="pedidoProveedor" onchange="loadProductosProveedor()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+          <option value="">Seleccionar proveedor...</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Fecha de entrega esperada</label>
+        <input type="date" id="pedidoFecha" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+      </div>
+    </div>
+    <div id="productosOrden" class="hidden">
+      <h3 class="font-semibold text-gray-700 mb-3">Productos disponibles</h3>
+      <div id="listaProductosOrden" class="space-y-2 mb-4"></div>
+      <div class="flex items-center justify-between bg-purple-50 rounded-xl p-4">
+        <div>
+          <span class="text-sm text-gray-600">Total estimado:</span>
+          <span id="totalOrden" class="text-xl font-bold accent ml-2">$0.00</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="generarWhatsApp()" class="bg-green-500 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-green-600 transition">📱 Enviar por WhatsApp</button>
+          <button onclick="guardarPedido()" class="accent-bg text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-purple-700 transition">Guardar Pedido</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: HISTORIAL -->
+<div id="view-historial" class="hidden">
+  <div class="flex flex-wrap gap-2 mb-4 no-print">
+    <input id="buscarHistorial" oninput="renderHistorial()" placeholder="Buscar en historial..." class="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-48 focus:outline-none focus:border-purple-400">
+    <select id="filtroEstatus" onchange="renderHistorial()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+      <option value="">Todos los estados</option>
+      <option>Pedido</option><option>Entregado</option><option>Parcial</option><option>Cancelado</option>
+    </select>
+    <button onclick="window.print()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition">🖨️ Imprimir</button>
+  </div>
+  <div id="tablaHistorial" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"></div>
+</div>
+
+<!-- TAB: COMPARADOR -->
+<div id="view-comparador" class="hidden">
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+    <h2 class="text-lg font-bold text-gray-800 mb-4">Comparar precios por producto</h2>
+    <input id="buscarProductoComp" oninput="renderComparador()" placeholder="Escribe un producto para comparar..." class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400 mb-4">
+    <div id="resultadosComparador"></div>
+  </div>
+</div>
+
+<!-- TAB: GASTOS -->
+<div id="view-gastos" class="hidden">
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+    <h2 class="text-lg font-bold text-gray-800 mb-1">Gasto mensual por proveedor</h2>
+    <p class="text-sm text-gray-500 mb-4">Basado en pedidos con estado "Entregado"</p>
+    <canvas id="chartGastos" height="120"></canvas>
+  </div>
+  <div id="resumenGastos" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+</div>
+
+</main>
+
+<!-- MODAL: NUEVO PROVEEDOR -->
+<div id="modalProveedor" class="modal-backdrop hidden">
+  <div class="modal p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-800" id="tituloModalProv">Nuevo Proveedor</h2>
+      <button onclick="closeModal('modalProveedor')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <input type="hidden" id="provId">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div class="md:col-span-2">
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Nombre del proveedor *</label>
+        <input id="provNombre" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" placeholder="Ej: Carnicería El Toro">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Persona de contacto</label>
+        <input id="provContacto" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" placeholder="Nombre">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Categoría</label>
+        <select id="provCategoria" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+          <option>Carnes</option><option>Lácteos</option><option>Frutas/Verduras</option>
+          <option>Abarrotes</option><option>Bebidas</option><option>Limpieza</option><option>Desechables</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Teléfono</label>
+        <input id="provTelefono" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" placeholder="55 1234 5678">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">WhatsApp</label>
+        <input id="provWhatsapp" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" placeholder="521XXXXXXXXXX">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Email</label>
+        <input id="provEmail" type="email" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" placeholder="ventas@proveedor.com">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Condiciones de pago</label>
+        <select id="provPago" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+          <option>Contado</option><option>15 días</option><option>30 días</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Días de entrega</label>
+        <input id="provDias" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" placeholder="L, M, V">
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Calificaciones (1-5)</label>
+        <div class="grid grid-cols-3 gap-2">
+          <div><label class="text-xs text-gray-500">Calidad</label><input id="provCalidad" type="number" min="1" max="5" value="4" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"></div>
+          <div><label class="text-xs text-gray-500">Puntualidad</label><input id="provPuntualidad" type="number" min="1" max="5" value="4" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"></div>
+          <div><label class="text-xs text-gray-500">Precio</label><input id="provPrecio" type="number" min="1" max="5" value="3" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"></div>
+        </div>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Catálogo de productos (separados por coma con precio)</label>
+        <textarea id="provProductos" rows="3" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400" placeholder="Pechuga de pollo:85,Pierna:62,Muslo:55"></textarea>
+        <p class="text-xs text-gray-400 mt-1">Formato: Producto:Precio MXN/kg (o pieza)</p>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5 justify-end">
+      <button onclick="closeModal('modalProveedor')" class="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+      <button onclick="guardarProveedor()" class="accent-bg text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-purple-700">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVO PEDIDO RÁPIDO -->
+<div id="modalPedido" class="modal-backdrop hidden">
+  <div class="modal p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-800">Actualizar Estado de Pedido</h2>
+      <button onclick="closeModal('modalPedido')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <p class="text-sm text-gray-600 mb-4">Cambia el estado de un pedido existente del historial o usa la pestaña "Pedidos" para crear uno nuevo.</p>
+    <div class="space-y-3">
+      <select id="pedidoActualizarId" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+        <option value="">Seleccionar pedido...</option>
+      </select>
+      <select id="pedidoNuevoEstado" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400">
+        <option>Pedido</option><option>Entregado</option><option>Parcial</option><option>Cancelado</option>
+      </select>
+    </div>
+    <div class="flex gap-2 mt-5 justify-end">
+      <button onclick="closeModal('modalPedido')" class="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+      <button onclick="actualizarEstadoPedido()" class="accent-bg text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-purple-700">Actualizar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: VER PROVEEDOR -->
+<div id="modalVerProv" class="modal-backdrop hidden">
+  <div class="modal p-6" id="contenidoVerProv"></div>
+</div>
+
+<footer class="text-center py-6 text-gray-400 text-xs no-print mt-8">
+  Powered by <span class="font-semibold text-purple-400">Novamente Studio</span> · <span id="footerYear"></span>
+</footer>
+
+<script>
+const STORAGE_KEY = 'cproveedores_v1';
+let data = {proveedores:[], pedidos:[]};
+
+function loadData(){
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved) { data = JSON.parse(saved); }
+  else { seedDemoData(); saveData(); }
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+function seedDemoData(){
+  data.proveedores = [
+    {id:'p1', nombre:'Carnicería Don Beto', contacto:'Roberto Sánchez', categoria:'Carnes', telefono:'55 8734 2291', whatsapp:'5215587342291', email:'donbeto@carniceria.mx', pago:'Contado', dias:'L,M,V', calidad:5, puntualidad:4, precio:3, productos:[{n:'Pechuga de pollo',p:85},{n:'Pierna de pollo',p:62},{n:'Res molida',p:120},{n:'Milanesa de res',p:145},{n:'Chorizo',p:95}]},
+    {id:'p2', nombre:'Lácteos La Castellana', contacto:'María Castellanos', categoria:'Lácteos', telefono:'55 2341 8800', whatsapp:'5215523418800', email:'ventas@castellana.mx', pago:'15 días', dias:'L,M,J,V', calidad:4, puntualidad:5, precio:4, productos:[{n:'Queso panela kg',p:98},{n:'Crema ácida lt',p:72},{n:'Leche entera lt',p:25},{n:'Mantequilla kg',p:145},{n:'Jocoque lt',p:68}]},
+    {id:'p3', nombre:'Central de Abastos – Pte. Verdulero', contacto:'Arturo Méndez', categoria:'Frutas/Verduras', telefono:'55 5634 9010', whatsapp:'5215556349010', email:'arturo.abastos@gmail.com', pago:'Contado', dias:'L,M,X,J,V', calidad:4, puntualidad:3, precio:5, productos:[{n:'Jitomate kg',p:18},{n:'Chile serrano kg',p:45},{n:'Cebolla kg',p:22},{n:'Aguacate pza',p:15},{n:'Limón kg',p:28},{n:'Lechuga pza',p:12}]},
+    {id:'p4', nombre:'Distribuidora Costco Empresarial', contacto:'Carlos Fuentes', categoria:'Abarrotes', telefono:'800 500 8000', whatsapp:'5215580081000', email:'empresas@costco.com.mx', pago:'Contado', dias:'L,X,V', calidad:5, puntualidad:5, precio:4, productos:[{n:'Aceite vegetal lt',p:35},{n:'Arroz kg',p:22},{n:'Frijol negro kg',p:32},{n:'Sal kg',p:8},{n:'Azúcar kg',p:24}]},
+    {id:'p5', nombre:'Bebidas del Norte S.A.', contacto:'Lucía Vega', categoria:'Bebidas', telefono:'55 4411 7620', whatsapp:'5215544117620', email:'pedidos@bebidasnorte.mx', pago:'30 días', dias:'M,V', calidad:4, puntualidad:4, precio:3, productos:[{n:'Refresco cola caja 24',p:290},{n:'Agua natural 600ml caja',p:180},{n:'Cerveza clara caja 24',p:420},{n:'Jugo naranja lt',p:38}]},
+    {id:'p6', nombre:'Limpieza Pro Restaurantes', contacto:'Jorge Herrera', categoria:'Limpieza', telefono:'55 3390 4455', whatsapp:'5215533904455', email:'ventas@limpiezapro.mx', pago:'15 días', dias:'L,J', calidad:5, puntualidad:4, precio:3, productos:[{n:'Desengrasante galón',p:185},{n:'Cloro galón',p:95},{n:'Jabón líquido manos lt',p:65},{n:'Papel higiénico rollo',p:18}]},
+    {id:'p7', nombre:'Tortillería Doña Concha', contacto:'Concepción Ríos', categoria:'Abarrotes', telefono:'55 6677 3344', whatsapp:'5215566773344', email:'tortillasconcha@gmail.com', pago:'Contado', dias:'L,M,X,J,V,S', calidad:5, puntualidad:5, precio:5, productos:[{n:'Tortilla blanca kg',p:18},{n:'Tortilla azul kg',p:22},{n:'Tostadas paquete',p:35}]},
+    {id:'p8', nombre:'Desechables RestaurMax', contacto:'Pablo Ortiz', categoria:'Desechables', telefono:'55 9988 1122', whatsapp:'5215599881122', email:'pablo@restaurmax.mx', pago:'30 días', dias:'X,V', calidad:4, puntualidad:3, precio:4, productos:[{n:'Vaso 12oz paquete 50',p:55},{n:'Contenedor foam caja 50',p:120},{n:'Bolsa plástica paquete',p:45},{n:'Guantes látex caja 100',p:165}]}
+  ];
+
+  const provIds = ['p1','p2','p3','p4','p5','p6','p7','p8'];
+  const provNames = ['Carnicería Don Beto','Lácteos La Castellana','Central de Abastos','Costco Empresarial','Bebidas del Norte','Limpieza Pro','Tortillería Doña Concha','Desechables RestaurMax'];
+  const statuses = ['Entregado','Entregado','Entregado','Pedido','Parcial','Entregado','Cancelado','Entregado','Entregado','Entregado','Pedido','Entregado','Entregado','Parcial','Entregado'];
+  const itemsPool = [
+    [{n:'Pechuga de pollo',q:10,u:'kg',p:85},{n:'Pierna de pollo',q:15,u:'kg',p:62}],
+    [{n:'Queso panela kg',q:5,u:'kg',p:98},{n:'Crema ácida lt',q:8,u:'lt',p:72}],
+    [{n:'Jitomate kg',q:20,u:'kg',p:18},{n:'Chile serrano kg',q:3,u:'kg',p:45},{n:'Cebolla kg',q:10,u:'kg',p:22}],
+    [{n:'Aceite vegetal lt',q:12,u:'lt',p:35},{n:'Arroz kg',q:25,u:'kg',p:22}],
+    [{n:'Refresco cola caja 24',q:5,u:'caja',p:290},{n:'Agua natural 600ml caja',q:10,u:'caja',p:180}],
+    [{n:'Desengrasante galón',q:4,u:'galón',p:185},{n:'Cloro galón',q:6,u:'galón',p:95}],
+    [{n:'Tortilla blanca kg',q:30,u:'kg',p:18},{n:'Tortilla azul kg',q:10,u:'kg',p:22}],
+    [{n:'Vaso 12oz paquete 50',q:8,u:'paq',p:55},{n:'Contenedor foam caja 50',q:5,u:'caja',p:120}],
+    [{n:'Res molida',q:8,u:'kg',p:120},{n:'Milanesa de res',q:5,u:'kg',p:145}],
+    [{n:'Leche entera lt',q:20,u:'lt',p:25},{n:'Mantequilla kg',q:3,u:'kg',p:145}],
+    [{n:'Aguacate pza',q:50,u:'pza',p:15},{n:'Limón kg',q:10,u:'kg',p:28}],
+    [{n:'Frijol negro kg',q:15,u:'kg',p:32},{n:'Azúcar kg',q:10,u:'kg',p:24}],
+    [{n:'Cerveza clara caja 24',q:8,u:'caja',p:420},{n:'Jugo naranja lt',q:12,u:'lt',p:38}],
+    [{n:'Jabón líquido manos lt',q:10,u:'lt',p:65},{n:'Papel higiénico rollo',q:48,u:'rollo',p:18}],
+    [{n:'Tostadas paquete',q:20,u:'paq',p:35},{n:'Tortilla blanca kg',q:50,u:'kg',p:18}]
+  ];
+
+  const baseDate = new Date('2025-03-01');
+  data.pedidos = statuses.map((status, i) => {
+    const d = new Date(baseDate);
+    d.setDate(d.getDate() + i * 2);
+    const pidx = i % provIds.length;
+    const items = itemsPool[i];
+    const total = items.reduce((s,it) => s + it.q * it.p, 0);
+    return {
+      id: 'ord' + (i+1),
+      proveedorId: provIds[pidx],
+      proveedorNombre: provNames[pidx],
+      fecha: d.toISOString().split('T')[0],
+      items,
+      total,
+      status
+    };
+  });
+}
+
+// UI
+function setTab(tab){
+  ['directorio','pedidos','historial','comparador','gastos'].forEach(t => {
+    document.getElementById('view-'+t).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById('tab-'+t);
+    btn.classList.toggle('tab-active', t === tab);
+    btn.classList.toggle('tab-inactive', t !== tab);
+  });
+  if(tab === 'directorio') renderDirectorio();
+  if(tab === 'pedidos') renderFormPedido();
+  if(tab === 'historial') renderHistorial();
+  if(tab === 'comparador') renderComparador();
+  if(tab === 'gastos') renderGastos();
+}
+
+function openModal(id){
+  document.getElementById(id).classList.remove('hidden');
+  if(id === 'modalPedido') populatePedidoSelect();
+  if(id === 'modalProveedor') resetFormProveedor();
+}
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+function resetFormProveedor(){
+  ['provId','provNombre','provContacto','provTelefono','provWhatsapp','provEmail','provProductos'].forEach(f => document.getElementById(f).value = '');
+  document.getElementById('provCategoria').value = 'Carnes';
+  document.getElementById('provPago').value = 'Contado';
+  document.getElementById('provDias').value = '';
+  document.getElementById('provCalidad').value = 4;
+  document.getElementById('provPuntualidad').value = 4;
+  document.getElementById('provPrecio').value = 3;
+  document.getElementById('tituloModalProv').textContent = 'Nuevo Proveedor';
+}
+
+function guardarProveedor(){
+  const nombre = document.getElementById('provNombre').value.trim();
+  if(!nombre){ alert('El nombre es requerido'); return; }
+  const id = document.getElementById('provId').value || 'p' + Date.now();
+  const productosRaw = document.getElementById('provProductos').value;
+  const productos = productosRaw.split(',').map(s => {
+    const parts = s.trim().split(':');
+    return {n: parts[0].trim(), p: parseFloat(parts[1]) || 0};
+  }).filter(p => p.n);
+  const prov = {
+    id, nombre,
+    contacto: document.getElementById('provContacto').value,
+    categoria: document.getElementById('provCategoria').value,
+    telefono: document.getElementById('provTelefono').value,
+    whatsapp: document.getElementById('provWhatsapp').value,
+    email: document.getElementById('provEmail').value,
+    pago: document.getElementById('provPago').value,
+    dias: document.getElementById('provDias').value,
+    calidad: parseInt(document.getElementById('provCalidad').value) || 4,
+    puntualidad: parseInt(document.getElementById('provPuntualidad').value) || 4,
+    precio: parseInt(document.getElementById('provPrecio').value) || 3,
+    productos
+  };
+  const idx = data.proveedores.findIndex(p => p.id === id);
+  if(idx >= 0) data.proveedores[idx] = prov;
+  else data.proveedores.push(prov);
+  saveData();
+  closeModal('modalProveedor');
+  renderDirectorio();
+}
+
+function editarProveedor(id){
+  closeModal('modalVerProv');
+  const p = data.proveedores.find(x => x.id === id);
+  if(!p) return;
+  document.getElementById('tituloModalProv').textContent = 'Editar Proveedor';
+  document.getElementById('provId').value = p.id;
+  document.getElementById('provNombre').value = p.nombre;
+  document.getElementById('provContacto').value = p.contacto || '';
+  document.getElementById('provCategoria').value = p.categoria;
+  document.getElementById('provTelefono').value = p.telefono || '';
+  document.getElementById('provWhatsapp').value = p.whatsapp || '';
+  document.getElementById('provEmail').value = p.email || '';
+  document.getElementById('provPago').value = p.pago || 'Contado';
+  document.getElementById('provDias').value = p.dias || '';
+  document.getElementById('provCalidad').value = p.calidad;
+  document.getElementById('provPuntualidad').value = p.puntualidad;
+  document.getElementById('provPrecio').value = p.precio;
+  document.getElementById('provProductos').value = p.productos.map(x => x.n + ':' + x.p).join(',');
+  openModal('modalProveedor');
+}
+
+function eliminarProveedor(id){
+  if(!confirm('¿Eliminar este proveedor?')) return;
+  data.proveedores = data.proveedores.filter(p => p.id !== id);
+  saveData();
+  closeModal('modalVerProv');
+  renderDirectorio();
+}
+
+function verProveedor(id){
+  const p = data.proveedores.find(x => x.id === id);
+  if(!p) return;
+  const score = ((p.calidad + p.puntualidad + p.precio) / 3).toFixed(1);
+  const stars = n => Array.from({length:5}, (_,i) => `<span class="${i < n ? 'star-filled' : 'star-empty'}">★</span>`).join('');
+  const pagoBadge = p.pago === 'Contado' ? 'badge-contado' : p.pago === '15 días' ? 'badge-15' : 'badge-30';
+  const catColors = {Carnes:'bg-red-100 text-red-700',Lácteos:'bg-blue-100 text-blue-700','Frutas/Verduras':'bg-green-100 text-green-700',Abarrotes:'bg-yellow-100 text-yellow-700',Bebidas:'bg-cyan-100 text-cyan-700',Limpieza:'bg-orange-100 text-orange-700',Desechables:'bg-gray-100 text-gray-700'};
+  document.getElementById('contenidoVerProv').innerHTML = `
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">${p.nombre}</h2>
+        <span class="text-xs font-semibold px-2 py-1 rounded-full ${catColors[p.categoria] || 'bg-gray-100 text-gray-700'}">${p.categoria}</span>
+      </div>
+      <button onclick="closeModal('modalVerProv')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
+      <div class="bg-gray-50 rounded-xl p-3"><p class="text-gray-400 text-xs mb-1">Contacto</p><p class="font-semibold">${p.contacto || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3"><p class="text-gray-400 text-xs mb-1">Teléfono</p><p class="font-semibold">${p.telefono || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3"><p class="text-gray-400 text-xs mb-1">Email</p><p class="font-semibold text-xs">${p.email || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3"><p class="text-gray-400 text-xs mb-1">Días de entrega</p><p class="font-semibold">${p.dias || '—'}</p></div>
+      <div class="bg-gray-50 rounded-xl p-3"><p class="text-gray-400 text-xs mb-1">Pago</p><span class="text-xs font-semibold px-2 py-1 rounded-full ${pagoBadge}">${p.pago}</span></div>
+      <div class="bg-gray-50 rounded-xl p-3"><p class="text-gray-400 text-xs mb-1">Score general</p><p class="text-2xl font-bold accent">${score}</p></div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 mb-4">
+      <div class="text-center"><p class="text-xs text-gray-400">Calidad</p><div class="text-lg">${stars(p.calidad)}</div></div>
+      <div class="text-center"><p class="text-xs text-gray-400">Puntualidad</p><div class="text-lg">${stars(p.puntualidad)}</div></div>
+      <div class="text-center"><p class="text-xs text-gray-400">Precio</p><div class="text-lg">${stars(p.precio)}</div></div>
+    </div>
+    ${p.productos.length > 0 ? `
+    <h3 class="font-semibold text-gray-700 mb-2">Catálogo de productos</h3>
+    <div class="rounded-xl border border-gray-100 overflow-hidden mb-4">
+      <table class="w-full text-sm"><thead class="bg-gray-50"><tr><th class="text-left px-3 py-2 text-gray-500 font-semibold">Producto</th><th class="text-right px-3 py-2 text-gray-500 font-semibold">Precio</th></tr></thead>
+      <tbody>${p.productos.map((pr,i) => `<tr class="${i%2===0?'bg-white':'bg-gray-50'}"><td class="px-3 py-2">${pr.n}</td><td class="px-3 py-2 text-right font-semibold accent">$${pr.p.toFixed(2)}</td></tr>`).join('')}</tbody></table>
+    </div>` : ''}
+    <div class="flex gap-2 justify-end flex-wrap">
+      ${p.whatsapp ? `<a href="https://wa.me/${p.whatsapp}" target="_blank" class="bg-green-500 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-green-600 transition">📱 WhatsApp</a>` : ''}
+      <button onclick="editarProveedor('${p.id}')" class="border border-purple-300 text-purple-700 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-purple-50 transition">✏️ Editar</button>
+      <button onclick="eliminarProveedor('${p.id}')" class="border border-red-200 text-red-600 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-red-50 transition">🗑️ Eliminar</button>
+    </div>
+  `;
+  openModal('modalVerProv');
+}
+
+function renderDirectorio(){
+  const q = (document.getElementById('buscarProveedor').value || '').toLowerCase();
+  const cat = document.getElementById('filtroCategoria').value;
+  const catColors = {Carnes:'bg-red-100 text-red-700',Lácteos:'bg-blue-100 text-blue-700','Frutas/Verduras':'bg-green-100 text-green-700',Abarrotes:'bg-yellow-100 text-yellow-700',Bebidas:'bg-cyan-100 text-cyan-700',Limpieza:'bg-orange-100 text-orange-700',Desechables:'bg-gray-100 text-gray-700'};
+  const pagoBadge = p => p.pago === 'Contado' ? 'badge-contado' : p.pago === '15 días' ? 'badge-15' : 'badge-30';
+  const filtered = data.proveedores.filter(p => (!q || p.nombre.toLowerCase().includes(q) || (p.contacto||'').toLowerCase().includes(q)) && (!cat || p.categoria === cat));
+  const stars = n => Array.from({length:5}, (_,i) => `<span class="${i < n ? 'star-filled' : 'star-empty'}">★</span>`).join('');
+  document.getElementById('listaProveedores').innerHTML = filtered.length === 0
+    ? '<p class="text-gray-400 col-span-3 text-center py-12">No se encontraron proveedores</p>'
+    : filtered.map(p => {
+        const score = ((p.calidad + p.puntualidad + p.precio) / 3).toFixed(1);
+        const pedidosProv = data.pedidos.filter(o => o.proveedorId === p.id && o.status === 'Entregado');
+        const gasto = pedidosProv.reduce((s,o) => s + o.total, 0);
+        return `<div onclick="verProveedor('${p.id}')" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 cursor-pointer hover:shadow-md hover:border-purple-200 transition print-section">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h3 class="font-bold text-gray-800 text-sm">${p.nombre}</h3>
+              <p class="text-xs text-gray-500 mt-0.5">${p.contacto || ''}</p>
+            </div>
+            <span class="text-xs font-semibold px-2 py-1 rounded-full ${catColors[p.categoria] || 'bg-gray-100 text-gray-700'}">${p.categoria}</span>
+          </div>
+          <div class="flex items-center gap-1 mb-3 text-sm">${stars(Math.round((p.calidad + p.puntualidad + p.precio) / 3))}<span class="text-xs text-gray-500 ml-1">${score}</span></div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-semibold px-2 py-1 rounded-full ${pagoBadge(p)}">${p.pago}</span>
+            <span class="text-gray-500">${p.dias || '—'}</span>
+            <span class="font-semibold text-purple-600">$${gasto.toLocaleString('es-MX')}</span>
+          </div>
+        </div>`;
+      }).join('');
+}
+
+function renderFormPedido(){
+  const sel = document.getElementById('pedidoProveedor');
+  sel.innerHTML = '<option value="">Seleccionar proveedor...</option>' + data.proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('pedidoFecha').value = hoy;
+  document.getElementById('productosOrden').classList.add('hidden');
+}
+
+function loadProductosProveedor(){
+  const id = document.getElementById('pedidoProveedor').value;
+  const prov = data.proveedores.find(p => p.id === id);
+  const container = document.getElementById('productosOrden');
+  if(!prov || !prov.productos.length){ container.classList.add('hidden'); return; }
+  container.classList.remove('hidden');
+  document.getElementById('listaProductosOrden').innerHTML = prov.productos.map((pr,i) => `
+    <div class="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+      <input type="checkbox" id="chk${i}" onchange="calcTotal()" class="accent-border w-4 h-4 accent-bg">
+      <label for="chk${i}" class="flex-1 text-sm font-semibold text-gray-700">${pr.n}</label>
+      <span class="text-xs text-gray-400 w-16 text-right">$${pr.p.toFixed(2)}</span>
+      <input type="number" id="qty${i}" value="1" min="0" oninput="calcTotal()" data-precio="${pr.p}" data-nombre="${pr.n}" class="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-purple-400">
+    </div>
+  `).join('');
+  calcTotal();
+}
+
+function calcTotal(){
+  const prov = data.proveedores.find(p => p.id === document.getElementById('pedidoProveedor').value);
+  if(!prov) return;
+  let total = 0;
+  prov.productos.forEach((_,i) => {
+    const chk = document.getElementById('chk'+i);
+    const qty = parseFloat(document.getElementById('qty'+i)?.value) || 0;
+    const precio = parseFloat(document.getElementById('qty'+i)?.dataset.precio) || 0;
+    if(chk?.checked) total += qty * precio;
+  });
+  document.getElementById('totalOrden').textContent = '$' + total.toLocaleString('es-MX', {minimumFractionDigits:2});
+}
+
+function getItemsSeleccionados(){
+  const prov = data.proveedores.find(p => p.id === document.getElementById('pedidoProveedor').value);
+  if(!prov) return [];
+  return prov.productos.map((pr,i) => {
+    const chk = document.getElementById('chk'+i);
+    const qty = parseFloat(document.getElementById('qty'+i)?.value) || 0;
+    if(chk?.checked && qty > 0) return {n:pr.n, q:qty, u:'kg', p:pr.p};
+    return null;
+  }).filter(Boolean);
+}
+
+function generarWhatsApp(){
+  const provId = document.getElementById('pedidoProveedor').value;
+  const prov = data.proveedores.find(p => p.id === provId);
+  if(!prov?.whatsapp){ alert('El proveedor no tiene WhatsApp registrado'); return; }
+  const items = getItemsSeleccionados();
+  if(!items.length){ alert('Selecciona al menos un producto'); return; }
+  const fecha = document.getElementById('pedidoFecha').value;
+  let msg = `*PEDIDO - ${new Date().toLocaleDateString('es-MX')}*\n\nHola ${prov.contacto || prov.nombre},\n\nNecesitamos el siguiente pedido para entrega el *${fecha}*:\n\n`;
+  items.forEach(it => msg += `• ${it.n}: *${it.q}* ${it.u}\n`);
+  const total = items.reduce((s,it) => s + it.q * it.p, 0);
+  msg += `\n*Total estimado: $${total.toLocaleString('es-MX', {minimumFractionDigits:2})}*\n\nGracias.`;
+  window.open('https://wa.me/' + prov.whatsapp + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function guardarPedido(){
+  const provId = document.getElementById('pedidoProveedor').value;
+  const prov = data.proveedores.find(p => p.id === provId);
+  if(!prov){ alert('Selecciona un proveedor'); return; }
+  const items = getItemsSeleccionados();
+  if(!items.length){ alert('Selecciona al menos un producto'); return; }
+  const total = items.reduce((s,it) => s + it.q * it.p, 0);
+  data.pedidos.unshift({
+    id: 'ord' + Date.now(),
+    proveedorId: prov.id,
+    proveedorNombre: prov.nombre,
+    fecha: document.getElementById('pedidoFecha').value,
+    items,
+    total,
+    status: 'Pedido'
+  });
+  saveData();
+  alert('Pedido guardado correctamente');
+  setTab('historial');
+}
+
+function renderHistorial(){
+  const q = (document.getElementById('buscarHistorial').value || '').toLowerCase();
+  const est = document.getElementById('filtroEstatus').value;
+  const filtered = data.pedidos.filter(o =>
+    (!q || o.proveedorNombre.toLowerCase().includes(q) || o.items.some(it => it.n.toLowerCase().includes(q))) &&
+    (!est || o.status === est)
+  );
+  const statusClass = s => ({'Pedido':'status-pedido','Entregado':'status-entregado','Parcial':'status-parcial','Cancelado':'status-cancelado'}[s] || '');
+  document.getElementById('tablaHistorial').innerHTML = filtered.length === 0
+    ? '<p class="text-gray-400 text-center py-12">No se encontraron pedidos</p>'
+    : `<div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-100"><tr>
+        <th class="text-left px-4 py-3 text-gray-500 font-semibold">Fecha</th>
+        <th class="text-left px-4 py-3 text-gray-500 font-semibold">Proveedor</th>
+        <th class="text-left px-4 py-3 text-gray-500 font-semibold hidden md:table-cell">Productos</th>
+        <th class="text-right px-4 py-3 text-gray-500 font-semibold">Total</th>
+        <th class="text-center px-4 py-3 text-gray-500 font-semibold">Estado</th>
+        <th class="px-4 py-3"></th>
+      </tr></thead>
+      <tbody>${filtered.map((o,i) => `<tr class="${i%2===0?'bg-white':'bg-gray-50'} hover:bg-purple-50 transition print-section">
+        <td class="px-4 py-3 font-semibold">${o.fecha}</td>
+        <td class="px-4 py-3">${o.proveedorNombre}</td>
+        <td class="px-4 py-3 hidden md:table-cell text-gray-500 text-xs">${o.items.map(it => it.n).join(', ')}</td>
+        <td class="px-4 py-3 text-right font-bold accent">$${o.total.toLocaleString('es-MX', {minimumFractionDigits:2})}</td>
+        <td class="px-4 py-3 text-center"><span class="text-xs font-semibold px-2 py-1 rounded-full ${statusClass(o.status)}">${o.status}</span></td>
+        <td class="px-4 py-3 text-center"><button onclick="cambiarEstado('${o.id}')" class="text-xs text-purple-600 hover:underline">Cambiar</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+function cambiarEstado(id){
+  const o = data.pedidos.find(p => p.id === id);
+  if(!o) return;
+  const nuevoEstado = prompt(`Estado actual: ${o.status}\nNuevo estado (Pedido / Entregado / Parcial / Cancelado):`, o.status);
+  if(!nuevoEstado) return;
+  const validos = ['Pedido','Entregado','Parcial','Cancelado'];
+  if(!validos.includes(nuevoEstado)){ alert('Estado no válido'); return; }
+  o.status = nuevoEstado;
+  saveData();
+  renderHistorial();
+}
+
+function populatePedidoSelect(){
+  const sel = document.getElementById('pedidoActualizarId');
+  sel.innerHTML = '<option value="">Seleccionar pedido...</option>' + data.pedidos.slice(0,10).map(o => `<option value="${o.id}">${o.fecha} — ${o.proveedorNombre}</option>`).join('');
+}
+
+function actualizarEstadoPedido(){
+  const id = document.getElementById('pedidoActualizarId').value;
+  const estado = document.getElementById('pedidoNuevoEstado').value;
+  if(!id){ alert('Selecciona un pedido'); return; }
+  const o = data.pedidos.find(p => p.id === id);
+  if(o){ o.status = estado; saveData(); alert('Estado actualizado'); closeModal('modalPedido'); }
+}
+
+function renderComparador(){
+  const q = (document.getElementById('buscarProductoComp').value || '').toLowerCase().trim();
+  const container = document.getElementById('resultadosComparador');
+  if(!q){ container.innerHTML = '<p class="text-gray-400 text-center py-8">Escribe el nombre de un producto para comparar precios</p>'; return; }
+  const resultados = [];
+  data.proveedores.forEach(p => {
+    p.productos.forEach(pr => {
+      if(pr.n.toLowerCase().includes(q)){
+        resultados.push({proveedor: p.nombre, producto: pr.n, precio: pr.p, calidad: p.calidad, pago: p.pago, whatsapp: p.whatsapp, provId: p.id});
+      }
+    });
+  });
+  if(!resultados.length){ container.innerHTML = '<p class="text-gray-400 text-center py-8">No se encontraron productos con ese nombre</p>'; return; }
+  resultados.sort((a,b) => a.precio - b.precio);
+  const pagoBadge = p => p === 'Contado' ? 'badge-contado' : p === '15 días' ? 'badge-15' : 'badge-30';
+  const stars = n => Array.from({length:5}, (_,i) => `<span class="${i < n ? 'star-filled' : 'star-empty'}">★</span>`).join('');
+  container.innerHTML = `<p class="text-sm text-gray-500 mb-3">${resultados.length} proveedor(es) ofrecen este producto</p>
+  <div class="space-y-2">${resultados.map((r,i) => `
+    <div class="flex items-center gap-3 p-4 rounded-xl border ${i===0 ? 'border-green-300 bg-green-50' : 'border-gray-100 bg-gray-50'}">
+      ${i===0 ? '<span class="text-green-600 text-lg">🏆</span>' : `<span class="text-gray-400 font-bold">#${i+1}</span>`}
+      <div class="flex-1">
+        <p class="font-semibold text-gray-800 text-sm">${r.proveedor}</p>
+        <p class="text-xs text-gray-500">${r.producto}</p>
+      </div>
+      <div class="text-right">
+        <p class="text-xl font-bold ${i===0 ? 'text-green-600' : 'accent'}">$${r.precio.toFixed(2)}</p>
+        <div class="flex items-center gap-1 text-xs justify-end">${stars(r.calidad)}</div>
+      </div>
+      <div class="hidden sm:flex flex-col items-end gap-1">
+        <span class="text-xs font-semibold px-2 py-1 rounded-full ${pagoBadge(r.pago)}">${r.pago}</span>
+        ${r.whatsapp ? `<a href="https://wa.me/${r.whatsapp}" target="_blank" class="text-xs text-green-600 hover:underline">📱 WA</a>` : ''}
+      </div>
+    </div>
+  `).join('')}</div>
+  ${resultados.length > 1 ? `<div class="mt-4 p-4 bg-purple-50 rounded-xl"><p class="text-sm font-semibold text-purple-700">💡 Ahorro potencial: <span class="text-xl">$${(resultados[resultados.length-1].precio - resultados[0].precio).toFixed(2)}</span> por unidad comprando en ${resultados[0].proveedor}</p></div>` : ''}`;
+}
+
+let chartInstance = null;
+function renderGastos(){
+  const gastosPorProv = {};
+  data.pedidos.filter(o => o.status === 'Entregado').forEach(o => {
+    gastosPorProv[o.proveedorNombre] = (gastosPorProv[o.proveedorNombre] || 0) + o.total;
+  });
+  const provs = Object.keys(gastosPorProv).sort((a,b) => gastosPorProv[b] - gastosPorProv[a]);
+  const gastos = provs.map(p => gastosPorProv[p]);
+  const total = gastos.reduce((s,g) => s+g, 0);
+
+  if(chartInstance) chartInstance.destroy();
+  const ctx = document.getElementById('chartGastos').getContext('2d');
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: provs.map(p => p.length > 20 ? p.substring(0,20)+'…' : p),
+      datasets: [{
+        label: 'Gasto MXN',
+        data: gastos,
+        backgroundColor: '#c4b5fd',
+        borderColor: '#7c3aed',
+        borderWidth: 2,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + ctx.raw.toLocaleString('es-MX') } } },
+      scales: { y: { ticks: { callback: v => '$' + v.toLocaleString('es-MX') } } }
+    }
+  });
+
+  document.getElementById('resumenGastos').innerHTML = provs.slice(0,6).map(p => `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <p class="text-xs text-gray-500 mb-1">${p}</p>
+      <p class="text-xl font-bold accent">$${gastosPorProv[p].toLocaleString('es-MX', {minimumFractionDigits:2})}</p>
+      <div class="w-full bg-gray-100 rounded-full h-2 mt-2">
+        <div class="accent-bg h-2 rounded-full" style="width:${Math.round(gastosPorProv[p]/total*100)}%"></div>
+      </div>
+      <p class="text-xs text-gray-400 mt-1">${Math.round(gastosPorProv[p]/total*100)}% del total</p>
+    </div>
+  `).join('');
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('footerYear').textContent = new Date().getFullYear();
+  loadData();
+  renderDirectorio();
+  document.querySelectorAll('.modal-backdrop').forEach(m => m.addEventListener('click', e => { if(e.target === m) m.classList.add('hidden'); }));
+});
+</script>
+</body>
+</html>

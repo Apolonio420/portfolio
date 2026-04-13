@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fichas Técnicas de Platillos</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .star-filled { color: #4f46e5; }
+  .star-empty { color: #d1d5db; }
+  .allergen-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    .print-card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+    .print-break { page-break-after: always; }
+    #main-grid { display: none !important; }
+    #dish-detail { display: block !important; position: static !important; }
+  }
+  .gradient-header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+  .card-hover { transition: all 0.2s ease; }
+  .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(79,70,229,0.15); }
+  .difficulty-star { font-size: 14px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  input, select, textarea { outline: none; }
+  input:focus, select:focus, textarea:focus { ring: 2px solid #4f46e5; }
+  .cost-bar { height: 6px; border-radius: 3px; background: #e5e7eb; }
+  .cost-fill { height: 100%; border-radius: 3px; }
+  #dish-detail { display: none; }
+  #dish-detail.active { display: block; }
+  .step-num { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; background: #4f46e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal-overlay.hidden { display: none; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Header -->
+<header class="gradient-header text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h1 class="text-2xl font-800 tracking-tight">Fichas Técnicas de Platillos</h1>
+        <p class="text-indigo-200 text-sm mt-0.5">Blueprint de cocina · Control de calidad y costo</p>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="openAddModal()" class="bg-white text-indigo-700 font-600 px-4 py-2 rounded-xl text-sm hover:bg-indigo-50 transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Nuevo Platillo
+        </button>
+        <button onclick="printBooklet()" class="bg-indigo-800 text-white font-600 px-4 py-2 rounded-xl text-sm hover:bg-indigo-900 transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          Imprimir Todo
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Filter Bar -->
+<div class="max-w-7xl mx-auto px-4 py-4 no-print">
+  <div class="flex gap-3 flex-wrap items-center">
+    <div class="flex-1 min-w-48 relative">
+      <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <input id="search-input" type="text" placeholder="Buscar platillo..." oninput="renderGrid()" class="pl-9 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-sm w-full focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
+    </div>
+    <select id="cat-filter" onchange="renderGrid()" class="px-4 py-2 rounded-xl border border-gray-200 bg-white text-sm focus:border-indigo-400">
+      <option value="">Todas las categorías</option>
+      <option>Entradas</option>
+      <option>Principales</option>
+      <option>Postres</option>
+      <option>Bebidas</option>
+      <option>Guarniciones</option>
+    </select>
+    <div id="stats-bar" class="text-sm text-gray-500 font-500"></div>
+  </div>
+</div>
+
+<!-- Main Grid -->
+<main id="main-grid" class="max-w-7xl mx-auto px-4 pb-12">
+  <div id="dishes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+</main>
+
+<!-- Dish Detail View -->
+<div id="dish-detail" class="max-w-5xl mx-auto px-4 pb-12">
+  <div id="detail-content" class="print-card bg-white rounded-2xl shadow-sm border border-gray-100"></div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="add-modal" class="modal-overlay hidden no-print">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-screen overflow-y-auto">
+    <div class="gradient-header text-white p-5 rounded-t-2xl flex justify-between items-center">
+      <h2 id="modal-title" class="text-lg font-700">Nuevo Platillo</h2>
+      <button onclick="closeModal()" class="hover:opacity-70">✕</button>
+    </div>
+    <form id="dish-form" class="p-5 space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <label class="block text-sm font-600 text-gray-700 mb-1">Nombre del Platillo *</label>
+          <input id="f-name" type="text" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="Chiles en Nogada" required>
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Categoría</label>
+          <select id="f-cat" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+            <option>Entradas</option><option>Principales</option><option>Postres</option><option>Bebidas</option><option>Guarniciones</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Dificultad (1-5)</label>
+          <input id="f-difficulty" type="number" min="1" max="5" value="3" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Tiempo Prep (min)</label>
+          <input id="f-prep" type="number" value="20" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Tiempo Cocción (min)</label>
+          <input id="f-cook" type="number" value="30" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Porciones por Tanda</label>
+          <input id="f-yield" type="number" value="4" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Precio Venta (MXN)</label>
+          <input id="f-price" type="number" value="180" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-600 text-gray-700 mb-1">Ingredientes (uno por línea: Nombre, gramos, costo_por_kg)</label>
+        <textarea id="f-ingredients" rows="6" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono text-xs" placeholder="Pollo, 200, 120&#10;Chile poblano, 150, 80&#10;Queso, 50, 200"></textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-600 text-gray-700 mb-1">Preparación (un paso por línea)</label>
+        <textarea id="f-steps" rows="5" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="Lavar y desvenar los chiles&#10;Preparar el relleno..."></textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-600 text-gray-700 mb-1">Emplatado (descripción de presentación)</label>
+        <textarea id="f-plating" rows="2" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="Colocar chile en plato blanco ovalado..."></textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-600 text-gray-700 mb-2">Alérgenos</label>
+        <div class="flex flex-wrap gap-2">
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="a-gluten" class="rounded"> Gluten</label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="a-dairy" class="rounded"> Lácteos</label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="a-nuts" class="rounded"> Nueces</label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="a-seafood" class="rounded"> Mariscos</label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="a-egg" class="rounded"> Huevo</label>
+          <label class="flex items-center gap-1.5 text-sm cursor-pointer"><input type="checkbox" id="a-soy" class="rounded"> Soya</label>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-600 text-gray-700 mb-1">Notas</label>
+        <textarea id="f-notes" rows="2" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="Notas especiales, variaciones, tips..."></textarea>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="flex-1 bg-indigo-600 text-white font-600 py-2.5 rounded-xl hover:bg-indigo-700 transition">Guardar</button>
+        <button type="button" onclick="closeModal()" class="px-6 border border-gray-200 rounded-xl text-sm font-600 hover:bg-gray-50 transition">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="bg-white border-t border-gray-100 py-4 text-center text-xs text-gray-400 no-print mt-8">
+  Powered by <span class="font-700 text-indigo-600">Novamente Studio</span> &copy; <span id="footer-year"></span>
+</footer>
+
+<script>
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+const DEMO_DISHES = [
+  {
+    id: 1, name: 'Chiles en Nogada', category: 'Principales', difficulty: 5,
+    prepTime: 45, cookTime: 30, yield: 6, price: 320,
+    plating: 'Servir el chile a temperatura ambiente sobre plato blanco. Bañar generosamente con nogada fría, decorar con granadas rojas y perejil picado. Presentación patriótica tricolor.',
+    allergens: { gluten: false, dairy: true, nuts: true, seafood: false, egg: false, soy: false },
+    notes: 'Temporada: agosto-septiembre. La nogada debe hacerse el mismo día. Servir a temperatura ambiente.',
+    steps: ['Remojar los chiles poblanos en agua con sal 10 min, retirar semillas y venas', 'Preparar picadillo: sofreír cebolla, ajo, jitomate, agregar carne molida', 'Agregar frutas en cubos: durazno, pera, manzana, plátano macho, pasitas y almendras', 'Rellenar los chiles con el picadillo y cerrar con palillo', 'Preparar nogada: licuar nuez de castilla fresca, queso de cabra, crema y jerez', 'Bañar los chiles con la nogada fría antes de servir', 'Decorar con granada roja y perejil fresco picado'],
+    ingredients: [
+      { name: 'Chile poblano', grams: 150, costPerKg: 60 },
+      { name: 'Carne molida mixta', grams: 200, costPerKg: 120 },
+      { name: 'Durazno', grams: 80, costPerKg: 45 },
+      { name: 'Pera', grams: 60, costPerKg: 40 },
+      { name: 'Nuez de castilla', grams: 50, costPerKg: 420 },
+      { name: 'Queso de cabra', grams: 60, costPerKg: 280 },
+      { name: 'Granada', grams: 40, costPerKg: 80 },
+      { name: 'Crema', grams: 80, costPerKg: 90 },
+    ]
+  },
+  {
+    id: 2, name: 'Mole Poblano', category: 'Principales', difficulty: 5,
+    prepTime: 60, cookTime: 90, yield: 8, price: 280,
+    plating: 'Pollo bañado en mole oscuro sobre arroz rojo. Ajonjolí tostado por encima. Servir en plato hondo de barro si es posible. Acompañar con tortillas calientes.',
+    allergens: { gluten: false, dairy: false, nuts: true, seafood: false, egg: false, soy: false },
+    notes: 'El mole puede prepararse con días de anticipación, mejora con el tiempo. Congelar excedente.',
+    steps: ['Tostar y desvenar chiles mulato, ancho y pasilla en comal seco', 'Sofreír en manteca: almendras, pasitas, plátano macho, jitomate, cebolla, ajo', 'Remojar los chiles 20 min en agua caliente, escurrir', 'Licuar todo en tandas hasta obtener pasta homogénea', 'Freír la pasta en cazuela con manteca caliente 10 min', 'Agregar caldo de pollo poco a poco, chocolate y especias', 'Cocinar a fuego bajo 45 min, sazonar'],
+    ingredients: [
+      { name: 'Chile mulato seco', grams: 80, costPerKg: 180 },
+      { name: 'Chile ancho seco', grams: 60, costPerKg: 160 },
+      { name: 'Chocolate mexicano', grams: 50, costPerKg: 150 },
+      { name: 'Almendras', grams: 40, costPerKg: 350 },
+      { name: 'Pollo muslo', grams: 250, costPerKg: 95 },
+      { name: 'Jitomate', grams: 100, costPerKg: 35 },
+      { name: 'Cebolla', grams: 80, costPerKg: 20 },
+      { name: 'Ajo', grams: 20, costPerKg: 80 },
+    ]
+  },
+  {
+    id: 3, name: 'Ceviche de Camarón', category: 'Entradas', difficulty: 2,
+    prepTime: 25, cookTime: 0, yield: 4, price: 200,
+    plating: 'Servir en copa martini o bowl de vidrio. Decorar con rebanadas de aguacate abanicadas, tostadas al costado. Limón fresco y salsa Tabasco a la mesa.',
+    allergens: { gluten: false, dairy: false, nuts: false, seafood: true, egg: false, soy: false },
+    notes: 'Usar camarón fresco del día. El ceviche debe consumirse en el mismo día. No congelar.',
+    steps: ['Limpiar y desvenar camarones, cortar en trozos medianos', 'Marinar en jugo de limón fresco por 20 minutos hasta opacarse', 'Picar finamente: cebolla morada, jitomate, pepino, chile serrano', 'Mezclar todo con el camarón, agregar cilantro fresco', 'Sazonar con sal, pimienta y salsa Tabasco', 'Refrigerar 10 minutos antes de servir con aguacate y tostadas'],
+    ingredients: [
+      { name: 'Camarón limpio', grams: 200, costPerKg: 280 },
+      { name: 'Jugo de limón', grams: 100, costPerKg: 50 },
+      { name: 'Jitomate', grams: 80, costPerKg: 35 },
+      { name: 'Cebolla morada', grams: 50, costPerKg: 25 },
+      { name: 'Aguacate', grams: 80, costPerKg: 65 },
+      { name: 'Pepino', grams: 60, costPerKg: 20 },
+      { name: 'Cilantro', grams: 15, costPerKg: 60 },
+      { name: 'Chile serrano', grams: 10, costPerKg: 45 },
+    ]
+  },
+  {
+    id: 4, name: 'Guacamole', category: 'Entradas', difficulty: 1,
+    prepTime: 10, cookTime: 0, yield: 4, price: 120,
+    plating: 'Servir en molcajete de piedra o bowl de barro. Decorar con rodajas de jitomate cherry y cilantro. Acompañar con totopos o tostadas artesanales.',
+    allergens: { gluten: false, dairy: false, nuts: false, seafood: false, egg: false, soy: false },
+    notes: 'Preparar al momento del pedido. Si se almacena, cubrir con plástico directo sobre la superficie para evitar oxidación.',
+    steps: ['Partir aguacates maduros a la mitad, retirar hueso', 'Machacar en molcajete hasta textura deseada (rústico o cremoso)', 'Agregar cebolla picada finamente, chile serrano y sal', 'Mezclar con jugo de limón y cilantro fresco', 'Probar y ajustar sazón'],
+    ingredients: [
+      { name: 'Aguacate Hass', grams: 200, costPerKg: 65 },
+      { name: 'Jitomate', grams: 50, costPerKg: 35 },
+      { name: 'Cebolla blanca', grams: 30, costPerKg: 20 },
+      { name: 'Chile serrano', grams: 10, costPerKg: 45 },
+      { name: 'Cilantro fresco', grams: 10, costPerKg: 60 },
+      { name: 'Jugo de limón', grams: 20, costPerKg: 50 },
+    ]
+  },
+  {
+    id: 5, name: 'Tacos al Pastor', category: 'Principales', difficulty: 3,
+    prepTime: 30, cookTime: 20, yield: 4, price: 160,
+    plating: 'Tres tacos por orden en plato oval. Doble tortilla de maíz chica. Trozos de piña fresca encima. Cebollita y cilantro. Salsa verde y roja al centro.',
+    allergens: { gluten: false, dairy: false, nuts: false, seafood: false, egg: false, soy: false },
+    notes: 'Marinar la carne mínimo 8 horas, idealmente 24 horas. El trompo requiere quemador especial.',
+    steps: ['Marinar cerdo en adobo: chiles guajillo/ancho licuados, achiote, vinagre, especias', 'Reposar en refrigeración 12-24 horas', 'Armar el trompo intercalando capas de carne y piña', 'Cocinar en trompo vertical o comal a fuego alto', 'Cortar en lascas con cuchillo o rebanar fino', 'Servir en tortilla doble con cebolla, cilantro y piña'],
+    ingredients: [
+      { name: 'Lomo de cerdo', grams: 200, costPerKg: 110 },
+      { name: 'Chile guajillo', grams: 20, costPerKg: 140 },
+      { name: 'Achiote', grams: 15, costPerKg: 120 },
+      { name: 'Piña', grams: 60, costPerKg: 30 },
+      { name: 'Tortilla de maíz', grams: 80, costPerKg: 25 },
+      { name: 'Cebolla', grams: 30, costPerKg: 20 },
+      { name: 'Cilantro', grams: 10, costPerKg: 60 },
+    ]
+  },
+  {
+    id: 6, name: 'Enchiladas Suizas', category: 'Principales', difficulty: 2,
+    prepTime: 20, cookTime: 25, yield: 4, price: 180,
+    plating: 'Tres enchiladas por porción en plato rectangular. Crema fresca en zigzag, queso gratinado dorado. Servir inmediatamente del horno. Decorar con cebolla morada.',
+    allergens: { gluten: false, dairy: true, nuts: false, seafood: false, egg: false, soy: false },
+    notes: 'El nombre "suizas" viene del queso gratinado. Pueden prepararse con anticipación y hornear al pedido.',
+    steps: ['Preparar salsa verde: tomate tomatillo, chiles, cebolla, ajo, cilantro', 'Deshebrachar el pollo cocido y sazonar con sal y comino', 'Calentar tortillas en comal para ablandar', 'Rellenar tortillas con pollo y enrollar', 'Colocar en refractario, bañar con salsa verde', 'Cubrir con crema y queso Chihuahua rallado', 'Hornear 180°C 15 min hasta gratinar'],
+    ingredients: [
+      { name: 'Tortilla de maíz', grams: 120, costPerKg: 25 },
+      { name: 'Pechuga de pollo', grams: 200, costPerKg: 95 },
+      { name: 'Tomatillo', grams: 150, costPerKg: 30 },
+      { name: 'Queso Chihuahua', grams: 80, costPerKg: 220 },
+      { name: 'Crema', grams: 60, costPerKg: 90 },
+      { name: 'Chile poblano', grams: 40, costPerKg: 60 },
+    ]
+  },
+  {
+    id: 7, name: 'Pozole Rojo', category: 'Principales', difficulty: 3,
+    prepTime: 30, cookTime: 120, yield: 8, price: 170,
+    plating: 'Servir en plato hondo o cazuela pequeña. Maíz cacahuazintle visible. Acompañamiento: tostadas, oregano, chile, cebolla, lechuga, rábanos en platos separados.',
+    allergens: { gluten: false, dairy: false, nuts: false, seafood: false, egg: false, soy: false },
+    notes: 'El pozole mejora al día siguiente. Preparar el caldo el día anterior. El maíz debe estar bien cocido (esponjado).',
+    steps: ['Cocer el maíz cacahuazintle 2-3 horas hasta florecer', 'Cocer la cabeza y pierna de cerdo en agua con cebolla, ajo y sal', 'Tostar y remojar chiles guajillo y ancho, licuar con ajo', 'Colar la salsa y freír en cazuela grande', 'Agregar el caldo del cerdo y el maíz cocido', 'Incorporar la carne deshebrada', 'Sazonar y cocinar 20 min más'],
+    ingredients: [
+      { name: 'Maíz cacahuazintle', grams: 200, costPerKg: 35 },
+      { name: 'Pierna de cerdo', grams: 250, costPerKg: 100 },
+      { name: 'Chile guajillo', grams: 30, costPerKg: 140 },
+      { name: 'Chile ancho', grams: 20, costPerKg: 160 },
+      { name: 'Cebolla', grams: 80, costPerKg: 20 },
+      { name: 'Ajo', grams: 20, costPerKg: 80 },
+    ]
+  },
+  {
+    id: 8, name: 'Flan Napolitano', category: 'Postres', difficulty: 3,
+    prepTime: 20, cookTime: 50, yield: 10, price: 95,
+    plating: 'Desmoldar en plato redondo blanco. El caramelo debe escurrir naturalmente por los lados. Decorar con una frambuesa o zest de naranja. Temperatura: frío.',
+    allergens: { gluten: false, dairy: true, nuts: false, seafood: false, egg: true, soy: false },
+    notes: 'Refrigerar mínimo 4 horas antes de desmoldar, idealmente toda la noche. El baño maría debe ser constante.',
+    steps: ['Preparar caramelo: azúcar en seco al fuego hasta ámbar, verter en molde', 'Licuar: leche evaporada, condensada, crema, huevos, vainilla y queso crema', 'Colar la mezcla y verter sobre el caramelo frío', 'Hornear en baño maría a 180°C por 50 minutos', 'Probar con palillo: debe salir limpio', 'Enfriar a temperatura ambiente y refrigerar toda la noche', 'Desmoldar pasando cuchillo por los bordes'],
+    ingredients: [
+      { name: 'Leche evaporada', grams: 360, costPerKg: 65 },
+      { name: 'Leche condensada', grams: 380, costPerKg: 70 },
+      { name: 'Queso crema', grams: 200, costPerKg: 180 },
+      { name: 'Huevo entero', grams: 150, costPerKg: 50 },
+      { name: 'Azúcar para caramelo', grams: 100, costPerKg: 25 },
+      { name: 'Vainilla', grams: 5, costPerKg: 800 },
+    ]
+  },
+  {
+    id: 9, name: 'Agua de Horchata', category: 'Bebidas', difficulty: 1,
+    prepTime: 15, cookTime: 0, yield: 8, price: 45,
+    plating: 'Servir en vaso alto con hielo. Decorar con palito de canela y rodaja de limón al borde. También puede servirse en jarras con hielo para la mesa.',
+    allergens: { gluten: false, dairy: false, nuts: false, seafood: false, egg: false, soy: false },
+    notes: 'El arroz debe remojarse mínimo 4 horas. Colar bien para eliminar residuos. No dejar más de 2 días refrigerada.',
+    steps: ['Remojar arroz con canela en agua tibia por 4 horas mínimo', 'Licuar el arroz remojado con su agua de remojo', 'Colar con tela fina hasta obtener líquido limpio', 'Mezclar con azúcar, leche y canela molida al gusto', 'Completar con agua fría hasta consistencia deseada', 'Refrigerar y servir muy frío con hielo'],
+    ingredients: [
+      { name: 'Arroz', grams: 200, costPerKg: 22 },
+      { name: 'Azúcar', grams: 150, costPerKg: 25 },
+      { name: 'Canela en raja', grams: 10, costPerKg: 280 },
+      { name: 'Leche', grams: 200, costPerKg: 18 },
+    ]
+  },
+  {
+    id: 10, name: 'Churros con Chocolate', category: 'Postres', difficulty: 2,
+    prepTime: 15, cookTime: 15, yield: 6, price: 90,
+    plating: 'Servir 5-6 churros en plato alargado espolvoreados con azúcar-canela. Taza pequeña de chocolate caliente para dipar al costado. Servir inmediatamente.',
+    allergens: { gluten: true, dairy: false, nuts: false, seafood: false, egg: true, soy: false },
+    notes: 'Freír en aceite a 180°C. Si el aceite está muy caliente los churros quedan crudos por dentro. Servir al momento.',
+    steps: ['Hervir agua con sal y manteca, agregar harina de golpe', 'Mover vigorosamente hasta formar masa que se despega de la olla', 'Enfriar 5 min y agregar huevos uno a uno batiendo', 'Cargar en manga con duya estrellada', 'Freír en aceite a 180°C formando tiras de 15 cm', 'Escurrir y pasar por azúcar con canela', 'Preparar chocolate caliente con leche, cacao y azúcar'],
+    ingredients: [
+      { name: 'Harina', grams: 200, costPerKg: 18 },
+      { name: 'Manteca', grams: 30, costPerKg: 55 },
+      { name: 'Huevo', grams: 100, costPerKg: 50 },
+      { name: 'Azúcar', grams: 60, costPerKg: 25 },
+      { name: 'Canela molida', grams: 5, costPerKg: 300 },
+      { name: 'Cacao en polvo', grams: 40, costPerKg: 180 },
+      { name: 'Aceite para freír', grams: 200, costPerKg: 32 },
+    ]
+  }
+];
+
+let dishes = [];
+let editingId = null;
+
+function loadData() {
+  const stored = localStorage.getItem('fichas_tecnicas_v1');
+  if (stored) {
+    dishes = JSON.parse(stored);
+  } else {
+    dishes = DEMO_DISHES;
+    saveData();
+  }
+}
+
+function saveData() {
+  localStorage.setItem('fichas_tecnicas_v1', JSON.stringify(dishes));
+}
+
+function calcIngredientCost(ingredients) {
+  return ingredients.reduce((sum, ing) => sum + (ing.grams * ing.costPerKg / 1000), 0);
+}
+
+function foodCostPct(dish) {
+  const cost = calcIngredientCost(dish.ingredients) / dish.yield;
+  return Math.round((cost / dish.price) * 100);
+}
+
+function stars(n, max = 5) {
+  let s = '';
+  for (let i = 1; i <= max; i++) {
+    s += `<span class="${i <= n ? 'star-filled' : 'star-empty'} difficulty-star">★</span>`;
+  }
+  return s;
+}
+
+function categoryColor(cat) {
+  const colors = {
+    'Entradas': 'bg-amber-100 text-amber-800',
+    'Principales': 'bg-indigo-100 text-indigo-800',
+    'Postres': 'bg-pink-100 text-pink-800',
+    'Bebidas': 'bg-sky-100 text-sky-800',
+    'Guarniciones': 'bg-green-100 text-green-800',
+  };
+  return colors[cat] || 'bg-gray-100 text-gray-700';
+}
+
+function fcColor(pct) {
+  if (pct <= 30) return 'bg-green-500';
+  if (pct <= 40) return 'bg-amber-500';
+  return 'bg-red-500';
+}
+
+function renderGrid() {
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const cat = document.getElementById('cat-filter').value;
+  let filtered = dishes.filter(d => {
+    const matchSearch = d.name.toLowerCase().includes(search);
+    const matchCat = !cat || d.category === cat;
+    return matchSearch && matchCat;
+  });
+
+  document.getElementById('stats-bar').textContent = `${filtered.length} platillo${filtered.length !== 1 ? 's' : ''}`;
+
+  const grid = document.getElementById('dishes-grid');
+  grid.innerHTML = filtered.map(d => {
+    const fc = foodCostPct(d);
+    const costPorcion = calcIngredientCost(d.ingredients) / d.yield;
+    return `
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm card-hover cursor-pointer overflow-hidden" onclick="showDetail(${d.id})">
+      <div class="gradient-header p-4">
+        <div class="flex justify-between items-start">
+          <span class="tag ${categoryColor(d.category)}">${d.category}</span>
+          <div class="flex gap-1 no-print">
+            <button onclick="event.stopPropagation(); editDish(${d.id})" class="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition" title="Editar">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            </button>
+            <button onclick="event.stopPropagation(); deleteDish(${d.id})" class="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition" title="Eliminar">
+              <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </div>
+        <h3 class="text-white font-700 text-lg mt-2 leading-tight">${d.name}</h3>
+        <div class="mt-1">${stars(d.difficulty)}</div>
+      </div>
+      <div class="p-4">
+        <div class="flex justify-between items-center text-sm mb-3">
+          <span class="text-gray-500">⏱ ${d.prepTime + d.cookTime} min total</span>
+          <span class="font-700 text-gray-800">$${d.price} MXN</span>
+        </div>
+        <div class="mb-1 flex justify-between text-xs">
+          <span class="text-gray-500">Costo de alimento</span>
+          <span class="font-700 ${fc <= 30 ? 'text-green-600' : fc <= 40 ? 'text-amber-600' : 'text-red-600'}">${fc}%</span>
+        </div>
+        <div class="cost-bar">
+          <div class="cost-fill ${fcColor(fc)}" style="width:${Math.min(fc,100)}%"></div>
+        </div>
+        <div class="mt-2 text-xs text-gray-400">Costo/porción: $${costPorcion.toFixed(2)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showDetail(id) {
+  const d = dishes.find(x => x.id === id);
+  if (!d) return;
+
+  document.getElementById('main-grid').style.display = 'none';
+  const det = document.getElementById('dish-detail');
+  det.classList.add('active');
+
+  const fc = foodCostPct(d);
+  const totalCost = calcIngredientCost(d.ingredients);
+  const costPerPortion = totalCost / d.yield;
+  const suggestedPrice = costPerPortion / 0.30;
+
+  const allergenList = [
+    { key: 'gluten', label: 'Gluten', color: 'bg-amber-100 text-amber-800' },
+    { key: 'dairy', label: 'Lácteos', color: 'bg-blue-100 text-blue-800' },
+    { key: 'nuts', label: 'Nueces', color: 'bg-orange-100 text-orange-800' },
+    { key: 'seafood', label: 'Mariscos', color: 'bg-teal-100 text-teal-800' },
+    { key: 'egg', label: 'Huevo', color: 'bg-yellow-100 text-yellow-800' },
+    { key: 'soy', label: 'Soya', color: 'bg-green-100 text-green-800' },
+  ];
+
+  const activeAllergens = allergenList.filter(a => d.allergens[a.key]);
+
+  det.querySelector('#detail-content').innerHTML = `
+    <div class="p-6">
+      <!-- Back + Actions -->
+      <div class="flex items-center justify-between mb-6 no-print">
+        <button onclick="backToGrid()" class="flex items-center gap-2 text-indigo-600 font-600 text-sm hover:text-indigo-800 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          Volver al listado
+        </button>
+        <div class="flex gap-2">
+          <button onclick="printDetail()" class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-600 hover:bg-indigo-700 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            Imprimir Ficha
+          </button>
+          <button onclick="editDish(${d.id})" class="flex items-center gap-2 border border-indigo-200 text-indigo-600 px-4 py-2 rounded-xl text-sm font-600 hover:bg-indigo-50 transition">
+            Editar
+          </button>
+        </div>
+      </div>
+
+      <!-- Header -->
+      <div class="gradient-header rounded-2xl p-6 mb-6 text-white">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <span class="tag bg-white/20 text-white text-xs mb-2 inline-block">${d.category}</span>
+            <h2 class="text-3xl font-800">${d.name}</h2>
+            <div class="flex items-center gap-4 mt-2 text-indigo-200 text-sm">
+              <span>Dificultad: ${stars(d.difficulty)}</span>
+              <span>⏱ Prep: ${d.prepTime} min</span>
+              <span>🔥 Cocción: ${d.cookTime} min</span>
+              <span>🍽 ${d.yield} porciones</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-3xl font-800">$${d.price}</div>
+            <div class="text-indigo-200 text-sm">precio de venta MXN</div>
+          </div>
+        </div>
+        ${activeAllergens.length > 0 ? `<div class="mt-3 flex flex-wrap gap-2">
+          ${activeAllergens.map(a => `<span class="allergen-badge bg-white/25 text-white">⚠ ${a.label}</span>`).join('')}
+        </div>` : '<div class="mt-3 text-indigo-200 text-sm">✓ Sin alérgenos principales declarados</div>'}
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <!-- Left: Ingredients + Steps -->
+        <div class="lg:col-span-3 space-y-6">
+          <!-- Ingredients -->
+          <div>
+            <h3 class="font-700 text-gray-800 text-lg mb-3 flex items-center gap-2">
+              <span class="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 text-sm">🧾</span>
+              Ingredientes
+            </h3>
+            <div class="overflow-x-auto rounded-xl border border-gray-100">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="text-left px-4 py-3 font-600 text-gray-600">Ingrediente</th>
+                    <th class="text-right px-4 py-3 font-600 text-gray-600">Gramos</th>
+                    <th class="text-right px-4 py-3 font-600 text-gray-600">$/kg</th>
+                    <th class="text-right px-4 py-3 font-600 text-gray-600">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${d.ingredients.map((ing, i) => {
+                    const sub = ing.grams * ing.costPerKg / 1000;
+                    return `<tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}">
+                      <td class="px-4 py-2.5 text-gray-800 font-500">${ing.name}</td>
+                      <td class="px-4 py-2.5 text-gray-600 text-right">${ing.grams}g</td>
+                      <td class="px-4 py-2.5 text-gray-500 text-right">$${ing.costPerKg}</td>
+                      <td class="px-4 py-2.5 text-gray-800 font-600 text-right">$${sub.toFixed(2)}</td>
+                    </tr>`;
+                  }).join('')}
+                  <tr class="bg-indigo-50 border-t-2 border-indigo-200">
+                    <td colspan="3" class="px-4 py-3 font-700 text-indigo-800">TOTAL TANDA (${d.yield} porciones)</td>
+                    <td class="px-4 py-3 font-800 text-indigo-800 text-right">$${totalCost.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Steps -->
+          <div>
+            <h3 class="font-700 text-gray-800 text-lg mb-3 flex items-center gap-2">
+              <span class="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 text-sm">📋</span>
+              Preparación
+            </h3>
+            <div class="space-y-3">
+              ${d.steps.map((step, i) => `
+              <div class="flex gap-3 items-start">
+                <div class="step-num">${i + 1}</div>
+                <p class="text-gray-700 text-sm pt-1 leading-relaxed">${step}</p>
+              </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Cost Analysis + Plating + Notes -->
+        <div class="lg:col-span-2 space-y-5">
+          <!-- Cost Analysis -->
+          <div class="bg-gradient-to-br from-indigo-50 to-violet-50 rounded-2xl p-5 border border-indigo-100">
+            <h3 class="font-700 text-gray-800 mb-4 flex items-center gap-2">
+              <span>💰</span> Análisis de Costo
+            </h3>
+            <div class="space-y-3">
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">Costo total tanda</span>
+                <span class="font-700 text-gray-800">$${totalCost.toFixed(2)}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">Costo por porción</span>
+                <span class="font-700 text-gray-800">$${costPerPortion.toFixed(2)}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">Precio de venta</span>
+                <span class="font-700 text-gray-800">$${d.price}</span>
+              </div>
+              <div class="h-px bg-indigo-200"></div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">Costo de alimento</span>
+                <span class="font-800 text-lg ${fc <= 30 ? 'text-green-600' : fc <= 40 ? 'text-amber-600' : 'text-red-600'}">${fc}%</span>
+              </div>
+              <div class="cost-bar">
+                <div class="cost-fill ${fcColor(fc)}" style="width:${Math.min(fc,100)}%"></div>
+              </div>
+              <div class="text-xs text-gray-500">Meta: ≤30% costo de alimento</div>
+              <div class="flex justify-between items-center pt-1">
+                <span class="text-sm text-gray-600">Precio sugerido (30%FC)</span>
+                <span class="font-700 text-indigo-700">$${suggestedPrice.toFixed(0)}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-sm text-gray-600">Margen bruto</span>
+                <span class="font-700 text-green-600">$${(d.price - costPerPortion).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Plating -->
+          <div class="bg-white rounded-2xl p-5 border border-gray-100">
+            <h3 class="font-700 text-gray-800 mb-3 flex items-center gap-2">
+              <span>🍽</span> Emplatado
+            </h3>
+            <p class="text-gray-600 text-sm leading-relaxed">${d.plating}</p>
+          </div>
+
+          <!-- Allergens -->
+          <div class="bg-white rounded-2xl p-5 border border-gray-100">
+            <h3 class="font-700 text-gray-800 mb-3 flex items-center gap-2">
+              <span>⚠️</span> Alérgenos
+            </h3>
+            <div class="flex flex-wrap gap-2">
+              ${allergenList.map(a => `<span class="allergen-badge ${d.allergens[a.key] ? a.color : 'bg-gray-100 text-gray-400 line-through'}">${a.label}</span>`).join('')}
+            </div>
+          </div>
+
+          <!-- Notes -->
+          ${d.notes ? `<div class="bg-amber-50 rounded-2xl p-5 border border-amber-100">
+            <h3 class="font-700 text-amber-800 mb-2 flex items-center gap-2"><span>📌</span> Notas</h3>
+            <p class="text-amber-700 text-sm leading-relaxed">${d.notes}</p>
+          </div>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function backToGrid() {
+  document.getElementById('main-grid').style.display = '';
+  document.getElementById('dish-detail').classList.remove('active');
+  renderGrid();
+}
+
+function printDetail() {
+  document.getElementById('main-grid').style.display = 'none';
+  window.print();
+  document.getElementById('main-grid').style.display = '';
+}
+
+function printBooklet() {
+  alert('Imprimiendo recetario completo...\nSe abrirá el diálogo de impresión. Selecciona "Guardar como PDF" para exportar el libro de fichas.');
+  window.print();
+}
+
+function openAddModal(id = null) {
+  editingId = id;
+  const d = id ? dishes.find(x => x.id === id) : null;
+  document.getElementById('modal-title').textContent = d ? 'Editar Platillo' : 'Nuevo Platillo';
+  document.getElementById('f-name').value = d ? d.name : '';
+  document.getElementById('f-cat').value = d ? d.category : 'Principales';
+  document.getElementById('f-difficulty').value = d ? d.difficulty : 3;
+  document.getElementById('f-prep').value = d ? d.prepTime : 20;
+  document.getElementById('f-cook').value = d ? d.cookTime : 30;
+  document.getElementById('f-yield').value = d ? d.yield : 4;
+  document.getElementById('f-price').value = d ? d.price : 180;
+  document.getElementById('f-ingredients').value = d ? d.ingredients.map(i => `${i.name}, ${i.grams}, ${i.costPerKg}`).join('\n') : '';
+  document.getElementById('f-steps').value = d ? d.steps.join('\n') : '';
+  document.getElementById('f-plating').value = d ? d.plating : '';
+  document.getElementById('f-notes').value = d ? d.notes : '';
+  document.getElementById('a-gluten').checked = d ? d.allergens.gluten : false;
+  document.getElementById('a-dairy').checked = d ? d.allergens.dairy : false;
+  document.getElementById('a-nuts').checked = d ? d.allergens.nuts : false;
+  document.getElementById('a-seafood').checked = d ? d.allergens.seafood : false;
+  document.getElementById('a-egg').checked = d ? d.allergens.egg : false;
+  document.getElementById('a-soy').checked = d ? d.allergens.soy : false;
+  document.getElementById('add-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('add-modal').classList.add('hidden');
+  editingId = null;
+}
+
+function editDish(id) {
+  backToGrid();
+  openAddModal(id);
+}
+
+function deleteDish(id) {
+  if (!confirm('¿Eliminar este platillo?')) return;
+  dishes = dishes.filter(d => d.id !== id);
+  saveData();
+  renderGrid();
+}
+
+document.getElementById('dish-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const ingredients = document.getElementById('f-ingredients').value.split('\n')
+    .map(line => line.trim()).filter(Boolean)
+    .map(line => {
+      const parts = line.split(',').map(s => s.trim());
+      return { name: parts[0] || '', grams: parseFloat(parts[1]) || 0, costPerKg: parseFloat(parts[2]) || 0 };
+    });
+  const steps = document.getElementById('f-steps').value.split('\n').map(s => s.trim()).filter(Boolean);
+
+  const dish = {
+    id: editingId || Date.now(),
+    name: document.getElementById('f-name').value,
+    category: document.getElementById('f-cat').value,
+    difficulty: parseInt(document.getElementById('f-difficulty').value),
+    prepTime: parseInt(document.getElementById('f-prep').value),
+    cookTime: parseInt(document.getElementById('f-cook').value),
+    yield: parseInt(document.getElementById('f-yield').value),
+    price: parseFloat(document.getElementById('f-price').value),
+    ingredients,
+    steps,
+    plating: document.getElementById('f-plating').value,
+    notes: document.getElementById('f-notes').value,
+    allergens: {
+      gluten: document.getElementById('a-gluten').checked,
+      dairy: document.getElementById('a-dairy').checked,
+      nuts: document.getElementById('a-nuts').checked,
+      seafood: document.getElementById('a-seafood').checked,
+      egg: document.getElementById('a-egg').checked,
+      soy: document.getElementById('a-soy').checked,
+    }
+  };
+
+  if (editingId) {
+    dishes = dishes.map(d => d.id === editingId ? dish : d);
+  } else {
+    dishes.push(dish);
+  }
+  saveData();
+  closeModal();
+  renderGrid();
+});
+
+loadData();
+renderGrid();
+</script>
+</body>
+</html>

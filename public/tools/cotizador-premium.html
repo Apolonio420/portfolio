@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotizador Profesional | Novamente Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: {
+            colors: { primary: '#1e40af', 'primary-dark': '#1e3a8a', 'primary-light': '#eff6ff', secondary: '#0f172a', accent: '#f59e0b' },
+            fontFamily: { sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'] }
+        }}}
+    </script>
+    <style>
+        * { scroll-behavior: smooth; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
+        .tab-active { border-bottom: 3px solid #1e40af; color: #1e40af; font-weight: 700; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; font-size: 11px; }
+            .print-area { display: block !important; padding: 0; margin: 0; }
+            .print-header { display: flex !important; }
+        }
+        .item-row:hover { background: #f8fafc; }
+    </style>
+</head>
+<body class="font-sans bg-gray-50 text-secondary min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-white border-b shadow-sm sticky top-0 z-40 no-print">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold" id="header-name">Cotizador Profesional</h1>
+                <p class="text-xs text-gray-500">Presupuestos y cotizaciones</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="newQuote()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary-dark">+ Nueva Cotización</button>
+        </div>
+    </div>
+</header>
+
+<!-- TABS -->
+<div class="bg-white border-b no-print">
+    <div class="max-w-5xl mx-auto px-4 flex gap-6">
+        <button onclick="showTab('editor')" class="py-3 text-sm tab-active" data-tab="editor">Cotización</button>
+        <button onclick="showTab('history')" class="py-3 text-sm text-gray-500" data-tab="history">Historial</button>
+        <button onclick="showTab('catalog')" class="py-3 text-sm text-gray-500" data-tab="catalog">Catálogo</button>
+        <button onclick="showTab('settings')" class="py-3 text-sm text-gray-500" data-tab="settings">Config</button>
+    </div>
+</div>
+
+<!-- ═══ EDITOR ═══ -->
+<div id="tab-editor" class="max-w-5xl mx-auto px-4 py-6 fade-in">
+    <!-- Business + Client info -->
+    <div class="grid sm:grid-cols-2 gap-4 mb-6">
+        <div class="bg-white rounded-2xl border p-5">
+            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Tu negocio</h3>
+            <div class="text-lg font-bold" id="q-biz-name"></div>
+            <div class="text-sm text-gray-500" id="q-biz-info"></div>
+        </div>
+        <div class="bg-white rounded-2xl border p-5">
+            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Cliente</h3>
+            <div class="space-y-2">
+                <input type="text" id="q-client-name" placeholder="Nombre del cliente" class="w-full border-b px-1 py-1 text-sm outline-none focus:border-primary" onchange="autoSaveQuote()">
+                <input type="tel" id="q-client-phone" placeholder="Teléfono" class="w-full border-b px-1 py-1 text-sm outline-none focus:border-primary" onchange="autoSaveQuote()">
+                <input type="text" id="q-client-email" placeholder="Email (opcional)" class="w-full border-b px-1 py-1 text-sm outline-none focus:border-primary" onchange="autoSaveQuote()">
+                <input type="text" id="q-client-addr" placeholder="Dirección (opcional)" class="w-full border-b px-1 py-1 text-sm outline-none focus:border-primary" onchange="autoSaveQuote()">
+            </div>
+        </div>
+    </div>
+
+    <!-- Quote number + date -->
+    <div class="flex justify-between items-center mb-4">
+        <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500">Cotización #</span>
+            <span class="font-bold text-primary" id="q-number"></span>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500">Fecha:</span>
+            <input type="date" id="q-date" class="border rounded-lg px-3 py-1 text-sm outline-none" onchange="autoSaveQuote()">
+            <span class="text-sm text-gray-500 ml-2">Válida hasta:</span>
+            <input type="date" id="q-valid" class="border rounded-lg px-3 py-1 text-sm outline-none" onchange="autoSaveQuote()">
+        </div>
+    </div>
+
+    <!-- Items table -->
+    <div class="bg-white rounded-2xl border overflow-hidden mb-4">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 text-gray-500 text-xs uppercase">
+                    <th class="p-3 text-left w-8">#</th>
+                    <th class="p-3 text-left">Descripción</th>
+                    <th class="p-3 text-center w-20">Cant.</th>
+                    <th class="p-3 text-center w-20">Unidad</th>
+                    <th class="p-3 text-right w-28">P. Unitario</th>
+                    <th class="p-3 text-right w-28">Subtotal</th>
+                    <th class="p-3 text-center w-16 no-print"></th>
+                </tr>
+            </thead>
+            <tbody id="q-items"></tbody>
+        </table>
+
+        <!-- Add item row -->
+        <div class="p-3 border-t flex gap-2 no-print">
+            <button onclick="addItemRow()" class="text-primary text-sm font-semibold hover:underline">+ Agregar línea</button>
+            <span class="text-gray-300">|</span>
+            <button onclick="showCatalogPicker()" class="text-accent text-sm font-semibold hover:underline">Agregar del catálogo</button>
+        </div>
+    </div>
+
+    <!-- Totals -->
+    <div class="flex justify-end mb-6">
+        <div class="w-72 bg-white rounded-2xl border p-4 space-y-2">
+            <div class="flex justify-between text-sm"><span class="text-gray-500">Subtotal:</span><span class="font-semibold" id="q-subtotal">$0.00</span></div>
+            <div class="flex justify-between text-sm items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-500">IVA</span>
+                    <select id="q-tax-rate" onchange="recalculate()" class="border rounded px-2 py-0.5 text-xs">
+                        <option value="0.16" selected>16%</option>
+                        <option value="0.08">8%</option>
+                        <option value="0">Sin IVA</option>
+                    </select>
+                </div>
+                <span class="font-semibold" id="q-tax">$0.00</span>
+            </div>
+            <div class="flex justify-between text-sm items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-500">Descuento</span>
+                    <input type="number" id="q-discount" value="0" min="0" onchange="recalculate()" class="border rounded px-2 py-0.5 text-xs w-16 outline-none text-right">
+                    <select id="q-discount-type" onchange="recalculate()" class="border rounded px-1 py-0.5 text-xs">
+                        <option value="pct">%</option>
+                        <option value="fixed">$</option>
+                    </select>
+                </div>
+                <span class="font-semibold text-green-600" id="q-discount-amt">-$0.00</span>
+            </div>
+            <div class="border-t pt-2 flex justify-between"><span class="font-bold text-lg">Total:</span><span class="font-bold text-lg text-primary" id="q-total">$0.00</span></div>
+        </div>
+    </div>
+
+    <!-- Notes + Terms -->
+    <div class="grid sm:grid-cols-2 gap-4 mb-6">
+        <div class="bg-white rounded-2xl border p-4">
+            <label class="text-xs font-bold text-gray-400 uppercase">Notas</label>
+            <textarea id="q-notes" rows="3" class="w-full mt-1 text-sm outline-none resize-none" placeholder="Notas adicionales..." onchange="autoSaveQuote()"></textarea>
+        </div>
+        <div class="bg-white rounded-2xl border p-4">
+            <label class="text-xs font-bold text-gray-400 uppercase">Condiciones de pago</label>
+            <textarea id="q-terms" rows="3" class="w-full mt-1 text-sm outline-none resize-none" onchange="autoSaveQuote()">50% de anticipo al aceptar la cotización.
+50% restante contra entrega del trabajo.
+Precios en pesos mexicanos (MXN).
+Cotización válida por 15 días.</textarea>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-3 no-print">
+        <button onclick="printQuote()" class="bg-primary text-white px-6 py-3 rounded-xl font-semibold hover:bg-primary-dark flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659"/></svg>
+            Imprimir / PDF
+        </button>
+        <button onclick="sendQuoteWA()" class="bg-[#25D366] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#20b858] flex items-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+            Enviar por WhatsApp
+        </button>
+        <button onclick="saveQuoteStatus('sent')" class="border px-6 py-3 rounded-xl font-semibold hover:bg-gray-50">Marcar como enviada</button>
+    </div>
+</div>
+
+<!-- ═══ HISTORY ═══ -->
+<div id="tab-history" class="hidden max-w-5xl mx-auto px-4 py-6 fade-in">
+    <h2 class="text-xl font-bold mb-4">Historial de cotizaciones</h2>
+    <div id="history-list"></div>
+</div>
+
+<!-- ═══ CATALOG ═══ -->
+<div id="tab-catalog" class="hidden max-w-4xl mx-auto px-4 py-6 fade-in">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold">Catálogo de servicios y materiales</h2>
+        <button onclick="addCatalogItem()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Agregar</button>
+    </div>
+    <div id="catalog-list"></div>
+</div>
+
+<!-- ═══ SETTINGS ═══ -->
+<div id="tab-settings" class="hidden max-w-md mx-auto px-4 py-6 fade-in">
+    <h2 class="text-xl font-bold mb-4">Datos de tu negocio</h2>
+    <div class="bg-white rounded-2xl border p-6 space-y-3">
+        <div><label class="text-sm font-semibold">Nombre / Razón social</label><input type="text" id="s-name" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+        <div><label class="text-sm font-semibold">RFC</label><input type="text" id="s-rfc" placeholder="XAXX010101000" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+        <div><label class="text-sm font-semibold">Dirección</label><input type="text" id="s-addr" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+        <div><label class="text-sm font-semibold">Teléfono / WhatsApp</label><input type="text" id="s-phone" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+        <div><label class="text-sm font-semibold">Email</label><input type="text" id="s-email" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+        <div><label class="text-sm font-semibold">Prefijo de cotización</label><input type="text" id="s-prefix" placeholder="COT" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+        <button onclick="saveSettings()" class="bg-primary text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-primary-dark w-full">Guardar</button>
+    </div>
+</div>
+
+<!-- Catalog picker modal -->
+<div id="modal-catalog" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto fade-in">
+        <h3 class="text-lg font-bold mb-4">Agregar del catálogo</h3>
+        <input type="text" id="cat-search" placeholder="Buscar..." oninput="renderCatalogPicker()" class="w-full border rounded-xl px-4 py-2 mb-3 outline-none focus:ring-2 focus:ring-primary">
+        <div id="cat-picker-list"></div>
+        <button onclick="document.getElementById('modal-catalog').classList.add('hidden')" class="mt-4 w-full border rounded-xl py-2.5 font-semibold hover:bg-gray-50">Cerrar</button>
+    </div>
+</div>
+
+<footer class="text-center py-4 text-xs text-gray-400 border-t mt-8 no-print">
+    <a href="https://novamentestudio.com" class="hover:text-gray-600">Powered by Novamente Studio</a>
+</footer>
+
+<script>
+// ═══ DATA ═══
+const DEF_BIZ = { name:"Taller Automotriz El Pistón", rfc:"TAEP850101XY0", address:"Av. Ermita Iztapalapa 1456, Iztapalapa, CDMX", phone:"5215512345678", email:"taller@elpiston.com", prefix:"COT" };
+const DEF_CATALOG = [
+    { id:1, name:"Cambio de aceite", cat:"Servicio", unit:"servicio", price:450, desc:"Aceite sintético 5W-30 + filtro" },
+    { id:2, name:"Cambio de pastillas de freno", cat:"Servicio", unit:"eje", price:850, desc:"Pastillas cerámicas + revisión de discos" },
+    { id:3, name:"Cambio de discos de freno", cat:"Servicio", unit:"par", price:1800, desc:"Discos ventilados + instalación" },
+    { id:4, name:"Alineación y balanceo", cat:"Servicio", unit:"servicio", price:550, desc:"4 ruedas, equipo computarizado" },
+    { id:5, name:"Cambio de amortiguadores", cat:"Servicio", unit:"par", price:2400, desc:"Amortiguadores Monroe + instalación" },
+    { id:6, name:"Scanner diagnóstico", cat:"Servicio", unit:"servicio", price:350, desc:"Lectura y borrado de códigos OBD-II" },
+    { id:7, name:"Recarga de A/C", cat:"Servicio", unit:"servicio", price:950, desc:"Gas R-134a + revisión de fugas" },
+    { id:8, name:"Bujías (juego 4)", cat:"Refacción", unit:"juego", price:380, desc:"Bujías NGK iridio" },
+    { id:9, name:"Filtro de aire", cat:"Refacción", unit:"pieza", price:250, desc:"Filtro de alto flujo" },
+    { id:10, name:"Banda de distribución", cat:"Refacción", unit:"kit", price:1200, desc:"Kit completo con tensor y bomba de agua" },
+    { id:11, name:"Aceite sintético 5W-30 (4L)", cat:"Material", unit:"galón", price:480, desc:"Mobil 1 o equivalente" },
+    { id:12, name:"Líquido de frenos DOT4", cat:"Material", unit:"litro", price:150, desc:"Castrol o equivalente" },
+    { id:13, name:"Mano de obra (hora)", cat:"Mano de obra", unit:"hora", price:350, desc:"Mecánico especialista" },
+    { id:14, name:"Mano de obra (media hora)", cat:"Mano de obra", unit:"servicio", price:200, desc:"Trabajos rápidos" },
+    { id:15, name:"Grúa / remolque", cat:"Servicio", unit:"servicio", price:800, desc:"Servicio de grúa dentro de CDMX" },
+];
+
+let biz = JSON.parse(localStorage.getItem('cot_biz')) || DEF_BIZ;
+let catalog = JSON.parse(localStorage.getItem('cot_catalog')) || DEF_CATALOG;
+let quotes = JSON.parse(localStorage.getItem('cot_quotes')) || [];
+let currentQuote = null;
+
+function save() { localStorage.setItem('cot_biz',JSON.stringify(biz)); localStorage.setItem('cot_catalog',JSON.stringify(catalog)); localStorage.setItem('cot_quotes',JSON.stringify(quotes)); }
+function today() { return new Date().toISOString().split('T')[0]; }
+function fmtDate(d) { return d ? new Date(d+'T12:00').toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}) : ''; }
+function fmtMoney(n) { return '$' + (n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function genQuoteNumber() {
+    const year = new Date().getFullYear();
+    const existing = quotes.filter(q => q.number?.startsWith(`${biz.prefix}-${year}`));
+    const seq = existing.length + 1;
+    return `${biz.prefix}-${year}-${String(seq).padStart(3,'0')}`;
+}
+
+// ═══ TABS ═══
+function showTab(tab) {
+    ['editor','history','catalog','settings'].forEach(t => {
+        document.getElementById('tab-'+t)?.classList.toggle('hidden', t!==tab);
+        document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('tab-active', t===tab);
+        document.querySelector(`[data-tab="${t}"]`)?.classList.toggle('text-gray-500', t!==tab);
+    });
+    if (tab==='history') renderHistory();
+    if (tab==='catalog') renderCatalog();
+    if (tab==='settings') loadSettings();
+}
+
+// ═══ QUOTE EDITOR ═══
+function newQuote() {
+    currentQuote = {
+        id: Date.now(), number: genQuoteNumber(), date: today(),
+        validUntil: (() => { const d=new Date(); d.setDate(d.getDate()+15); return d.toISOString().split('T')[0]; })(),
+        client: { name:'', phone:'', email:'', address:'' },
+        items: [], taxRate: 0.16, discount: 0, discountType: 'pct',
+        notes: '', terms: '50% de anticipo al aceptar la cotización.\n50% restante contra entrega del trabajo.\nPrecios en pesos mexicanos (MXN).\nCotización válida por 15 días.',
+        status: 'draft', created: new Date().toISOString()
+    };
+    showTab('editor');
+    loadQuoteIntoEditor();
+}
+
+function loadQuoteIntoEditor() {
+    if (!currentQuote) { newQuote(); return; }
+    const q = currentQuote;
+    document.getElementById('q-biz-name').textContent = biz.name;
+    document.getElementById('q-biz-info').innerHTML = `${biz.rfc}<br>${biz.address}<br>${biz.phone} · ${biz.email}`;
+    document.getElementById('q-number').textContent = q.number;
+    document.getElementById('q-date').value = q.date;
+    document.getElementById('q-valid').value = q.validUntil;
+    document.getElementById('q-client-name').value = q.client.name;
+    document.getElementById('q-client-phone').value = q.client.phone;
+    document.getElementById('q-client-email').value = q.client.email;
+    document.getElementById('q-client-addr').value = q.client.address;
+    document.getElementById('q-notes').value = q.notes;
+    document.getElementById('q-terms').value = q.terms;
+    document.getElementById('q-tax-rate').value = q.taxRate;
+    document.getElementById('q-discount').value = q.discount;
+    document.getElementById('q-discount-type').value = q.discountType;
+    renderItems();
+}
+
+function renderItems() {
+    const tbody = document.getElementById('q-items');
+    tbody.innerHTML = currentQuote.items.map((item, i) => `
+        <tr class="item-row border-t">
+            <td class="p-2 text-center text-gray-400">${i+1}</td>
+            <td class="p-2"><input type="text" value="${item.desc}" onchange="updateItem(${i},'desc',this.value)" class="w-full outline-none text-sm" placeholder="Descripción"></td>
+            <td class="p-2"><input type="number" value="${item.qty}" onchange="updateItem(${i},'qty',parseFloat(this.value)||0)" class="w-full outline-none text-sm text-center" min="0" step="0.5"></td>
+            <td class="p-2"><input type="text" value="${item.unit}" onchange="updateItem(${i},'unit',this.value)" class="w-full outline-none text-sm text-center" placeholder="pza"></td>
+            <td class="p-2"><input type="number" value="${item.price}" onchange="updateItem(${i},'price',parseFloat(this.value)||0)" class="w-full outline-none text-sm text-right" min="0" step="0.01"></td>
+            <td class="p-2 text-right font-semibold">${fmtMoney(item.qty * item.price)}</td>
+            <td class="p-2 text-center no-print"><button onclick="removeItem(${i})" class="text-red-400 hover:text-red-600">&times;</button></td>
+        </tr>
+    `).join('');
+    recalculate();
+}
+
+function addItemRow() {
+    currentQuote.items.push({ desc:'', qty:1, unit:'servicio', price:0 });
+    renderItems();
+    // Focus last description input
+    setTimeout(() => { const inputs = document.querySelectorAll('#q-items input[type="text"]'); inputs[inputs.length-4]?.focus(); }, 50);
+}
+
+function addFromCatalog(catId) {
+    const c = catalog.find(x=>x.id===catId);
+    if (c) {
+        currentQuote.items.push({ desc: c.name + (c.desc ? ` — ${c.desc}` : ''), qty: 1, unit: c.unit, price: c.price });
+        renderItems();
+    }
+}
+
+function updateItem(i, field, value) { currentQuote.items[i][field] = value; recalculate(); autoSaveQuote(); }
+function removeItem(i) { currentQuote.items.splice(i, 1); renderItems(); }
+
+function recalculate() {
+    const subtotal = currentQuote.items.reduce((s,i) => s + i.qty * i.price, 0);
+    const taxRate = parseFloat(document.getElementById('q-tax-rate').value);
+    const discount = parseFloat(document.getElementById('q-discount').value) || 0;
+    const discountType = document.getElementById('q-discount-type').value;
+    const discountAmt = discountType === 'pct' ? subtotal * discount / 100 : discount;
+    const taxable = subtotal - discountAmt;
+    const tax = taxable * taxRate;
+    const total = taxable + tax;
+
+    document.getElementById('q-subtotal').textContent = fmtMoney(subtotal);
+    document.getElementById('q-tax').textContent = fmtMoney(tax);
+    document.getElementById('q-discount-amt').textContent = `-${fmtMoney(discountAmt)}`;
+    document.getElementById('q-total').textContent = fmtMoney(total);
+
+    currentQuote.taxRate = taxRate;
+    currentQuote.discount = discount;
+    currentQuote.discountType = discountType;
+}
+
+function autoSaveQuote() {
+    if (!currentQuote) return;
+    currentQuote.client = {
+        name: document.getElementById('q-client-name').value,
+        phone: document.getElementById('q-client-phone').value,
+        email: document.getElementById('q-client-email').value,
+        address: document.getElementById('q-client-addr').value,
+    };
+    currentQuote.date = document.getElementById('q-date').value;
+    currentQuote.validUntil = document.getElementById('q-valid').value;
+    currentQuote.notes = document.getElementById('q-notes').value;
+    currentQuote.terms = document.getElementById('q-terms').value;
+
+    const idx = quotes.findIndex(q => q.id === currentQuote.id);
+    if (idx >= 0) quotes[idx] = currentQuote;
+    else quotes.push(currentQuote);
+    save();
+}
+
+function saveQuoteStatus(status) {
+    currentQuote.status = status;
+    autoSaveQuote();
+    alert(`Cotización marcada como: ${status}`);
+}
+
+function printQuote() { autoSaveQuote(); window.print(); }
+
+function sendQuoteWA() {
+    autoSaveQuote();
+    const q = currentQuote;
+    const total = q.items.reduce((s,i)=>s+i.qty*i.price,0);
+    const lines = q.items.map((i,n) => `${n+1}. ${i.desc}: ${i.qty} ${i.unit} x ${fmtMoney(i.price)} = ${fmtMoney(i.qty*i.price)}`);
+    const msg = encodeURIComponent(`Cotización ${q.number}\n${biz.name}\n\nCliente: ${q.client.name}\nFecha: ${fmtDate(q.date)}\nVálida hasta: ${fmtDate(q.validUntil)}\n\nDetalle:\n${lines.join('\n')}\n\nSubtotal: ${fmtMoney(total)}\nIVA (${q.taxRate*100}%): ${fmtMoney(total*q.taxRate)}\nTotal: ${fmtMoney(total*(1+q.taxRate))}\n\n${q.terms}`);
+    window.open(`https://wa.me/${q.client.phone||biz.phone}?text=${msg}`, '_blank');
+    saveQuoteStatus('sent');
+}
+
+// ═══ HISTORY ═══
+function renderHistory() {
+    const statusLabels = { draft:'Borrador', sent:'Enviada', accepted:'Aceptada', rejected:'Rechazada' };
+    const statusColors = { draft:'bg-gray-100 text-gray-600', sent:'bg-blue-100 text-blue-700', accepted:'bg-green-100 text-green-700', rejected:'bg-red-100 text-red-700' };
+    const sorted = [...quotes].sort((a,b) => b.created.localeCompare(a.created));
+
+    document.getElementById('history-list').innerHTML = sorted.length ? sorted.map(q => {
+        const total = q.items.reduce((s,i)=>s+i.qty*i.price,0) * (1 + q.taxRate);
+        return `<div class="bg-white border rounded-xl p-4 mb-2 flex justify-between items-center hover:shadow-sm cursor-pointer" onclick="loadQuote(${q.id})">
+            <div>
+                <div class="font-bold">${q.number} <span class="text-xs px-2 py-0.5 rounded-full ${statusColors[q.status]||''}">${statusLabels[q.status]||q.status}</span></div>
+                <div class="text-sm text-gray-500">${q.client.name||'Sin cliente'} · ${fmtDate(q.date)}</div>
+            </div>
+            <div class="text-right">
+                <div class="font-bold text-primary">${fmtMoney(total)}</div>
+                <div class="flex gap-1 mt-1">
+                    <button onclick="event.stopPropagation();duplicateQuote(${q.id})" class="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">Duplicar</button>
+                    <select onclick="event.stopPropagation()" onchange="changeQuoteStatus(${q.id},this.value)" class="text-xs border rounded px-1 py-0.5">
+                        <option value="">Estado...</option>
+                        <option value="draft">Borrador</option>
+                        <option value="sent">Enviada</option>
+                        <option value="accepted">Aceptada</option>
+                        <option value="rejected">Rechazada</option>
+                    </select>
+                    <button onclick="event.stopPropagation();deleteQuote(${q.id})" class="text-xs text-red-400 px-2 py-1 rounded hover:bg-red-50">X</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('') : '<div class="text-center py-8 text-gray-400">No hay cotizaciones guardadas</div>';
+}
+
+function loadQuote(id) { currentQuote = JSON.parse(JSON.stringify(quotes.find(q=>q.id===id))); showTab('editor'); loadQuoteIntoEditor(); }
+function duplicateQuote(id) { const q = JSON.parse(JSON.stringify(quotes.find(x=>x.id===id))); q.id=Date.now(); q.number=genQuoteNumber(); q.date=today(); q.status='draft'; q.created=new Date().toISOString(); quotes.push(q); save(); renderHistory(); }
+function changeQuoteStatus(id,status) { if(!status) return; const q=quotes.find(x=>x.id===id); if(q){q.status=status;save();renderHistory();} }
+function deleteQuote(id) { if(!confirm('¿Eliminar?')) return; quotes=quotes.filter(q=>q.id!==id); save(); renderHistory(); }
+
+// ═══ CATALOG ═══
+function renderCatalog() {
+    const cats = [...new Set(catalog.map(c=>c.cat))].sort();
+    let html = '';
+    cats.forEach(cat => {
+        html += `<h3 class="font-bold text-sm text-gray-500 uppercase tracking-wider mt-4 mb-2">${cat}</h3>`;
+        catalog.filter(c=>c.cat===cat).forEach(c => {
+            html += `<div class="bg-white border rounded-xl p-3 mb-1 flex justify-between items-center">
+                <div><span class="font-semibold text-sm">${c.name}</span><span class="text-xs text-gray-400 ml-2">${c.desc}</span></div>
+                <div class="flex items-center gap-3">
+                    <span class="font-semibold text-sm">${fmtMoney(c.price)}/${c.unit}</span>
+                    <button onclick="editCatalogItem(${c.id})" class="text-xs text-gray-400 hover:text-gray-600">Editar</button>
+                    <button onclick="deleteCatalogItem(${c.id})" class="text-xs text-red-400 hover:text-red-600">X</button>
+                </div>
+            </div>`;
+        });
+    });
+    document.getElementById('catalog-list').innerHTML = html || '<div class="text-center py-8 text-gray-400">Catálogo vacío</div>';
+}
+
+function addCatalogItem() {
+    const name = prompt('Nombre:'); if(!name) return;
+    const cat = prompt('Categoría (Servicio/Refacción/Material/Mano de obra):','Servicio')||'Servicio';
+    const price = parseFloat(prompt('Precio unitario:','0'))||0;
+    const unit = prompt('Unidad (servicio/pieza/hora/kg):','servicio')||'servicio';
+    const desc = prompt('Descripción breve:','')||'';
+    catalog.push({id:Date.now(),name,cat,price,unit,desc});
+    save(); renderCatalog();
+}
+
+function editCatalogItem(id) {
+    const c = catalog.find(x=>x.id===id); if(!c) return;
+    c.name = prompt('Nombre:',c.name)||c.name;
+    c.price = parseFloat(prompt('Precio:',c.price))||c.price;
+    c.unit = prompt('Unidad:',c.unit)||c.unit;
+    c.desc = prompt('Descripción:',c.desc)||c.desc;
+    save(); renderCatalog();
+}
+
+function deleteCatalogItem(id) { if(!confirm('¿Eliminar?')) return; catalog=catalog.filter(c=>c.id!==id); save(); renderCatalog(); }
+
+function showCatalogPicker() {
+    document.getElementById('modal-catalog').classList.remove('hidden');
+    document.getElementById('cat-search').value = '';
+    renderCatalogPicker();
+}
+
+function renderCatalogPicker() {
+    const search = (document.getElementById('cat-search')?.value||'').toLowerCase();
+    const filtered = search ? catalog.filter(c => c.name.toLowerCase().includes(search) || c.cat.toLowerCase().includes(search)) : catalog;
+    document.getElementById('cat-picker-list').innerHTML = filtered.map(c =>
+        `<div class="flex justify-between items-center p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onclick="addFromCatalog(${c.id});document.getElementById('modal-catalog').classList.add('hidden')">
+            <div><span class="font-semibold text-sm">${c.name}</span><span class="text-xs text-gray-400 ml-2">${c.cat}</span></div>
+            <span class="text-sm font-semibold">${fmtMoney(c.price)}</span>
+        </div>`
+    ).join('');
+}
+
+// ═══ SETTINGS ═══
+function loadSettings() {
+    document.getElementById('s-name').value = biz.name;
+    document.getElementById('s-rfc').value = biz.rfc;
+    document.getElementById('s-addr').value = biz.address;
+    document.getElementById('s-phone').value = biz.phone;
+    document.getElementById('s-email').value = biz.email;
+    document.getElementById('s-prefix').value = biz.prefix;
+}
+
+function saveSettings() {
+    biz.name=document.getElementById('s-name').value; biz.rfc=document.getElementById('s-rfc').value;
+    biz.address=document.getElementById('s-addr').value; biz.phone=document.getElementById('s-phone').value;
+    biz.email=document.getElementById('s-email').value; biz.prefix=document.getElementById('s-prefix').value;
+    save(); document.getElementById('header-name').textContent = 'Cotizador — ' + biz.name; alert('Guardado');
+}
+
+// INIT
+if (!currentQuote && quotes.length) { currentQuote = quotes[quotes.length-1]; }
+if (!currentQuote) newQuote();
+else loadQuoteIntoEditor();
+</script>
+</body>
+</html>

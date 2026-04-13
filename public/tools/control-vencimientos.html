@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Vencimientos</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .accent { color: #ea580c; }
+  .accent-bg { background: #ea580c; }
+  .accent-bg-light { background: #ffedd5; }
+  .accent-border { border-color: #ea580c; }
+  .tab-active { background: #ea580c; color: white; }
+  .tab-inactive { background: white; color: #374151; }
+  /* Status colors */
+  .status-ok { background:#dcfce7; color:#166534; border-left:4px solid #22c55e; }
+  .status-proximo { background:#fef9c3; color:#854d0e; border-left:4px solid #eab308; }
+  .status-urgente { background:#fee2e2; color:#991b1b; border-left:4px solid #ef4444; }
+  .status-vencido { background:#f3f4f6; color:#374151; border-left:4px solid #6b7280; }
+  .badge-ok { background:#dcfce7; color:#166534; }
+  .badge-proximo { background:#fef9c3; color:#854d0e; }
+  .badge-urgente { background:#fee2e2; color:#991b1b; }
+  .badge-vencido { background:#f3f4f6; color:#6b7280; }
+  .dot-ok { background:#22c55e; }
+  .dot-proximo { background:#eab308; }
+  .dot-urgente { background:#ef4444; }
+  .dot-vencido { background:#9ca3af; }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal { background:white; border-radius:16px; max-width:640px; width:100%; max-height:90vh; overflow-y:auto; }
+  .fifo-badge { background:#fef3c7; color:#92400e; border:1px solid #f59e0b; font-size:10px; padding:1px 6px; border-radius:99px; font-weight:700; }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:white; }
+    .print-section { page-break-inside:avoid; }
+    #printWeeklyContent { display:block !important; }
+  }
+  #printWeeklyContent { display:none; }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:#f3f4f6; }
+  ::-webkit-scrollbar-thumb { background:#fdba74; border-radius:3px; }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Header -->
+<header class="accent-bg text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <h1 class="text-xl font-bold">Control de Vencimientos</h1>
+      <p class="text-orange-200 text-sm">FIFO · Alertas · Mermas</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button onclick="enviarAlertaWA()" class="bg-green-500 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-green-600 transition">📱 Alerta cocina</button>
+      <button onclick="openModal('modalAgregarLote')" class="bg-white text-orange-700 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-orange-50 transition">+ Lote</button>
+      <button onclick="openModal('modalAgregarProducto')" class="bg-orange-700 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-orange-800 transition">+ Producto</button>
+    </div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="no-print bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto py-2">
+    <button onclick="setTab('dashboard')" id="tab-dashboard" class="tab-btn tab-active px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Dashboard</button>
+    <button onclick="setTab('inventario')" id="tab-inventario" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Inventario</button>
+    <button onclick="setTab('alertas')" id="tab-alertas" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Alertas 48h</button>
+    <button onclick="setTab('estadisticas')" id="tab-estadisticas" class="tab-btn tab-inactive px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition">Estadísticas</button>
+  </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+<!-- TAB: DASHBOARD -->
+<div id="view-dashboard">
+  <div id="dashStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+  <div id="dashFIFO" class="mb-6"></div>
+  <div id="dashVencidos"></div>
+</div>
+
+<!-- TAB: INVENTARIO -->
+<div id="view-inventario" class="hidden">
+  <div class="flex flex-wrap gap-2 mb-4 no-print">
+    <input id="buscarInv" oninput="renderInventario()" placeholder="Buscar producto..." class="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-48 focus:outline-none focus:border-orange-400">
+    <select id="filtroCat" onchange="renderInventario()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+      <option value="">Todas las categorías</option>
+      <option>Lácteos</option><option>Carnes</option><option>Frutas/Verduras</option>
+      <option>Enlatados</option><option>Congelados</option><option>Salsas</option><option>Bebidas</option>
+    </select>
+    <select id="filtroLoc" onchange="renderInventario()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+      <option value="">Todas las ubicaciones</option>
+      <option>Refrigerador 1</option><option>Refrigerador 2</option><option>Congelador</option>
+      <option>Alacena</option><option>Barra</option>
+    </select>
+    <select id="filtroStatus" onchange="renderInventario()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+      <option value="">Todos los estados</option>
+      <option>OK</option><option>Próximo</option><option>Urgente</option><option>Vencido</option>
+    </select>
+    <button onclick="window.print()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition">🖨️ Imprimir</button>
+  </div>
+  <div id="listaInventario" class="space-y-2"></div>
+</div>
+
+<!-- TAB: ALERTAS 48h -->
+<div id="view-alertas" class="hidden">
+  <div class="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4 no-print">
+    <h2 class="text-lg font-bold text-red-700 mb-1">🚨 Alerta de Vencimientos — Próximas 48 horas</h2>
+    <p class="text-sm text-red-600">Productos que vencen hoy o mañana. Usar o descartar inmediatamente.</p>
+  </div>
+  <div id="listaAlertas48" class="space-y-2 mb-6"></div>
+  <div class="flex gap-2 no-print">
+    <button onclick="imprimirReporteActual()" class="border border-gray-200 rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition">🖨️ Imprimir reporte semanal</button>
+    <button onclick="enviarAlertaWA()" class="bg-green-500 text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-green-600 transition">📱 Enviar alerta WhatsApp</button>
+  </div>
+</div>
+
+<!-- TAB: ESTADÍSTICAS -->
+<div id="view-estadisticas" class="hidden">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <h3 class="font-bold text-gray-800 mb-3">Artículos por estado</h3>
+      <canvas id="chartEstados" height="200"></canvas>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <h3 class="font-bold text-gray-800 mb-3">Descartados este mes por categoría</h3>
+      <canvas id="chartMermas" height="200"></canvas>
+    </div>
+  </div>
+  <div id="statsResumen" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+</div>
+
+</main>
+
+<!-- PRINT WEEKLY -->
+<div id="printWeeklyContent" class="p-8">
+  <div id="printWeeklyInner"></div>
+</div>
+
+<!-- MODAL: AGREGAR PRODUCTO -->
+<div id="modalAgregarProducto" class="modal-backdrop hidden">
+  <div class="modal p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-800">Nuevo Producto</h2>
+      <button onclick="closeModal('modalAgregarProducto')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Nombre del producto *</label>
+        <input id="prodNombre" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400" placeholder="Ej: Leche entera">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Categoría</label>
+          <select id="prodCategoria" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+            <option>Lácteos</option><option>Carnes</option><option>Frutas/Verduras</option>
+            <option>Enlatados</option><option>Congelados</option><option>Salsas</option><option>Bebidas</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Unidad</label>
+          <select id="prodUnidad" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+            <option>kg</option><option>lt</option><option>pza</option><option>caja</option><option>paq</option><option>lata</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Precio unitario MXN (para calcular mermas)</label>
+        <input type="number" id="prodPrecio" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400" placeholder="0.00">
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5 justify-end">
+      <button onclick="closeModal('modalAgregarProducto')" class="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+      <button onclick="guardarProducto()" class="accent-bg text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-orange-700">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: AGREGAR LOTE -->
+<div id="modalAgregarLote" class="modal-backdrop hidden">
+  <div class="modal p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-gray-800">Agregar Lote</h2>
+      <button onclick="closeModal('modalAgregarLote')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1">Producto *</label>
+        <select id="loteProducto" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+          <option value="">Seleccionar producto...</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Cantidad *</label>
+          <input type="number" id="loteCantidad" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400" placeholder="0">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Fecha vencimiento *</label>
+          <input type="date" id="loteVencimiento" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Fecha recibido</label>
+          <input type="date" id="loteRecibido" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1">Ubicación</label>
+          <select id="loteUbicacion" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-400">
+            <option>Refrigerador 1</option><option>Refrigerador 2</option><option>Congelador</option>
+            <option>Alacena</option><option>Barra</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-5 justify-end">
+      <button onclick="closeModal('modalAgregarLote')" class="px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+      <button onclick="guardarLote()" class="accent-bg text-white font-semibold px-4 py-2 rounded-lg text-sm hover:bg-orange-700">Agregar lote</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ACCIONES LOTE -->
+<div id="modalAccionLote" class="modal-backdrop hidden">
+  <div class="modal p-6 max-w-sm" id="contenidoAccionLote"></div>
+</div>
+
+<footer class="text-center py-6 text-gray-400 text-xs no-print mt-8">
+  Powered by <span class="font-semibold text-orange-400">Novamente Studio</span> · <span id="footerYear"></span>
+</footer>
+
+<script>
+const STORAGE_KEY = 'ctrl_vencimientos_v1';
+let data = { productos: [], lotes: [], descartados: [] };
+let chartEstadosInst = null, chartMermasInst = null;
+const WA_MANAGER = '5215512345678'; // Número del encargado cocina (editable)
+
+function loadData(){
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if(saved){ data = JSON.parse(saved); }
+  else { seedDemoData(); saveData(); }
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+// Compute days to expiry from today
+function today(){ return new Date().toISOString().split('T')[0]; }
+function daysToExpiry(dateStr){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const exp = new Date(dateStr); exp.setHours(0,0,0,0);
+  return Math.round((exp - now) / 86400000);
+}
+function getStatus(dateStr){
+  const d = daysToExpiry(dateStr);
+  if(d < 0) return 'Vencido';
+  if(d < 2) return 'Urgente';
+  if(d < 5) return 'Próximo';
+  return 'OK';
+}
+
+function seedDemoData(){
+  const hoy = new Date();
+  const d = (offset) => {
+    const dt = new Date(hoy);
+    dt.setDate(dt.getDate() + offset);
+    return dt.toISOString().split('T')[0];
+  };
+
+  data.productos = [
+    {id:'pr1', nombre:'Leche entera', categoria:'Lácteos', unidad:'lt', precio:25},
+    {id:'pr2', nombre:'Queso panela', categoria:'Lácteos', unidad:'kg', precio:98},
+    {id:'pr3', nombre:'Crema ácida', categoria:'Lácteos', unidad:'lt', precio:72},
+    {id:'pr4', nombre:'Mantequilla', categoria:'Lácteos', unidad:'kg', precio:145},
+    {id:'pr5', nombre:'Jocoque', categoria:'Lácteos', unidad:'lt', precio:68},
+    {id:'pr6', nombre:'Pechuga de pollo', categoria:'Carnes', unidad:'kg', precio:85},
+    {id:'pr7', nombre:'Res molida', categoria:'Carnes', unidad:'kg', precio:120},
+    {id:'pr8', nombre:'Chorizo', categoria:'Carnes', unidad:'kg', precio:95},
+    {id:'pr9', nombre:'Milanesa de res', categoria:'Carnes', unidad:'kg', precio:145},
+    {id:'pr10', nombre:'Jitomate', categoria:'Frutas/Verduras', unidad:'kg', precio:18},
+    {id:'pr11', nombre:'Aguacate', categoria:'Frutas/Verduras', unidad:'pza', precio:15},
+    {id:'pr12', nombre:'Lechuga', categoria:'Frutas/Verduras', unidad:'pza', precio:12},
+    {id:'pr13', nombre:'Limón', categoria:'Frutas/Verduras', unidad:'kg', precio:28},
+    {id:'pr14', nombre:'Chile serrano', categoria:'Frutas/Verduras', unidad:'kg', precio:45},
+    {id:'pr15', nombre:'Salsa Tabasco', categoria:'Salsas', unidad:'bot', precio:65},
+    {id:'pr16', nombre:'Mole negro preparado', categoria:'Salsas', unidad:'kg', precio:120},
+    {id:'pr17', nombre:'Frijoles refritos lata', categoria:'Enlatados', unidad:'lata', precio:28},
+    {id:'pr18', nombre:'Chiles chipotles lata', categoria:'Enlatados', unidad:'lata', precio:35},
+    {id:'pr19', nombre:'Pierna congelada', categoria:'Congelados', unidad:'kg', precio:62},
+    {id:'pr20', nombre:'Camarones congelados', categoria:'Congelados', unidad:'kg', precio:180},
+    {id:'pr21', nombre:'Refresco cola', categoria:'Bebidas', unidad:'lt', precio:22},
+    {id:'pr22', nombre:'Jugo naranja', categoria:'Bebidas', unidad:'lt', precio:38},
+    {id:'pr23', nombre:'Agua natural', categoria:'Bebidas', unidad:'lt', precio:12},
+    {id:'pr24', nombre:'Tortilla blanca', categoria:'Frutas/Verduras', unidad:'kg', precio:18},
+    {id:'pr25', nombre:'Manteca vegetal', categoria:'Enlatados', unidad:'kg', precio:55}
+  ];
+
+  data.lotes = [
+    // Lácteos
+    {id:'l1', productoId:'pr1', cantidad:10, vencimiento:d(0), recibido:d(-3), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l2', productoId:'pr1', cantidad:15, vencimiento:d(4), recibido:d(-1), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l3', productoId:'pr2', cantidad:4, vencimiento:d(1), recibido:d(-5), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l4', productoId:'pr2', cantidad:5, vencimiento:d(8), recibido:d(-1), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l5', productoId:'pr3', cantidad:6, vencimiento:d(3), recibido:d(-3), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l6', productoId:'pr4', cantidad:2, vencimiento:d(-2), recibido:d(-20), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l7', productoId:'pr5', cantidad:3, vencimiento:d(12), recibido:d(-1), ubicacion:'Refrigerador 2', status:'activo'},
+    // Carnes
+    {id:'l8', productoId:'pr6', cantidad:8, vencimiento:d(0), recibido:d(-2), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l9', productoId:'pr6', cantidad:10, vencimiento:d(5), recibido:d(0), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l10', productoId:'pr7', cantidad:5, vencimiento:d(2), recibido:d(-3), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l11', productoId:'pr8', cantidad:4, vencimiento:d(7), recibido:d(-1), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l12', productoId:'pr9', cantidad:3, vencimiento:d(-1), recibido:d(-5), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l13', productoId:'pr9', cantidad:5, vencimiento:d(14), recibido:d(0), ubicacion:'Congelador', status:'activo'},
+    // Congelados
+    {id:'l14', productoId:'pr19', cantidad:15, vencimiento:d(45), recibido:d(-2), ubicacion:'Congelador', status:'activo'},
+    {id:'l15', productoId:'pr20', cantidad:8, vencimiento:d(30), recibido:d(-5), ubicacion:'Congelador', status:'activo'},
+    // Frutas/Verduras
+    {id:'l16', productoId:'pr10', cantidad:12, vencimiento:d(1), recibido:d(-2), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l17', productoId:'pr10', cantidad:10, vencimiento:d(4), recibido:d(0), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l18', productoId:'pr11', cantidad:30, vencimiento:d(0), recibido:d(-2), ubicacion:'Barra', status:'activo'},
+    {id:'l19', productoId:'pr12', cantidad:8, vencimiento:d(3), recibido:d(-1), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l20', productoId:'pr13', cantidad:5, vencimiento:d(6), recibido:d(-1), ubicacion:'Barra', status:'activo'},
+    {id:'l21', productoId:'pr14', cantidad:2, vencimiento:d(5), recibido:d(-2), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l22', productoId:'pr24', cantidad:20, vencimiento:d(2), recibido:d(0), ubicacion:'Barra', status:'activo'},
+    // Salsas
+    {id:'l23', productoId:'pr15', cantidad:5, vencimiento:d(180), recibido:d(-30), ubicacion:'Alacena', status:'activo'},
+    {id:'l24', productoId:'pr16', cantidad:3, vencimiento:d(-3), recibido:d(-10), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l25', productoId:'pr16', cantidad:4, vencimiento:d(10), recibido:d(-2), ubicacion:'Refrigerador 2', status:'activo'},
+    // Enlatados
+    {id:'l26', productoId:'pr17', cantidad:24, vencimiento:d(365), recibido:d(-20), ubicacion:'Alacena', status:'activo'},
+    {id:'l27', productoId:'pr18', cantidad:12, vencimiento:d(400), recibido:d(-15), ubicacion:'Alacena', status:'activo'},
+    {id:'l28', productoId:'pr25', cantidad:10, vencimiento:d(200), recibido:d(-10), ubicacion:'Alacena', status:'activo'},
+    // Bebidas
+    {id:'l29', productoId:'pr21', cantidad:24, vencimiento:d(120), recibido:d(-7), ubicacion:'Barra', status:'activo'},
+    {id:'l30', productoId:'pr22', cantidad:8, vencimiento:d(4), recibido:d(-3), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l31', productoId:'pr23', cantidad:48, vencimiento:d(180), recibido:d(-5), ubicacion:'Barra', status:'activo'},
+    // More FIFO examples
+    {id:'l32', productoId:'pr3', cantidad:4, vencimiento:d(10), recibido:d(0), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l33', productoId:'pr7', cantidad:8, vencimiento:d(12), recibido:d(0), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l34', productoId:'pr6', cantidad:5, vencimiento:d(7), recibido:d(-1), ubicacion:'Congelador', status:'activo'},
+    {id:'l35', productoId:'pr10', cantidad:8, vencimiento:d(10), recibido:d(0), ubicacion:'Refrigerador 1', status:'activo'},
+    {id:'l36', productoId:'pr11', cantidad:20, vencimiento:d(5), recibido:d(-1), ubicacion:'Barra', status:'activo'},
+    {id:'l37', productoId:'pr12', cantidad:6, vencimiento:d(7), recibido:d(0), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l38', productoId:'pr22', cantidad:6, vencimiento:d(8), recibido:d(0), ubicacion:'Refrigerador 2', status:'activo'},
+    {id:'l39', productoId:'pr24', cantidad:30, vencimiento:d(8), recibido:d(0), ubicacion:'Barra', status:'activo'},
+    {id:'l40', productoId:'pr8', cantidad:3, vencimiento:d(-1), recibido:d(-8), ubicacion:'Refrigerador 1', status:'activo'}
+  ];
+
+  // Demo descartados
+  data.descartados = [
+    {loteId:'d1', productoNombre:'Crema ácida', cantidad:2, unidad:'lt', precio:72, fecha:d(-5), razon:'Vencido', categoria:'Lácteos'},
+    {loteId:'d2', productoNombre:'Jitomate', cantidad:3, unidad:'kg', precio:18, fecha:d(-10), razon:'Vencido', categoria:'Frutas/Verduras'},
+    {loteId:'d3', productoNombre:'Mole negro', cantidad:1, unidad:'kg', precio:120, fecha:d(-8), razon:'Vencido', categoria:'Salsas'},
+    {loteId:'d4', productoNombre:'Pechuga de pollo', cantidad:2, unidad:'kg', precio:85, fecha:d(-3), razon:'Calidad', categoria:'Carnes'},
+    {loteId:'d5', productoNombre:'Lechuga', cantidad:4, unidad:'pza', precio:12, fecha:d(-12), razon:'Vencido', categoria:'Frutas/Verduras'}
+  ];
+}
+
+// Utils
+function getProd(id){ return data.productos.find(p => p.id === id) || {}; }
+function activeLotes(){ return data.lotes.filter(l => l.status === 'activo'); }
+
+function getStatusClass(status){
+  return {OK:'status-ok', Próximo:'status-proximo', Urgente:'status-urgente', Vencido:'status-vencido'}[status] || 'status-ok';
+}
+function getBadgeClass(status){
+  return {OK:'badge-ok', Próximo:'badge-proximo', Urgente:'badge-urgente', Vencido:'badge-vencido'}[status] || 'badge-ok';
+}
+function getDotClass(status){
+  return {OK:'dot-ok', Próximo:'dot-proximo', Urgente:'dot-urgente', Vencido:'dot-vencido'}[status] || 'dot-ok';
+}
+function getStatusIcon(status){
+  return {OK:'🟢', Próximo:'🟡', Urgente:'🔴', Vencido:'⚫'}[status] || '🟢';
+}
+
+function setTab(tab){
+  ['dashboard','inventario','alertas','estadisticas'].forEach(t => {
+    document.getElementById('view-'+t).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById('tab-'+t);
+    btn.classList.toggle('tab-active', t === tab);
+    btn.classList.toggle('tab-inactive', t !== tab);
+  });
+  if(tab === 'dashboard') renderDashboard();
+  if(tab === 'inventario') renderInventario();
+  if(tab === 'alertas') renderAlertas();
+  if(tab === 'estadisticas') renderEstadisticas();
+}
+
+function openModal(id){
+  document.getElementById(id).classList.remove('hidden');
+  if(id === 'modalAgregarLote') populateLoteProductos();
+}
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+// Render Dashboard
+function renderDashboard(){
+  const lotes = activeLotes();
+  const byStatus = {OK:0, Próximo:0, Urgente:0, Vencido:0};
+  lotes.forEach(l => byStatus[getStatus(l.vencimiento)]++);
+
+  document.getElementById('dashStats').innerHTML = [
+    {label:'Total lotes activos', val: lotes.length, cls:'text-gray-800', icon:'📦'},
+    {label:'OK (>5 días)', val: byStatus.OK, cls:'text-green-600', icon:'🟢'},
+    {label:'Próximos (2-5 días)', val: byStatus.Próximo, cls:'text-yellow-600', icon:'🟡'},
+    {label:'Urgentes/Vencidos', val: byStatus.Urgente + byStatus.Vencido, cls:'text-red-600 pulse', icon:'🔴'}
+  ].map(s => `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <p class="text-xs text-gray-500 mb-1">${s.icon} ${s.label}</p>
+      <p class="text-3xl font-bold ${s.cls}">${s.val}</p>
+    </div>
+  `).join('');
+
+  // FIFO: products with multiple batches sorted by expiry
+  const prodGroups = {};
+  lotes.forEach(l => {
+    const p = getProd(l.productoId);
+    if(!prodGroups[l.productoId]) prodGroups[l.productoId] = {nombre:p.nombre, categoria:p.categoria, unidad:p.unidad, lotes:[]};
+    prodGroups[l.productoId].lotes.push(l);
+  });
+  Object.values(prodGroups).forEach(pg => pg.lotes.sort((a,b) => new Date(a.vencimiento)-new Date(b.vencimiento)));
+
+  // Show only products with URGENT/VENCIDO first, then Próximo
+  const urgent = lotes.filter(l => ['Urgente','Vencido'].includes(getStatus(l.vencimiento))).sort((a,b) => new Date(a.vencimiento)-new Date(b.vencimiento));
+
+  if(urgent.length > 0){
+    document.getElementById('dashFIFO').innerHTML = `
+      <h2 class="text-lg font-bold text-red-700 mb-3">🚨 Requieren acción inmediata (${urgent.length})</h2>
+      <div class="space-y-2">${urgent.map(l => {
+        const p = getProd(l.productoId);
+        const st = getStatus(l.vencimiento);
+        const days = daysToExpiry(l.vencimiento);
+        const dayText = days < 0 ? `Vencido hace ${Math.abs(days)} día(s)` : days === 0 ? 'Vence HOY' : `Vence en ${days} día(s)`;
+        return `<div class="${getStatusClass(st)} rounded-xl p-4 flex items-center justify-between gap-3 print-section">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="font-bold text-gray-800">${p.nombre}</span>
+              <span class="fifo-badge">FIFO</span>
+              <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${l.ubicacion}</span>
+            </div>
+            <p class="text-xs font-semibold mt-0.5">${dayText} · ${l.cantidad} ${p.unidad} · Lote: ${l.vencimiento}</p>
+          </div>
+          <div class="flex gap-1 flex-shrink-0">
+            <button onclick="accionLote('${l.id}','usar')" class="bg-green-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-green-600 transition">Usar</button>
+            <button onclick="accionLote('${l.id}','descartar')" class="bg-gray-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-600 transition">Descartar</button>
+          </div>
+        </div>`;
+      }).join('')}</div>
+    `;
+  } else {
+    document.getElementById('dashFIFO').innerHTML = '<div class="bg-green-50 border border-green-200 rounded-2xl p-6 text-center"><p class="text-green-700 font-semibold">✅ No hay productos urgentes o vencidos</p></div>';
+  }
+
+  // Vencidos section
+  const vencidos = lotes.filter(l => getStatus(l.vencimiento) === 'Vencido');
+  document.getElementById('dashVencidos').innerHTML = vencidos.length === 0 ? '' : `
+    <h2 class="text-lg font-bold text-gray-500 mb-3">⚫ Vencidos — Descartar</h2>
+    <div class="space-y-2">${vencidos.map(l => {
+      const p = getProd(l.productoId);
+      const days = Math.abs(daysToExpiry(l.vencimiento));
+      return `<div class="status-vencido rounded-xl p-4 flex items-center justify-between gap-3">
+        <div>
+          <p class="font-bold text-gray-700">${p.nombre}</p>
+          <p class="text-xs text-gray-500">Venció hace ${days} día(s) · ${l.cantidad} ${p.unidad} · ${l.ubicacion}</p>
+        </div>
+        <button onclick="accionLote('${l.id}','descartar')" class="bg-gray-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-700 transition">Descartar</button>
+      </div>`;
+    }).join('')}</div>
+  `;
+}
+
+function renderInventario(){
+  const q = (document.getElementById('buscarInv').value || '').toLowerCase();
+  const cat = document.getElementById('filtroCat').value;
+  const loc = document.getElementById('filtroLoc').value;
+  const st = document.getElementById('filtroStatus').value;
+
+  // Group lotes by product
+  const prodGroups = {};
+  data.productos.forEach(p => { prodGroups[p.id] = {...p, lotes:[]}; });
+  activeLotes().forEach(l => {
+    if(prodGroups[l.productoId]) prodGroups[l.productoId].lotes.push(l);
+  });
+
+  let grupos = Object.values(prodGroups).filter(pg => pg.lotes.length > 0);
+
+  // Filter
+  grupos = grupos.filter(pg => {
+    if(q && !pg.nombre.toLowerCase().includes(q)) return false;
+    if(cat && pg.categoria !== cat) return false;
+    if(loc && !pg.lotes.some(l => l.ubicacion === loc)) return false;
+    if(st) {
+      const stMap = {OK:'OK', Próximo:'Próximo', Urgente:'Urgente', Vencido:'Vencido'};
+      if(!pg.lotes.some(l => getStatus(l.vencimiento) === stMap[st])) return false;
+    }
+    return true;
+  });
+
+  // Sort: most urgent first
+  const stOrder = {Vencido:0, Urgente:1, Próximo:2, OK:3};
+  grupos.forEach(pg => pg.lotes.sort((a,b) => new Date(a.vencimiento)-new Date(b.vencimiento)));
+  grupos.sort((a,b) => stOrder[getStatus(a.lotes[0].vencimiento)] - stOrder[getStatus(b.lotes[0].vencimiento)]);
+
+  const catColors = {Lácteos:'bg-blue-100 text-blue-700',Carnes:'bg-red-100 text-red-700','Frutas/Verduras':'bg-green-100 text-green-700',Enlatados:'bg-yellow-100 text-yellow-700',Congelados:'bg-cyan-100 text-cyan-700',Salsas:'bg-orange-100 text-orange-700',Bebidas:'bg-purple-100 text-purple-700'};
+
+  document.getElementById('listaInventario').innerHTML = grupos.length === 0
+    ? '<div class="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">No se encontraron productos</div>'
+    : grupos.map(pg => {
+      const totalCant = pg.lotes.reduce((s,l) => s+l.cantidad, 0);
+      const worstStatus = getStatus(pg.lotes[0].vencimiento);
+      return `<div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print-section">
+        <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-orange-50 transition" onclick="toggleLotes('lotes_${pg.id}')">
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <div class="w-3 h-3 rounded-full flex-shrink-0 ${getDotClass(worstStatus)}"></div>
+            <div class="min-w-0">
+              <p class="font-bold text-gray-800">${pg.nombre}</p>
+              <p class="text-xs text-gray-500">${pg.lotes.length} lote(s) · Total: ${totalCant} ${pg.unidad}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-xs px-2 py-1 rounded-full ${catColors[pg.categoria]||'bg-gray-100 text-gray-700'}">${pg.categoria}</span>
+            <span class="text-xs font-bold px-2 py-1 rounded-full ${getBadgeClass(worstStatus)}">${getStatusIcon(worstStatus)} ${worstStatus}</span>
+            <span class="text-gray-400 text-sm">▾</span>
+          </div>
+        </div>
+        <div id="lotes_${pg.id}" class="hidden border-t border-gray-100">
+          ${pg.lotes.map((l, idx) => {
+            const st = getStatus(l.vencimiento);
+            const days = daysToExpiry(l.vencimiento);
+            const dayText = days < 0 ? `Vencido hace ${Math.abs(days)}d` : days === 0 ? 'Vence HOY' : `${days} días`;
+            return `<div class="flex items-center justify-between px-4 py-3 ${idx%2===0?'bg-white':'bg-gray-50'} ${getStatusClass(st)} border-l-0 ml-4 rounded-r-none">
+              <div class="flex-1">
+                ${idx === 0 ? '<span class="fifo-badge mr-2">USAR PRIMERO</span>' : ''}
+                <span class="text-sm font-semibold">${l.cantidad} ${pg.unidad}</span>
+                <span class="text-xs text-gray-500 ml-2">Vence: ${l.vencimiento} (${dayText})</span>
+                <span class="text-xs text-gray-400 ml-2">📍 ${l.ubicacion}</span>
+              </div>
+              <div class="flex gap-1">
+                <button onclick="accionLote('${l.id}','usar')" class="text-xs bg-green-100 text-green-700 font-semibold px-2 py-1 rounded-lg hover:bg-green-200 transition">Usar</button>
+                <button onclick="accionLote('${l.id}','mover')" class="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-1 rounded-lg hover:bg-blue-200 transition">Mover</button>
+                <button onclick="accionLote('${l.id}','descartar')" class="text-xs bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-lg hover:bg-red-200 transition">Descartar</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+}
+
+function toggleLotes(id){
+  const el = document.getElementById(id);
+  if(el) el.classList.toggle('hidden');
+}
+
+function renderAlertas(){
+  const lotes48 = activeLotes()
+    .filter(l => daysToExpiry(l.vencimiento) <= 1)
+    .sort((a,b) => new Date(a.vencimiento)-new Date(b.vencimiento));
+
+  if(lotes48.length === 0){
+    document.getElementById('listaAlertas48').innerHTML = '<div class="bg-green-50 border border-green-200 rounded-2xl p-8 text-center"><p class="text-2xl mb-2">✅</p><p class="text-green-700 font-semibold">No hay productos por vencer en las próximas 48 horas</p></div>';
+    return;
+  }
+
+  document.getElementById('listaAlertas48').innerHTML = lotes48.map(l => {
+    const p = getProd(l.productoId);
+    const days = daysToExpiry(l.vencimiento);
+    const st = getStatus(l.vencimiento);
+    const dayText = days < 0 ? `⚫ Vencido hace ${Math.abs(days)} día(s)` : days === 0 ? '🔴 Vence HOY' : `🔴 Vence mañana`;
+    return `<div class="${getStatusClass(st)} rounded-2xl p-4 flex items-center justify-between gap-3 print-section">
+      <div class="flex-1">
+        <p class="font-bold text-gray-800 text-sm">${p.nombre}</p>
+        <p class="text-xs font-semibold mt-0.5">${dayText} · ${l.cantidad} ${p.unidad} · ${l.ubicacion}</p>
+        <p class="text-xs text-gray-500">Costo estimado: $${(l.cantidad * (p.precio||0)).toLocaleString('es-MX', {minimumFractionDigits:2})}</p>
+      </div>
+      <div class="flex gap-1 flex-shrink-0 flex-wrap justify-end">
+        <button onclick="accionLote('${l.id}','usar')" class="bg-green-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-green-600 transition">✓ Usar</button>
+        <button onclick="accionLote('${l.id}','descartar')" class="bg-gray-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-600 transition">✗ Descartar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function enviarAlertaWA(){
+  const lotes48 = activeLotes()
+    .filter(l => daysToExpiry(l.vencimiento) <= 1)
+    .sort((a,b) => new Date(a.vencimiento)-new Date(b.vencimiento));
+  if(!lotes48.length){ alert('No hay alertas que enviar en este momento'); return; }
+  const hoy = new Date().toLocaleDateString('es-MX');
+  let msg = `*ALERTA DE VENCIMIENTOS — ${hoy}*\n\nEncargado/a de cocina:\n\nLos siguientes productos vencen HOY o MAÑANA:\n\n`;
+  lotes48.forEach(l => {
+    const p = getProd(l.productoId);
+    const days = daysToExpiry(l.vencimiento);
+    const cuando = days < 0 ? 'VENCIDO' : days === 0 ? 'HOY' : 'MAÑANA';
+    msg += `⚠️ *${p.nombre}* — ${l.cantidad} ${p.unidad} — ${cuando} (${l.ubicacion})\n`;
+  });
+  msg += '\nFavor de usar o descartar según protocolo FIFO.\n\n_Enviado automáticamente desde Control de Vencimientos_';
+  window.open('https://wa.me/' + WA_MANAGER + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function imprimirReporteActual(){
+  const hoy = new Date();
+  const semana = new Date(hoy); semana.setDate(semana.getDate() + 7);
+  const semanal = activeLotes()
+    .filter(l => daysToExpiry(l.vencimiento) <= 7)
+    .sort((a,b) => new Date(a.vencimiento)-new Date(b.vencimiento));
+  document.getElementById('printWeeklyInner').innerHTML = `
+    <h1 style="font-size:20px;font-weight:bold;margin-bottom:4px;">REPORTE DE VENCIMIENTOS — SEMANA ACTUAL</h1>
+    <p style="font-size:12px;color:#666;margin-bottom:16px;">Generado: ${hoy.toLocaleDateString('es-MX')} | Período: hoy a ${semana.toLocaleDateString('es-MX')}</p>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:#ffedd5">
+        <th style="border:1px solid #ccc;padding:6px;text-align:left">Producto</th>
+        <th style="border:1px solid #ccc;padding:6px">Cantidad</th>
+        <th style="border:1px solid #ccc;padding:6px">Vencimiento</th>
+        <th style="border:1px solid #ccc;padding:6px">Días</th>
+        <th style="border:1px solid #ccc;padding:6px">Ubicación</th>
+        <th style="border:1px solid #ccc;padding:6px">Estado</th>
+      </tr></thead>
+      <tbody>${semanal.map(l => {
+        const p = getProd(l.productoId);
+        const days = daysToExpiry(l.vencimiento);
+        const st = getStatus(l.vencimiento);
+        return `<tr><td style="border:1px solid #ccc;padding:6px;font-weight:600">${p.nombre}</td>
+          <td style="border:1px solid #ccc;padding:6px;text-align:center">${l.cantidad} ${p.unidad}</td>
+          <td style="border:1px solid #ccc;padding:6px;text-align:center">${l.vencimiento}</td>
+          <td style="border:1px solid #ccc;padding:6px;text-align:center;font-weight:bold;color:${days < 0 ? '#dc2626' : days < 2 ? '#dc2626' : days < 5 ? '#d97706' : '#059669'}">${days < 0 ? 'VENCIDO' : days === 0 ? 'HOY' : days+' días'}</td>
+          <td style="border:1px solid #ccc;padding:6px;text-align:center">${l.ubicacion}</td>
+          <td style="border:1px solid #ccc;padding:6px;text-align:center;font-weight:bold">${st}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+    <br><p style="font-size:11px;color:#666">Firma responsable: _________________________ · Powered by Novamente Studio</p>
+  `;
+  window.print();
+}
+
+function accionLote(loteId, accion){
+  const l = data.lotes.find(x => x.id === loteId);
+  if(!l) return;
+  const p = getProd(l.productoId);
+
+  if(accion === 'usar'){
+    const cant = parseFloat(prompt(`¿Cuánto ${p.unidad} de "${p.nombre}" se usó? (disponible: ${l.cantidad})`, l.cantidad));
+    if(isNaN(cant) || cant <= 0) return;
+    if(cant >= l.cantidad){
+      l.status = 'usado';
+      const d = daysToExpiry(l.vencimiento);
+      // log avg days before use conceptually
+    } else {
+      l.cantidad -= cant;
+    }
+    saveData();
+    refreshCurrentTab();
+    return;
+  }
+
+  if(accion === 'descartar'){
+    if(!confirm(`¿Descartar lote de "${p.nombre}" (${l.cantidad} ${p.unidad})? Esto se registrará como merma.`)) return;
+    data.descartados.push({
+      loteId: 'desc_' + Date.now(),
+      productoNombre: p.nombre,
+      cantidad: l.cantidad,
+      unidad: p.unidad,
+      precio: p.precio || 0,
+      fecha: today(),
+      razon: 'Vencido',
+      categoria: p.categoria
+    });
+    l.status = 'descartado';
+    saveData();
+    refreshCurrentTab();
+    return;
+  }
+
+  if(accion === 'mover'){
+    const ubicaciones = ['Refrigerador 1','Refrigerador 2','Congelador','Alacena','Barra'];
+    const nuevaUbic = prompt(`Mover "${p.nombre}" a:\n${ubicaciones.map((u,i) => `${i+1}. ${u}`).join('\n')}\n\nEscribe el número:`, '');
+    const idx = parseInt(nuevaUbic) - 1;
+    if(idx >= 0 && idx < ubicaciones.length){
+      l.ubicacion = ubicaciones[idx];
+      saveData();
+      refreshCurrentTab();
+    }
+    return;
+  }
+}
+
+function refreshCurrentTab(){
+  const active = ['dashboard','inventario','alertas','estadisticas'].find(t => !document.getElementById('view-'+t).classList.contains('hidden'));
+  if(active === 'dashboard') renderDashboard();
+  if(active === 'inventario') renderInventario();
+  if(active === 'alertas') renderAlertas();
+  if(active === 'estadisticas') renderEstadisticas();
+}
+
+let chartEstInst = null, chartMermInst = null;
+function renderEstadisticas(){
+  const lotes = activeLotes();
+  const byStatus = {OK:0, Próximo:0, Urgente:0, Vencido:0};
+  lotes.forEach(l => byStatus[getStatus(l.vencimiento)]++);
+
+  if(chartEstInst) chartEstInst.destroy();
+  chartEstInst = new Chart(document.getElementById('chartEstados').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: ['OK', 'Próximo', 'Urgente', 'Vencido'],
+      datasets: [{
+        data: [byStatus.OK, byStatus.Próximo, byStatus.Urgente, byStatus.Vencido],
+        backgroundColor: ['#22c55e','#eab308','#ef4444','#9ca3af'],
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} lotes` } }
+      }
+    }
+  });
+
+  // Mermas por categoría este mes
+  const mermasCat = {};
+  const startMonth = new Date(); startMonth.setDate(1); startMonth.setHours(0,0,0,0);
+  data.descartados.filter(d => new Date(d.fecha) >= startMonth).forEach(d => {
+    mermasCat[d.categoria] = (mermasCat[d.categoria] || 0) + (d.cantidad * d.precio);
+  });
+  const cats = Object.keys(mermasCat);
+  const catColors2 = ['#f97316','#ef4444','#22c55e','#3b82f6','#06b6d4','#8b5cf6','#ec4899'];
+
+  if(chartMermInst) chartMermInst.destroy();
+  if(cats.length > 0){
+    chartMermInst = new Chart(document.getElementById('chartMermas').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: cats,
+        datasets: [{ label: 'Costo MXN', data: cats.map(c => mermasCat[c]), backgroundColor: catColors2, borderRadius:8 }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + ctx.raw.toLocaleString('es-MX') } } },
+        scales: { y: { ticks: { callback: v => '$' + v.toLocaleString('es-MX') } } }
+      }
+    });
+  } else {
+    document.getElementById('chartMermas').parentElement.innerHTML += '<p class="text-gray-400 text-center text-sm py-4">Sin mermas registradas este mes</p>';
+  }
+
+  const totalMermasMes = Object.values(mermasCat).reduce((s,v) => s+v, 0);
+  const totalDescartadosMes = data.descartados.filter(d => new Date(d.fecha) >= startMonth).length;
+  const lotesTotales = lotes.length;
+
+  document.getElementById('statsResumen').innerHTML = [
+    {label:'Artículos descartados este mes', val: totalDescartadosMes, suffix:'', cls:'text-red-600'},
+    {label:'Costo mermas este mes', val: '$' + totalMermasMes.toLocaleString('es-MX', {minimumFractionDigits:2}), suffix:'MXN', cls:'accent'},
+    {label:'Lotes activos en inventario', val: lotesTotales, suffix:'', cls:'text-gray-800'}
+  ].map(s => `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <p class="text-xs text-gray-500 mb-1">${s.label}</p>
+      <p class="text-2xl font-bold ${s.cls}">${s.val}</p>
+      ${s.suffix ? `<p class="text-xs text-gray-400">${s.suffix}</p>` : ''}
+    </div>
+  `).join('');
+}
+
+function populateLoteProductos(){
+  const sel = document.getElementById('loteProducto');
+  sel.innerHTML = '<option value="">Seleccionar producto...</option>' + data.productos.map(p => `<option value="${p.id}">${p.nombre} (${p.categoria})</option>`).join('');
+  const hoy = new Date();
+  document.getElementById('loteRecibido').value = hoy.toISOString().split('T')[0];
+  document.getElementById('loteVencimiento').value = '';
+  document.getElementById('loteCantidad').value = '';
+}
+
+function guardarProducto(){
+  const nombre = document.getElementById('prodNombre').value.trim();
+  if(!nombre){ alert('Nombre requerido'); return; }
+  data.productos.push({
+    id: 'pr' + Date.now(),
+    nombre,
+    categoria: document.getElementById('prodCategoria').value,
+    unidad: document.getElementById('prodUnidad').value,
+    precio: parseFloat(document.getElementById('prodPrecio').value) || 0
+  });
+  saveData();
+  closeModal('modalAgregarProducto');
+  alert('Producto guardado. Ahora puedes agregar un lote.');
+}
+
+function guardarLote(){
+  const prodId = document.getElementById('loteProducto').value;
+  const cantidad = parseFloat(document.getElementById('loteCantidad').value);
+  const vencimiento = document.getElementById('loteVencimiento').value;
+  if(!prodId || !cantidad || !vencimiento){ alert('Completa todos los campos requeridos'); return; }
+  data.lotes.push({
+    id: 'l' + Date.now(),
+    productoId: prodId,
+    cantidad,
+    vencimiento,
+    recibido: document.getElementById('loteRecibido').value || today(),
+    ubicacion: document.getElementById('loteUbicacion').value,
+    status: 'activo'
+  });
+  saveData();
+  closeModal('modalAgregarLote');
+  renderDashboard();
+  alert('Lote agregado correctamente');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('footerYear').textContent = new Date().getFullYear();
+  loadData();
+  renderDashboard();
+  document.querySelectorAll('.modal-backdrop').forEach(m => m.addEventListener('click', e => { if(e.target === m) m.classList.add('hidden'); }));
+});
+</script>
+</body>
+</html>

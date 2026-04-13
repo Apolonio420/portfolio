@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Programa de Lealtad — Novamente Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .tab-btn.active { background: #7c3aed; color: white; border-color: #7c3aed; }
+  .tab-btn { transition: all 0.2s ease; }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .card-hover { transition: all 0.2s ease; }
+  .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(124,58,237,0.15); }
+  .points-badge { background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); }
+  .gold-badge { background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); }
+  .rank-1 { background: linear-gradient(135deg, #f59e0b, #fcd34d); color: #92400e; }
+  .rank-2 { background: #e2e8f0; color: #64748b; }
+  .rank-3 { background: linear-gradient(135deg, #d97706, #b45309); color: white; }
+  .tier-bronze { border-left: 4px solid #d97706; }
+  .tier-silver { border-left: 4px solid #94a3b8; }
+  .tier-gold { border-left: 4px solid #f59e0b; }
+  .tier-platinum { border-left: 4px solid #7c3aed; }
+  input[type=range] { accent-color: #7c3aed; }
+  @media print {
+    .no-print { display: none !important; }
+    .card-hover:hover { transform: none; }
+  }
+</style>
+</head>
+<body class="bg-violet-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-violet-100 sticky top-0 z-50 no-print">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 points-badge rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">★</div>
+      <div>
+        <div class="font-bold text-slate-800 text-sm">Programa de Lealtad</div>
+        <div class="text-xs text-slate-400">Fideliza a tus clientes con puntos</div>
+      </div>
+    </div>
+    <div class="flex gap-1.5 flex-wrap">
+      <button onclick="showView('dashboard')" id="btn-dashboard" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200">Dashboard</button>
+      <button onclick="showView('checkin')" id="btn-checkin" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200">Check-in</button>
+      <button onclick="showView('customers')" id="btn-customers" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200">Clientes</button>
+      <button onclick="showView('rewards')" id="btn-rewards" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200">Recompensas</button>
+      <button onclick="showView('leaderboard')" id="btn-leaderboard" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200">Top 10</button>
+      <button onclick="showView('config')" id="btn-config" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200">Config</button>
+    </div>
+  </div>
+</header>
+
+<!-- DASHBOARD -->
+<div id="view-dashboard" class="max-w-6xl mx-auto px-4 py-6 hidden fade-in">
+  <h2 class="text-xl font-bold text-slate-800 mb-6">Dashboard General</h2>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="dash-stats"></div>
+  <div class="grid md:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-2xl border border-violet-100 p-6 shadow-sm">
+      <h3 class="font-bold text-slate-800 text-sm mb-4">Puntos distribuidos por mes</h3>
+      <canvas id="chart-monthly" height="120"></canvas>
+    </div>
+    <div class="bg-white rounded-2xl border border-violet-100 p-6 shadow-sm">
+      <h3 class="font-bold text-slate-800 text-sm mb-4">Recompensas más canjeadas</h3>
+      <canvas id="chart-rewards" height="120"></canvas>
+    </div>
+  </div>
+  <!-- Recent Activity -->
+  <div class="bg-white rounded-2xl border border-violet-100 p-6 shadow-sm">
+    <h3 class="font-bold text-slate-800 text-sm mb-4">Actividad reciente</h3>
+    <div id="recent-activity" class="grid gap-2"></div>
+  </div>
+</div>
+
+<!-- CHECK-IN VIEW -->
+<div id="view-checkin" class="max-w-lg mx-auto px-4 py-6 hidden fade-in">
+  <h2 class="text-xl font-bold text-slate-800 mb-2">Check-in de cliente</h2>
+  <p class="text-sm text-slate-500 mb-6">Busca por teléfono para agregar puntos o canjear recompensas</p>
+
+  <!-- Search -->
+  <div class="bg-white rounded-2xl border border-violet-100 p-5 shadow-sm mb-4">
+    <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2 block">Buscar cliente</label>
+    <div class="flex gap-2">
+      <input id="search-phone" type="tel" placeholder="Teléfono del cliente" class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300" oninput="searchCustomer()">
+      <button onclick="searchCustomer()" class="px-4 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 transition-colors">Buscar</button>
+    </div>
+    <div id="search-results" class="mt-3 grid gap-2"></div>
+  </div>
+
+  <!-- Customer Card (shown after selection) -->
+  <div id="customer-card" class="hidden">
+    <div class="bg-white rounded-2xl border border-violet-100 shadow-sm overflow-hidden mb-4">
+      <div class="points-badge p-5 text-white">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-lg font-bold" id="card-name"></div>
+            <div class="text-sm opacity-80" id="card-phone"></div>
+            <div class="text-xs opacity-60 mt-1" id="card-tier"></div>
+          </div>
+          <div class="text-right">
+            <div class="text-3xl font-bold" id="card-points"></div>
+            <div class="text-xs opacity-80">puntos</div>
+          </div>
+        </div>
+        <div class="mt-3 bg-white/20 rounded-full overflow-hidden h-2">
+          <div id="card-progress" class="bg-yellow-300 h-2 rounded-full transition-all duration-500"></div>
+        </div>
+        <div class="text-xs opacity-70 mt-1" id="card-progress-text"></div>
+      </div>
+      <div class="p-5">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Historial reciente</div>
+        <div id="card-history" class="grid gap-1.5 mb-4 text-xs"></div>
+      </div>
+    </div>
+
+    <!-- Add Points -->
+    <div class="bg-white rounded-2xl border border-violet-100 p-5 shadow-sm mb-4">
+      <h3 class="font-bold text-slate-800 text-sm mb-3">Agregar puntos</h3>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-500 mb-1 block">Puntos a agregar</label>
+          <input id="add-points" type="number" value="10" min="1" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-500 mb-1 block">Motivo</label>
+          <select id="add-reason" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+            <option>Visita</option>
+            <option>Compra</option>
+            <option>Referido</option>
+            <option>Cumpleaños</option>
+            <option>Promoción</option>
+          </select>
+        </div>
+      </div>
+      <button onclick="addPoints()" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">+ Agregar puntos</button>
+    </div>
+
+    <!-- Redeem Rewards -->
+    <div class="bg-white rounded-2xl border border-violet-100 p-5 shadow-sm">
+      <h3 class="font-bold text-slate-800 text-sm mb-3">Canjear recompensa</h3>
+      <div id="redeem-list" class="grid gap-2"></div>
+    </div>
+  </div>
+
+  <!-- Enroll New -->
+  <div id="enroll-new" class="hidden">
+    <div class="bg-white rounded-2xl border border-violet-100 p-5 shadow-sm">
+      <h3 class="font-bold text-slate-800 text-sm mb-4">Registrar nuevo cliente</h3>
+      <div class="grid gap-3">
+        <input id="new-name" type="text" placeholder="Nombre completo" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+        <input id="new-phone" type="tel" placeholder="Teléfono" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+        <input id="new-email" type="email" placeholder="Correo electrónico (opcional)" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+        <input id="new-bday" type="date" placeholder="Fecha de nacimiento (opcional)" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+        <button onclick="enrollCustomer()" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">Registrar cliente</button>
+        <button onclick="document.getElementById('enroll-new').classList.add('hidden')" class="text-xs text-slate-400 text-center">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMERS VIEW -->
+<div id="view-customers" class="max-w-6xl mx-auto px-4 py-6 hidden fade-in">
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <h2 class="text-xl font-bold text-slate-800">Clientes Registrados</h2>
+    <div class="flex gap-2">
+      <input id="filter-customer" type="text" placeholder="Buscar por nombre o teléfono..." oninput="renderCustomers()" class="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300">
+      <button onclick="showView('checkin');setTimeout(()=>document.getElementById('enroll-new').classList.remove('hidden'),100)" class="text-xs px-4 py-2 bg-violet-600 text-white rounded-xl font-semibold hover:bg-violet-700 transition-colors">+ Nuevo</button>
+    </div>
+  </div>
+  <div id="customers-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+</div>
+
+<!-- REWARDS VIEW -->
+<div id="view-rewards" class="max-w-4xl mx-auto px-4 py-6 hidden fade-in">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-xl font-bold text-slate-800">Catálogo de Recompensas</h2>
+  </div>
+  <div id="rewards-catalog" class="grid md:grid-cols-2 gap-4 mb-8"></div>
+
+  <!-- Add Reward Form -->
+  <div class="bg-white rounded-2xl border border-violet-100 p-6 shadow-sm">
+    <h3 class="font-bold text-slate-800 text-sm mb-4">Nueva Recompensa</h3>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase mb-1 block">Nombre de la recompensa</label>
+        <input id="r-name" type="text" placeholder="Ej: Café gratis" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase mb-1 block">Puntos necesarios</label>
+        <input id="r-points" type="number" placeholder="Ej: 100" min="1" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase mb-1 block">Descripción</label>
+        <input id="r-desc" type="text" placeholder="Ej: Válido en cualquier bebida del menú" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase mb-1 block">Ícono (emoji)</label>
+        <input id="r-icon" type="text" placeholder="☕" maxlength="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+      </div>
+    </div>
+    <button onclick="addReward()" class="mt-4 w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">Agregar Recompensa</button>
+  </div>
+</div>
+
+<!-- LEADERBOARD VIEW -->
+<div id="view-leaderboard" class="max-w-2xl mx-auto px-4 py-6 hidden fade-in">
+  <h2 class="text-xl font-bold text-slate-800 mb-2">Top 10 Clientes</h2>
+  <p class="text-sm text-slate-500 mb-6">Los clientes más fieles de tu negocio</p>
+  <div id="leaderboard-list" class="grid gap-3"></div>
+</div>
+
+<!-- CONFIG VIEW -->
+<div id="view-config" class="max-w-2xl mx-auto px-4 py-6 hidden fade-in">
+  <h2 class="text-xl font-bold text-slate-800 mb-6">Configuración del Programa</h2>
+  <div class="bg-white rounded-2xl border border-violet-100 p-6 shadow-sm grid gap-5">
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase mb-1 block">Nombre del negocio</label>
+      <input id="cfg-biz-name" type="text" placeholder="Café Aromas" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300">
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase mb-2 block">Puntos por visita: <span id="cfg-visit-val" class="text-violet-600 font-bold">10</span></label>
+      <input id="cfg-visit-pts" type="range" min="1" max="50" value="10" oninput="document.getElementById('cfg-visit-val').textContent=this.value" class="w-full">
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase mb-2 block">Puntos por cada $100 gastados: <span id="cfg-spend-val" class="text-violet-600 font-bold">5</span></label>
+      <input id="cfg-spend-pts" type="range" min="1" max="20" value="5" oninput="document.getElementById('cfg-spend-val').textContent=this.value" class="w-full">
+    </div>
+    <div>
+      <label class="text-xs font-semibold text-slate-500 uppercase mb-2 block">Puntos de bienvenida (registro): <span id="cfg-welcome-val" class="text-violet-600 font-bold">25</span></label>
+      <input id="cfg-welcome-pts" type="range" min="0" max="100" value="25" oninput="document.getElementById('cfg-welcome-val').textContent=this.value" class="w-full">
+    </div>
+    <div class="border-t border-slate-100 pt-4">
+      <div class="text-xs font-semibold text-slate-500 uppercase mb-3">Niveles (tiers)</div>
+      <div class="grid gap-2 text-xs">
+        <div class="tier-bronze bg-orange-50 rounded-xl p-3 flex justify-between items-center">
+          <span class="font-bold">Bronce</span><span class="text-slate-500">0 – 299 puntos</span>
+        </div>
+        <div class="tier-silver bg-slate-50 rounded-xl p-3 flex justify-between items-center">
+          <span class="font-bold">Plata</span><span class="text-slate-500">300 – 699 puntos</span>
+        </div>
+        <div class="tier-gold bg-amber-50 rounded-xl p-3 flex justify-between items-center">
+          <span class="font-bold text-amber-700">Oro</span><span class="text-slate-500">700 – 1,499 puntos</span>
+        </div>
+        <div class="tier-platinum bg-violet-50 rounded-xl p-3 flex justify-between items-center">
+          <span class="font-bold text-violet-700">Platino</span><span class="text-slate-500">1,500+ puntos</span>
+        </div>
+      </div>
+    </div>
+    <button onclick="saveConfig()" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">Guardar configuración</button>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center py-8 text-xs text-slate-400 no-print">
+  Powered by <span class="font-semibold text-violet-600">Novamente Studio</span> · novamente.studio
+</footer>
+
+<script>
+const CX_KEY = 'novadev_loyalty_customers';
+const RW_KEY = 'novadev_loyalty_rewards';
+const TX_KEY = 'novadev_loyalty_transactions';
+const CF_KEY = 'novadev_loyalty_config';
+
+// ──────────── DEMO DATA ────────────
+function initDemo() {
+  if (localStorage.getItem(CX_KEY)) return;
+
+  const customers = [
+    { id: 'c1', name: 'Ana García López', phone: '5512345678', email: 'ana@email.com', bday: '1990-03-15', points: 430, totalEarned: 510, visits: 12, joinDate: '2026-01-05' },
+    { id: 'c2', name: 'Carlos Mendoza', phone: '5523456789', email: 'carlos@email.com', bday: '1985-07-22', points: 1640, totalEarned: 1840, visits: 43, joinDate: '2025-11-20' },
+    { id: 'c3', name: 'María Rodríguez', phone: '5534567890', email: 'maria@email.com', bday: '1995-11-08', points: 220, totalEarned: 320, visits: 8, joinDate: '2026-02-10' },
+    { id: 'c4', name: 'Roberto Jiménez', phone: '5545678901', email: 'roberto@email.com', bday: '1978-01-30', points: 890, totalEarned: 1050, visits: 25, joinDate: '2025-12-01' },
+    { id: 'c5', name: 'Sofía Torres', phone: '5556789012', email: 'sofia@email.com', bday: '2000-06-14', points: 75, totalEarned: 175, visits: 4, joinDate: '2026-03-22' },
+    { id: 'c6', name: 'Luis Herrera', phone: '5567890123', email: 'luis@email.com', bday: '1988-09-05', points: 1250, totalEarned: 1450, visits: 35, joinDate: '2025-10-15' },
+    { id: 'c7', name: 'Daniela Morales', phone: '5578901234', email: 'dani@email.com', bday: '1993-12-20', points: 340, totalEarned: 440, visits: 11, joinDate: '2026-01-28' },
+    { id: 'c8', name: 'Javier Castillo', phone: '5589012345', email: 'javier@email.com', bday: '1982-04-18', points: 670, totalEarned: 820, visits: 20, joinDate: '2025-12-10' },
+    { id: 'c9', name: 'Valentina Ruiz', phone: '5590123456', email: 'vale@email.com', bday: '1997-08-25', points: 180, totalEarned: 280, visits: 7, joinDate: '2026-02-28' },
+    { id: 'c10', name: 'Eduardo Flores', phone: '5501234567', email: 'edu@email.com', bday: '1975-02-10', points: 2100, totalEarned: 2450, visits: 60, joinDate: '2025-09-01' }
+  ];
+
+  const rewards = [
+    { id: 'r1', name: 'Café gratis', points: 100, desc: 'Válido en cualquier bebida del menú', icon: '☕', redeemed: 12 },
+    { id: 'r2', name: 'Descuento 20%', points: 200, desc: 'En tu siguiente compra, sin restricciones', icon: '🏷️', redeemed: 7 },
+    { id: 'r3', name: 'Producto del chef', points: 350, desc: 'Plato especial de temporada', icon: '🍽️', redeemed: 4 },
+    { id: 'r4', name: 'Experiencia VIP', points: 800, desc: 'Mesa preferencial + bebida de cortesía', icon: '🌟', redeemed: 2 }
+  ];
+
+  const now = new Date();
+  const transactions = [
+    { id: 't1', customerId: 'c10', type: 'earn', points: 10, reason: 'Visita', date: '2026-04-10' },
+    { id: 't2', customerId: 'c2', type: 'earn', points: 10, reason: 'Visita', date: '2026-04-10' },
+    { id: 't3', customerId: 'c6', type: 'redeem', points: -200, reason: 'Descuento 20%', date: '2026-04-09' },
+    { id: 't4', customerId: 'c4', type: 'earn', points: 25, reason: 'Compra', date: '2026-04-09' },
+    { id: 't5', customerId: 'c1', type: 'earn', points: 10, reason: 'Visita', date: '2026-04-08' },
+    { id: 't6', customerId: 'c2', type: 'redeem', points: -100, reason: 'Café gratis', date: '2026-04-07' },
+    { id: 't7', customerId: 'c8', type: 'earn', points: 10, reason: 'Visita', date: '2026-04-07' },
+    { id: 't8', customerId: 'c10', type: 'earn', points: 10, reason: 'Visita', date: '2026-04-06' },
+  ];
+
+  const config = { bizName: 'Café Aromas', visitPts: 10, spendPts: 5, welcomePts: 25 };
+
+  localStorage.setItem(CX_KEY, JSON.stringify(customers));
+  localStorage.setItem(RW_KEY, JSON.stringify(rewards));
+  localStorage.setItem(TX_KEY, JSON.stringify(transactions));
+  localStorage.setItem(CF_KEY, JSON.stringify(config));
+}
+
+function getCustomers() { return JSON.parse(localStorage.getItem(CX_KEY) || '[]'); }
+function getRewards() { return JSON.parse(localStorage.getItem(RW_KEY) || '[]'); }
+function getTransactions() { return JSON.parse(localStorage.getItem(TX_KEY) || '[]'); }
+function getConfig() { return JSON.parse(localStorage.getItem(CF_KEY) || '{"bizName":"Mi Negocio","visitPts":10,"spendPts":5,"welcomePts":25}'); }
+function saveCustomers(d) { localStorage.setItem(CX_KEY, JSON.stringify(d)); }
+function saveRewards(d) { localStorage.setItem(RW_KEY, JSON.stringify(d)); }
+function saveTransactions(d) { localStorage.setItem(TX_KEY, JSON.stringify(d)); }
+function saveConfig(skipToast) {
+  const cfg = {
+    bizName: document.getElementById('cfg-biz-name').value,
+    visitPts: parseInt(document.getElementById('cfg-visit-pts').value),
+    spendPts: parseInt(document.getElementById('cfg-spend-pts').value),
+    welcomePts: parseInt(document.getElementById('cfg-welcome-pts').value)
+  };
+  localStorage.setItem(CF_KEY, JSON.stringify(cfg));
+  if (!skipToast) showToast('Configuración guardada');
+}
+
+let selectedCustomerId = null;
+let dashCharts = {};
+
+function getTier(points) {
+  if (points >= 1500) return { name: 'Platino', color: '#7c3aed', next: null };
+  if (points >= 700) return { name: 'Oro', color: '#f59e0b', next: 1500 };
+  if (points >= 300) return { name: 'Plata', color: '#94a3b8', next: 700 };
+  return { name: 'Bronce', color: '#d97706', next: 300 };
+}
+
+// ──────────── VIEWS ────────────
+function showView(view) {
+  ['dashboard','checkin','customers','rewards','leaderboard','config'].forEach(v => {
+    document.getElementById(`view-${v}`).classList.add('hidden');
+    document.getElementById(`btn-${v}`).classList.remove('active');
+  });
+  document.getElementById(`view-${view}`).classList.remove('hidden');
+  document.getElementById(`btn-${view}`).classList.add('active');
+
+  if (view === 'dashboard') renderDashboard();
+  if (view === 'customers') renderCustomers();
+  if (view === 'rewards') renderRewards();
+  if (view === 'leaderboard') renderLeaderboard();
+  if (view === 'config') loadConfig();
+  if (view === 'checkin') {
+    document.getElementById('customer-card').classList.add('hidden');
+    document.getElementById('enroll-new').classList.add('hidden');
+    document.getElementById('search-phone').value = '';
+    document.getElementById('search-results').innerHTML = '';
+    selectedCustomerId = null;
+  }
+}
+
+// ──────────── DASHBOARD ────────────
+function renderDashboard() {
+  const customers = getCustomers();
+  const txs = getTransactions();
+  const rewards = getRewards();
+  const thisMonth = new Date().toISOString().slice(0,7);
+
+  const activeThisMonth = new Set(txs.filter(t => t.date.startsWith(thisMonth)).map(t => t.customerId)).size;
+  const totalPts = txs.filter(t => t.type === 'earn').reduce((a, t) => a + t.points, 0);
+  const totalRedeemed = txs.filter(t => t.type === 'redeem').length;
+  const totalRewards = rewards.reduce((a, r) => a + r.redeemed, 0);
+
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="card-hover bg-white rounded-2xl border border-violet-100 p-4 shadow-sm text-center">
+      <div class="text-3xl font-bold text-violet-600">${customers.length}</div>
+      <div class="text-xs text-slate-500 mt-1">Clientes registrados</div>
+    </div>
+    <div class="card-hover bg-white rounded-2xl border border-violet-100 p-4 shadow-sm text-center">
+      <div class="text-3xl font-bold text-violet-600">${activeThisMonth}</div>
+      <div class="text-xs text-slate-500 mt-1">Activos este mes</div>
+    </div>
+    <div class="card-hover bg-white rounded-2xl border border-violet-100 p-4 shadow-sm text-center">
+      <div class="text-3xl font-bold text-amber-500">${totalRewards}</div>
+      <div class="text-xs text-slate-500 mt-1">Recompensas canjeadas</div>
+    </div>
+    <div class="card-hover bg-white rounded-2xl border border-violet-100 p-4 shadow-sm text-center">
+      <div class="text-3xl font-bold text-violet-600">${totalPts.toLocaleString()}</div>
+      <div class="text-xs text-slate-500 mt-1">Puntos distribuidos</div>
+    </div>`;
+
+  // Monthly chart
+  if (dashCharts.monthly) dashCharts.monthly.destroy();
+  if (dashCharts.rewards) dashCharts.rewards.destroy();
+
+  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const monthlyData = new Array(12).fill(0);
+  txs.filter(t => t.type === 'earn').forEach(t => {
+    const m = parseInt(t.date.split('-')[1]) - 1;
+    monthlyData[m] += t.points;
+  });
+
+  const ctx1 = document.getElementById('chart-monthly').getContext('2d');
+  dashCharts.monthly = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [{ data: monthlyData, backgroundColor: '#7c3aed33', borderColor: '#7c3aed', borderWidth: 2, borderRadius: 6, borderSkipped: false }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+
+  const ctx2 = document.getElementById('chart-rewards').getContext('2d');
+  dashCharts.rewards = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: rewards.map(r => r.name),
+      datasets: [{ data: rewards.map(r => r.redeemed), backgroundColor: ['#7c3aed','#a855f7','#f59e0b','#fcd34d'], borderWidth: 0 }]
+    },
+    options: { plugins: { legend: { position: 'right' } }, cutout: '60%' }
+  });
+
+  // Recent activity
+  const recent = [...txs].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 8);
+  const custMap = Object.fromEntries(getCustomers().map(c => [c.id, c]));
+  document.getElementById('recent-activity').innerHTML = recent.map(t => {
+    const c = custMap[t.customerId];
+    const isEarn = t.type === 'earn';
+    return `
+      <div class="flex items-center gap-3 py-2 border-b border-slate-50">
+        <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${isEarn ? 'bg-violet-500' : 'bg-amber-500'}">${isEarn ? '+' : '−'}</div>
+        <div class="flex-1">
+          <span class="text-sm font-semibold text-slate-800">${c?.name || 'Cliente'}</span>
+          <span class="text-xs text-slate-400 ml-2">${t.reason}</span>
+        </div>
+        <div class="text-sm font-bold ${isEarn ? 'text-violet-600' : 'text-amber-600'}">${isEarn ? '+' : ''}${t.points} pts</div>
+        <div class="text-xs text-slate-400">${t.date}</div>
+      </div>`;
+  }).join('') || '<div class="text-sm text-slate-400 py-4 text-center">No hay actividad aún.</div>';
+}
+
+// ──────────── CHECK-IN ────────────
+function searchCustomer() {
+  const q = document.getElementById('search-phone').value.trim();
+  if (q.length < 3) { document.getElementById('search-results').innerHTML = ''; return; }
+  const customers = getCustomers();
+  const found = customers.filter(c => c.phone.includes(q) || c.name.toLowerCase().includes(q.toLowerCase()));
+
+  if (found.length === 0) {
+    document.getElementById('search-results').innerHTML = `
+      <div class="text-center py-3">
+        <div class="text-sm text-slate-500 mb-2">No se encontró ningún cliente.</div>
+        <button onclick="document.getElementById('enroll-new').classList.remove('hidden');document.getElementById('new-phone').value='${q}'" class="text-xs px-4 py-2 bg-violet-600 text-white rounded-xl font-semibold hover:bg-violet-700 transition-colors">+ Registrar nuevo cliente</button>
+      </div>`;
+    return;
+  }
+  document.getElementById('search-results').innerHTML = found.map(c => `
+    <button onclick="selectCustomer('${c.id}')" class="w-full text-left flex items-center gap-3 p-3 rounded-xl hover:bg-violet-50 transition-colors border border-slate-100">
+      <div class="w-10 h-10 points-badge rounded-full flex items-center justify-center text-white font-bold text-sm">${c.name[0]}</div>
+      <div class="flex-1">
+        <div class="font-semibold text-slate-800 text-sm">${c.name}</div>
+        <div class="text-xs text-slate-400">${c.phone}</div>
+      </div>
+      <div class="text-right">
+        <div class="font-bold text-violet-600 text-sm">${c.points.toLocaleString()}</div>
+        <div class="text-xs text-slate-400">pts</div>
+      </div>
+    </button>`).join('');
+}
+
+function selectCustomer(id) {
+  selectedCustomerId = id;
+  const customers = getCustomers();
+  const c = customers.find(x => x.id === id);
+  const tier = getTier(c.points);
+  const nextTier = tier.next;
+
+  document.getElementById('customer-card').classList.remove('hidden');
+  document.getElementById('enroll-new').classList.add('hidden');
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('card-name').textContent = c.name;
+  document.getElementById('card-phone').textContent = c.phone;
+  document.getElementById('card-tier').textContent = `Nivel ${tier.name} · ${c.visits} visitas`;
+  document.getElementById('card-points').textContent = c.points.toLocaleString();
+
+  if (nextTier) {
+    const pct = Math.min(100, (c.points / nextTier) * 100);
+    document.getElementById('card-progress').style.width = pct + '%';
+    document.getElementById('card-progress-text').textContent = `${c.points} / ${nextTier} puntos para ${getTier(nextTier).name}`;
+  } else {
+    document.getElementById('card-progress').style.width = '100%';
+    document.getElementById('card-progress-text').textContent = 'Nivel máximo alcanzado';
+  }
+
+  const txs = getTransactions().filter(t => t.customerId === id).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5);
+  document.getElementById('card-history').innerHTML = txs.length > 0 ? txs.map(t => `
+    <div class="flex justify-between items-center py-1.5 border-b border-slate-50">
+      <div class="flex items-center gap-2">
+        <span class="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold ${t.type === 'earn' ? 'bg-violet-500' : 'bg-amber-500'}">${t.type === 'earn' ? '+' : '−'}</span>
+        <span class="text-slate-600">${t.reason}</span>
+      </div>
+      <div class="flex gap-3">
+        <span class="font-bold ${t.type === 'earn' ? 'text-violet-600' : 'text-amber-600'}">${t.type === 'earn' ? '+' : ''}${t.points}</span>
+        <span class="text-slate-400">${t.date}</span>
+      </div>
+    </div>`).join('') : '<div class="text-slate-400 py-2">Sin historial aún.</div>';
+
+  // Redeem list
+  const rewards = getRewards();
+  document.getElementById('redeem-list').innerHTML = rewards.map(r => {
+    const canRedeem = c.points >= r.points;
+    return `
+      <div class="flex items-center justify-between p-3 rounded-xl border ${canRedeem ? 'border-amber-200 bg-amber-50' : 'border-slate-100 bg-slate-50 opacity-60'}">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">${r.icon}</span>
+          <div>
+            <div class="font-semibold text-slate-800 text-sm">${r.name}</div>
+            <div class="text-xs text-slate-500">${r.desc}</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm font-bold text-amber-600">${r.points} pts</div>
+          ${canRedeem ? `<button onclick="redeemReward('${r.id}')" class="text-xs px-3 py-1 mt-1 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors">Canjear</button>` : '<div class="text-xs text-slate-400 mt-1">Insuf.</div>'}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function addPoints() {
+  if (!selectedCustomerId) return;
+  const pts = parseInt(document.getElementById('add-points').value) || 0;
+  if (pts <= 0) return showToast('Ingresa un número de puntos válido', 'error');
+  const reason = document.getElementById('add-reason').value;
+
+  const customers = getCustomers();
+  const txs = getTransactions();
+  const c = customers.find(x => x.id === selectedCustomerId);
+  c.points += pts;
+  c.totalEarned += pts;
+  c.visits++;
+  txs.push({ id: `t${Date.now()}`, customerId: selectedCustomerId, type: 'earn', points: pts, reason, date: new Date().toISOString().split('T')[0] });
+
+  saveCustomers(customers);
+  saveTransactions(txs);
+  selectCustomer(selectedCustomerId);
+  showToast(`+${pts} puntos agregados a ${c.name}`);
+}
+
+function redeemReward(rewardId) {
+  if (!selectedCustomerId) return;
+  const customers = getCustomers();
+  const rewards = getRewards();
+  const txs = getTransactions();
+  const c = customers.find(x => x.id === selectedCustomerId);
+  const r = rewards.find(x => x.id === rewardId);
+
+  if (c.points < r.points) return showToast('Puntos insuficientes', 'error');
+  if (!confirm(`¿Canjear "${r.name}" por ${r.points} puntos para ${c.name}?`)) return;
+
+  c.points -= r.points;
+  r.redeemed = (r.redeemed || 0) + 1;
+  txs.push({ id: `t${Date.now()}`, customerId: selectedCustomerId, type: 'redeem', points: -r.points, reason: r.name, date: new Date().toISOString().split('T')[0] });
+
+  saveCustomers(customers);
+  saveRewards(rewards);
+  saveTransactions(txs);
+  selectCustomer(selectedCustomerId);
+  showToast(`Recompensa "${r.name}" canjeada exitosamente`);
+}
+
+function enrollCustomer() {
+  const name = document.getElementById('new-name').value.trim();
+  const phone = document.getElementById('new-phone').value.trim();
+  if (!name || !phone) return showToast('Nombre y teléfono son obligatorios', 'error');
+
+  const customers = getCustomers();
+  if (customers.some(c => c.phone === phone)) return showToast('Ya existe un cliente con ese teléfono', 'error');
+
+  const cfg = getConfig();
+  const newCustomer = {
+    id: `c${Date.now()}`,
+    name, phone,
+    email: document.getElementById('new-email').value.trim(),
+    bday: document.getElementById('new-bday').value,
+    points: cfg.welcomePts,
+    totalEarned: cfg.welcomePts,
+    visits: 1,
+    joinDate: new Date().toISOString().split('T')[0]
+  };
+
+  customers.push(newCustomer);
+  saveCustomers(customers);
+
+  const txs = getTransactions();
+  txs.push({ id: `t${Date.now()}`, customerId: newCustomer.id, type: 'earn', points: cfg.welcomePts, reason: 'Bienvenida', date: newCustomer.joinDate });
+  saveTransactions(txs);
+
+  document.getElementById('enroll-new').classList.add('hidden');
+  ['new-name','new-phone','new-email','new-bday'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('search-phone').value = phone;
+  searchCustomer();
+  selectCustomer(newCustomer.id);
+  showToast(`Cliente ${name} registrado con ${cfg.welcomePts} puntos de bienvenida`);
+}
+
+// ──────────── CUSTOMERS ────────────
+function renderCustomers() {
+  const q = document.getElementById('filter-customer')?.value.toLowerCase() || '';
+  const customers = getCustomers().filter(c => !q || c.name.toLowerCase().includes(q) || c.phone.includes(q));
+  customers.sort((a,b) => b.points - a.points);
+
+  document.getElementById('customers-grid').innerHTML = customers.map(c => {
+    const tier = getTier(c.points);
+    return `
+      <div class="card-hover bg-white rounded-2xl border border-violet-100 p-5 shadow-sm cursor-pointer" onclick="showView('checkin');setTimeout(()=>{document.getElementById('search-phone').value='${c.phone}';searchCustomer();selectCustomer('${c.id}')},100)">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-11 h-11 points-badge rounded-full flex items-center justify-center text-white font-bold text-lg">${c.name[0]}</div>
+          <div class="flex-1">
+            <div class="font-bold text-slate-800 text-sm">${c.name}</div>
+            <div class="text-xs text-slate-400">${c.phone}</div>
+          </div>
+          <div class="text-xs font-bold px-2 py-1 rounded-full" style="background:${tier.color}22;color:${tier.color}">${tier.name}</div>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-violet-50 rounded-xl py-2">
+            <div class="font-bold text-violet-700 text-sm">${c.points.toLocaleString()}</div>
+            <div class="text-xs text-slate-400">puntos</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl py-2">
+            <div class="font-bold text-slate-700 text-sm">${c.visits}</div>
+            <div class="text-xs text-slate-400">visitas</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl py-2">
+            <div class="font-bold text-slate-700 text-sm">${c.joinDate.slice(0,7)}</div>
+            <div class="text-xs text-slate-400">desde</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('') || '<div class="col-span-3 text-center py-12 text-slate-400 text-sm">No se encontraron clientes.</div>';
+}
+
+// ──────────── REWARDS ────────────
+function renderRewards() {
+  const rewards = getRewards();
+  document.getElementById('rewards-catalog').innerHTML = rewards.map(r => `
+    <div class="card-hover bg-white rounded-2xl border border-violet-100 p-5 shadow-sm">
+      <div class="flex items-start justify-between mb-3">
+        <div class="text-4xl">${r.icon}</div>
+        <div class="text-right">
+          <div class="text-xl font-bold text-amber-500">${r.points}</div>
+          <div class="text-xs text-slate-400">puntos</div>
+        </div>
+      </div>
+      <div class="font-bold text-slate-800 mb-1">${r.name}</div>
+      <div class="text-sm text-slate-500 mb-3">${r.desc}</div>
+      <div class="flex items-center justify-between">
+        <div class="text-xs text-slate-400">${r.redeemed} veces canjeado</div>
+        <button onclick="deleteReward('${r.id}')" class="text-xs text-red-400 hover:text-red-600 transition-colors">Eliminar</button>
+      </div>
+    </div>`).join('') || '<div class="col-span-2 text-center py-8 text-slate-400 text-sm">No hay recompensas aún.</div>';
+}
+
+function addReward() {
+  const name = document.getElementById('r-name').value.trim();
+  const points = parseInt(document.getElementById('r-points').value);
+  const desc = document.getElementById('r-desc').value.trim();
+  const icon = document.getElementById('r-icon').value.trim() || '🎁';
+  if (!name || !points) return showToast('Nombre y puntos son obligatorios', 'error');
+
+  const rewards = getRewards();
+  rewards.push({ id: `r${Date.now()}`, name, points, desc, icon, redeemed: 0 });
+  saveRewards(rewards);
+  ['r-name','r-points','r-desc','r-icon'].forEach(id => document.getElementById(id).value = '');
+  renderRewards();
+  showToast('Recompensa agregada');
+}
+
+function deleteReward(id) {
+  if (!confirm('¿Eliminar esta recompensa del catálogo?')) return;
+  saveRewards(getRewards().filter(r => r.id !== id));
+  renderRewards();
+}
+
+// ──────────── LEADERBOARD ────────────
+function renderLeaderboard() {
+  const customers = [...getCustomers()].sort((a,b) => b.points - a.points).slice(0, 10);
+  const medals = ['🥇','🥈','🥉'];
+  document.getElementById('leaderboard-list').innerHTML = customers.map((c, i) => {
+    const tier = getTier(c.points);
+    const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+    return `
+      <div class="card-hover bg-white rounded-2xl border border-violet-100 p-4 shadow-sm flex items-center gap-4">
+        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${rankClass || 'bg-slate-100 text-slate-500'}">${medals[i] || `#${i+1}`}</div>
+        <div class="flex-1">
+          <div class="font-bold text-slate-800">${c.name}</div>
+          <div class="text-xs text-slate-400">${c.phone} · ${c.visits} visitas</div>
+        </div>
+        <div class="text-right">
+          <div class="text-xl font-bold text-violet-600">${c.points.toLocaleString()}</div>
+          <div class="text-xs font-semibold" style="color:${tier.color}">${tier.name}</div>
+        </div>
+        <button onclick="showView('checkin');setTimeout(()=>{document.getElementById('search-phone').value='${c.phone}';searchCustomer();selectCustomer('${c.id}')},100)" class="text-xs px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg font-semibold hover:bg-violet-200 transition-colors">Ver</button>
+      </div>`;
+  }).join('');
+}
+
+// ──────────── CONFIG ────────────
+function loadConfig() {
+  const cfg = getConfig();
+  document.getElementById('cfg-biz-name').value = cfg.bizName || '';
+  document.getElementById('cfg-visit-pts').value = cfg.visitPts || 10;
+  document.getElementById('cfg-spend-pts').value = cfg.spendPts || 5;
+  document.getElementById('cfg-welcome-pts').value = cfg.welcomePts || 25;
+  document.getElementById('cfg-visit-val').textContent = cfg.visitPts || 10;
+  document.getElementById('cfg-spend-val').textContent = cfg.spendPts || 5;
+  document.getElementById('cfg-welcome-val').textContent = cfg.welcomePts || 25;
+}
+
+// ──────────── TOAST ────────────
+function showToast(msg, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl text-sm font-semibold text-white shadow-lg z-50 fade-in ${type === 'error' ? 'bg-red-500' : 'bg-violet-600'}`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// ──────────── INIT ────────────
+initDemo();
+showView('dashboard');
+</script>
+</body>
+</html>

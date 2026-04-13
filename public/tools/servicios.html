@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="es" class="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ServiAgenda — Agenda de Servicios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        brand: { blue: '#0369a1', orange: '#f97316' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .fade-in { animation: fadeIn 0.35s ease forwards; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .slide-in { animation: slideIn 0.25s ease forwards; }
+  @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+  .status-agendado  { background:#dbeafe; color:#1d4ed8; }
+  .status-encamino  { background:#fef9c3; color:#a16207; }
+  .status-completado{ background:#dcfce7; color:#16a34a; }
+  .status-cancelado { background:#fee2e2; color:#dc2626; }
+  .dark .status-agendado  { background:#1e3a5f; color:#93c5fd; }
+  .dark .status-encamino  { background:#3d2e00; color:#fde047; }
+  .dark .status-completado{ background:#14402a; color:#86efac; }
+  .dark .status-cancelado { background:#3f1515; color:#fca5a5; }
+  .tab-active { border-bottom: 3px solid #0369a1; color: #0369a1; font-weight:700; }
+  .dark .tab-active { border-color:#38bdf8; color:#38bdf8; }
+  .cal-day { min-height: 90px; }
+  .appt-pill { font-size:0.7rem; line-height:1.1; border-radius:6px; padding:3px 6px; margin-bottom:3px; cursor:pointer; transition:transform .15s; }
+  .appt-pill:hover { transform:scale(1.03); }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:white !important; color:black !important; }
+    .print-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:#94a3b8; border-radius:4px; }
+  .dark ::-webkit-scrollbar-thumb { background:#475569; }
+  input, select, textarea { outline: none; }
+  input:focus, select:focus, textarea:focus { ring: 2px solid #0369a1; }
+  .modal-bg { backdrop-filter: blur(3px); }
+</style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-300">
+
+<!-- HEADER -->
+<header class="no-print sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg,#0369a1,#f97316)">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      </div>
+      <div>
+        <h1 class="text-lg font-800 leading-none text-gray-900 dark:text-white" style="font-weight:800">ServiAgenda</h1>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Agenda de Servicios</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Cambiar tema">
+        <svg id="sun-icon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-width="2" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <svg id="moon-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
+      <button onclick="openNewAppointment()" class="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-600 transition-all hover:opacity-90 active:scale-95" style="background:#0369a1;font-weight:600">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Nuevo
+      </button>
+    </div>
+  </div>
+  <!-- TABS -->
+  <nav class="max-w-7xl mx-auto px-4 flex gap-0 overflow-x-auto border-t border-gray-100 dark:border-gray-800">
+    <button onclick="showTab('calendar')" id="tab-calendar" class="tab-btn tab-active py-3 px-4 text-sm whitespace-nowrap border-b-2 border-transparent transition-all">📅 Calendario</button>
+    <button onclick="showTab('route')" id="tab-route" class="tab-btn py-3 px-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap border-b-2 border-transparent transition-all hover:text-gray-700">🗺️ Ruta de Hoy</button>
+    <button onclick="showTab('clients')" id="tab-clients" class="tab-btn py-3 px-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap border-b-2 border-transparent transition-all hover:text-gray-700">👥 Clientes</button>
+    <button onclick="showTab('earnings')" id="tab-earnings" class="tab-btn py-3 px-4 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap border-b-2 border-transparent transition-all hover:text-gray-700">💰 Ganancias</button>
+  </nav>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-5">
+
+<!-- ===================== TAB: CALENDAR ===================== -->
+<section id="tab-calendar-content" class="fade-in">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h2 class="text-xl font-700 text-gray-900 dark:text-white" style="font-weight:700" id="week-label">Semana actual</h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400" id="week-range"></p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="prevWeek()" class="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <button onclick="goToday()" class="px-3 py-2 rounded-lg text-xs font-600 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" style="font-weight:600">Hoy</button>
+      <button onclick="nextWeek()" class="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- WEEKLY GRID -->
+  <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+    <div class="grid grid-cols-7 min-w-[700px]">
+      <!-- Day headers -->
+      <div id="cal-headers" class="contents"></div>
+      <!-- Day cells -->
+      <div id="cal-cells" class="contents"></div>
+    </div>
+  </div>
+
+  <!-- Quick stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4" id="week-stats"></div>
+</section>
+
+<!-- ===================== TAB: ROUTE ===================== -->
+<section id="tab-route-content" class="hidden fade-in">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h2 class="text-xl font-700 dark:text-white" style="font-weight:700">Ruta de Hoy</h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400" id="today-label"></p>
+    </div>
+  </div>
+  <div id="route-list" class="space-y-3"></div>
+  <div id="route-empty" class="hidden text-center py-16 text-gray-400">
+    <div class="text-5xl mb-3">🏖️</div>
+    <p class="font-600" style="font-weight:600">Sin servicios hoy</p>
+    <p class="text-sm">¡Disfruta tu día libre!</p>
+  </div>
+</section>
+
+<!-- ===================== TAB: CLIENTS ===================== -->
+<section id="tab-clients-content" class="hidden fade-in">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-700 dark:text-white" style="font-weight:700">Base de Clientes</h2>
+    <button onclick="openNewClient()" class="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-600 transition-all hover:opacity-90" style="background:#f97316;font-weight:600">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+      Nuevo cliente
+    </button>
+  </div>
+  <div class="mb-4">
+    <input type="text" id="client-search" placeholder="Buscar cliente por nombre o colonia..." oninput="renderClients()" class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:ring-2 focus:ring-blue-500 transition-all">
+  </div>
+  <div id="clients-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+</section>
+
+<!-- ===================== TAB: EARNINGS ===================== -->
+<section id="tab-earnings-content" class="hidden fade-in">
+  <h2 class="text-xl font-700 dark:text-white mb-4" style="font-weight:700">Resumen de Ganancias</h2>
+  <div id="earnings-content"></div>
+</section>
+
+</main>
+
+<!-- =================== MODAL: NEW/EDIT APPOINTMENT =================== -->
+<div id="modal-appointment" class="fixed inset-0 z-50 hidden modal-bg">
+  <div class="absolute inset-0 bg-black/50" onclick="closeModal('modal-appointment')"></div>
+  <div class="absolute inset-x-4 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[560px] md:top-8 md:bottom-auto overflow-y-auto">
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 slide-in">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-700 dark:text-white" style="font-weight:700" id="appointment-modal-title">Nuevo Servicio</h3>
+        <button onclick="closeModal('modal-appointment')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="appointment-form" onsubmit="saveAppointment(event)" class="space-y-4">
+        <input type="hidden" id="appt-id">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Cliente *</label>
+            <select id="appt-client" required class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" onchange="autoFillClient()">
+              <option value="">Seleccionar cliente...</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Teléfono</label>
+            <input type="tel" id="appt-phone" placeholder="55 1234 5678" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Dirección *</label>
+          <input type="text" id="appt-address" required placeholder="Calle, número, colonia, ciudad" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Tipo de servicio *</label>
+            <select id="appt-service" required class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" onchange="autoFillCost()">
+              <option value="">Seleccionar...</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Costo estimado (MXN) *</label>
+            <input type="number" id="appt-cost" required placeholder="0" min="0" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Fecha *</label>
+            <input type="date" id="appt-date" required class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Hora *</label>
+            <input type="time" id="appt-time" required class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Duración (hrs)</label>
+            <input type="number" id="appt-duration" placeholder="2" min="0.5" step="0.5" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Notas</label>
+          <textarea id="appt-notes" rows="2" placeholder="Instrucciones especiales, acceso, referencias..." class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm resize-none"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Estado</label>
+          <div class="flex gap-2 flex-wrap">
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="appt-status" value="Agendado" checked class="accent-blue-600"> <span class="status-agendado px-2 py-0.5 rounded-full text-xs font-600" style="font-weight:600">Agendado</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="appt-status" value="En camino" class="accent-yellow-500"> <span class="status-encamino px-2 py-0.5 rounded-full text-xs font-600" style="font-weight:600">En camino</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="appt-status" value="Completado" class="accent-green-600"> <span class="status-completado px-2 py-0.5 rounded-full text-xs font-600" style="font-weight:600">Completado</span></label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="appt-status" value="Cancelado" class="accent-red-500"> <span class="status-cancelado px-2 py-0.5 rounded-full text-xs font-600" style="font-weight:600">Cancelado</span></label>
+          </div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" onclick="closeModal('modal-appointment')" class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" style="font-weight:600">Cancelar</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-xl text-white text-sm font-700 hover:opacity-90 transition-all" style="background:#0369a1;font-weight:700">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MODAL: APPOINTMENT DETAIL =================== -->
+<div id="modal-detail" class="fixed inset-0 z-50 hidden modal-bg">
+  <div class="absolute inset-0 bg-black/50" onclick="closeModal('modal-detail')"></div>
+  <div class="absolute inset-x-4 top-8 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[520px] overflow-y-auto" style="max-height:90vh">
+    <div id="detail-content" class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 slide-in"></div>
+  </div>
+</div>
+
+<!-- =================== MODAL: NEW CLIENT =================== -->
+<div id="modal-client" class="fixed inset-0 z-50 hidden modal-bg">
+  <div class="absolute inset-0 bg-black/50" onclick="closeModal('modal-client')"></div>
+  <div class="absolute inset-x-4 top-8 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[480px] overflow-y-auto" style="max-height:90vh">
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 slide-in">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-lg font-700 dark:text-white" style="font-weight:700" id="client-modal-title">Nuevo Cliente</h3>
+        <button onclick="closeModal('modal-client')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form id="client-form" onsubmit="saveClient(event)" class="space-y-4">
+        <input type="hidden" id="client-id">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2">
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Nombre completo *</label>
+            <input type="text" id="client-name" required placeholder="Juan Pérez González" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Teléfono *</label>
+            <input type="tel" id="client-phone" required placeholder="55 1234 5678" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Email</label>
+            <input type="email" id="client-email" placeholder="juan@email.com" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Dirección principal *</label>
+            <input type="text" id="client-address" required placeholder="Calle 123, Col. Centro, CDMX" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Colonia</label>
+            <input type="text" id="client-neighborhood" placeholder="Del Valle" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Ciudad</label>
+            <input type="text" id="client-city" placeholder="CDMX" class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-600 text-gray-700 dark:text-gray-300 mb-1.5" style="font-weight:600">Notas del cliente</label>
+            <textarea id="client-notes" rows="2" placeholder="Preferencias, acceso, referencias especiales..." class="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm resize-none"></textarea>
+          </div>
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" onclick="closeModal('modal-client')" class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" style="font-weight:600">Cancelar</button>
+          <button type="submit" class="flex-1 py-2.5 rounded-xl text-white text-sm font-700 hover:opacity-90 transition-all" style="background:#f97316;font-weight:700">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- =================== MODAL: INVOICE PRINT =================== -->
+<div id="modal-invoice" class="fixed inset-0 z-50 hidden modal-bg">
+  <div class="absolute inset-0 bg-black/50 no-print" onclick="closeModal('modal-invoice')"></div>
+  <div class="absolute inset-x-4 top-4 bottom-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[580px] md:top-8 md:bottom-auto overflow-y-auto">
+    <div id="invoice-content" class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 slide-in print-card"></div>
+  </div>
+</div>
+
+<!-- =================== TOAST =================== -->
+<div id="toast" class="fixed bottom-4 right-4 z-[100] hidden">
+  <div class="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-5 py-3 rounded-xl shadow-xl text-sm font-600 flex items-center gap-2 slide-in" style="font-weight:600" id="toast-content"></div>
+</div>
+
+<!-- =================== FOOTER =================== -->
+<footer class="no-print mt-12 py-6 border-t border-gray-200 dark:border-gray-800 text-center">
+  <p class="text-xs text-gray-400 dark:text-gray-600">Powered by <span class="font-700" style="font-weight:700;color:#0369a1">Novamente Studio</span></p>
+</footer>
+
+<script>
+// ===========================
+// DATA & STATE
+// ===========================
+const SERVICE_CATALOG = [
+  { id:'plumb-1', name:'Destape de drenaje', category:'Plomería', basePrice:400 },
+  { id:'plumb-2', name:'Reparación de tubería', category:'Plomería', basePrice:800 },
+  { id:'plumb-3', name:'Instalación de lavabo', category:'Plomería', basePrice:600 },
+  { id:'plumb-4', name:'Revisión de fugas', category:'Plomería', basePrice:350 },
+  { id:'plumb-5', name:'Instalación de boiler', category:'Plomería', basePrice:1200 },
+  { id:'elec-1', name:'Instalación de contactos', category:'Electricidad', basePrice:500 },
+  { id:'elec-2', name:'Revisión de tablero eléctrico', category:'Electricidad', basePrice:700 },
+  { id:'elec-3', name:'Instalación de luminarias', category:'Electricidad', basePrice:400 },
+  { id:'elec-4', name:'Reparación de cortocircuito', category:'Electricidad', basePrice:600 },
+  { id:'elec-5', name:'Instalación de apagadores', category:'Electricidad', basePrice:350 },
+  { id:'clean-1', name:'Limpieza general del hogar', category:'Limpieza', basePrice:800 },
+  { id:'clean-2', name:'Limpieza profunda', category:'Limpieza', basePrice:1500 },
+  { id:'clean-3', name:'Limpieza de ventanas', category:'Limpieza', basePrice:500 },
+  { id:'clean-4', name:'Limpieza de alfombras', category:'Limpieza', basePrice:900 },
+  { id:'clean-5', name:'Limpieza post-obra', category:'Limpieza', basePrice:2000 },
+];
+
+const STATUS_MAP = {
+  'Agendado':   { cls:'status-agendado',  emoji:'🔵' },
+  'En camino':  { cls:'status-encamino',  emoji:'🟡' },
+  'Completado': { cls:'status-completado',emoji:'🟢' },
+  'Cancelado':  { cls:'status-cancelado', emoji:'🔴' },
+};
+
+const DAYS_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const DAYS_FULL = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+let currentWeekOffset = 0;
+let editingAppointmentId = null;
+let editingClientId = null;
+
+// ===========================
+// LOCALSTORAGE HELPERS
+// ===========================
+function load(key, def) { try { return JSON.parse(localStorage.getItem(key)) ?? def; } catch { return def; } }
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+function getAppts() { return load('serviagenda_appts', []); }
+function saveAppts(v) { save('serviagenda_appts', v); }
+function getClients() { return load('serviagenda_clients', []); }
+function saveClients(v) { save('serviagenda_clients', v); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ===========================
+// DEMO DATA
+// ===========================
+function initDemo() {
+  if (localStorage.getItem('serviagenda_inited')) return;
+
+  const clients = [
+    { id:'c1', name:'María González Torres', phone:'5512345678', email:'maria@gmail.com', address:'Calle Roble 45, Col. Del Valle, CDMX', neighborhood:'Del Valle', city:'CDMX', notes:'Tiene perro pequeño, tocar el timbre suave', createdAt:'2024-01-10' },
+    { id:'c2', name:'Roberto Hernández López', phone:'5523456789', email:'roberto.h@hotmail.com', address:'Av. Insurgentes 234, Col. Narvarte, CDMX', neighborhood:'Narvarte', city:'CDMX', notes:'Edificio B, depto 4, hablar a la entrada', createdAt:'2024-01-15' },
+    { id:'c3', name:'Ana Martínez Ruiz', phone:'5534567890', email:'ana.m@yahoo.com', address:'Calle Cedro 78, Col. Santa María, CDMX', neighborhood:'Santa María', city:'CDMX', notes:'Solo disponible por las mañanas', createdAt:'2024-01-20' },
+    { id:'c4', name:'Carlos Pérez Sánchez', phone:'5545678901', email:'carlos.ps@gmail.com', address:'Blvd. Miguel de Cervantes 56, Polanco, CDMX', neighborhood:'Polanco', city:'CDMX', notes:'Casa con reja negra, estacionamiento disponible', createdAt:'2024-02-05' },
+    { id:'c5', name:'Sofía Ramírez Vega', phone:'5556789012', email:'sofia.rv@outlook.com', address:'Calle Olmo 123, Col. Nápoles, CDMX', neighborhood:'Nápoles', city:'CDMX', notes:'Llamar 30 min antes de llegar', createdAt:'2024-02-12' },
+    { id:'c6', name:'Jorge Morales Castro', phone:'5567890123', email:'jmorales@empresa.mx', address:'Av. Revolución 890, Col. Mixcoac, CDMX', neighborhood:'Mixcoac', city:'CDMX', notes:'Oficina en el 3er piso', createdAt:'2024-02-20' },
+    { id:'c7', name:'Laura Torres Jiménez', phone:'5578901234', email:'ltorres@gmail.com', address:'Calle Magnolia 34, Col. Florida, CDMX', neighborhood:'Florida', city:'CDMX', notes:'Prefiere servicios los sábados', createdAt:'2024-03-01' },
+    { id:'c8', name:'Miguel Ángel Flores', phone:'5589012345', email:'maflores@hotmail.com', address:'Av. Universidad 567, Col. Copilco, CDMX', neighborhood:'Copilco', city:'CDMX', notes:'Tiene dos pisos, usar entrada lateral', createdAt:'2024-03-10' },
+    { id:'c9', name:'Patricia López Mendoza', phone:'5590123456', email:'plopez@gmail.com', address:'Calle Eucalipto 22, Col. Pedregal, CDMX', neighborhood:'Pedregal', city:'CDMX', notes:'Cliente frecuente, descuento del 10%', createdAt:'2024-03-15' },
+    { id:'c10', name:'Fernando Gutiérrez Cruz', phone:'5501234567', email:'fgutierrez@yahoo.com', address:'Blvd. Adolfo López Mateos 1100, Col. Lomas, CDMX', neighborhood:'Lomas', city:'CDMX', notes:'Casa de dos plantas, jardín grande', createdAt:'2024-04-01' },
+  ];
+  saveClients(clients);
+
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  function dayOffset(n) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + n);
+    return d.toISOString().split('T')[0];
+  }
+
+  const appts = [
+    { id:'a1', clientId:'c1', clientName:'María González Torres', phone:'5512345678', address:'Calle Roble 45, Col. Del Valle, CDMX', service:'Destape de drenaje', category:'Plomería', date:todayStr, time:'09:00', duration:1.5, cost:450, status:'Agendado', notes:'Drenaje de la cocina tapado' },
+    { id:'a2', clientId:'c2', clientName:'Roberto Hernández López', phone:'5523456789', address:'Av. Insurgentes 234, Col. Narvarte, CDMX', service:'Instalación de contactos', category:'Electricidad', date:todayStr, time:'11:30', duration:2, cost:600, status:'En camino', notes:'3 contactos nuevos en la sala' },
+    { id:'a3', clientId:'c3', clientName:'Ana Martínez Ruiz', phone:'5534567890', address:'Calle Cedro 78, Col. Santa María, CDMX', service:'Limpieza general del hogar', category:'Limpieza', date:dayOffset(1), time:'08:00', duration:4, cost:900, status:'Agendado', notes:'Casa de 120m2, incluye cocina y baños' },
+    { id:'a4', clientId:'c4', clientName:'Carlos Pérez Sánchez', phone:'5545678901', address:'Blvd. Miguel de Cervantes 56, Polanco, CDMX', service:'Revisión de tablero eléctrico', category:'Electricidad', date:dayOffset(2), time:'10:00', duration:2, cost:750, status:'Agendado', notes:'Tabla de breakers con fallas intermitentes' },
+    { id:'a5', clientId:'c5', clientName:'Sofía Ramírez Vega', phone:'5556789012', address:'Calle Olmo 123, Col. Nápoles, CDMX', service:'Reparación de tubería', category:'Plomería', date:dayOffset(-1), time:'14:00', duration:3, cost:1100, status:'Completado', notes:'Tubería bajo el lavabo rota' },
+  ];
+  saveAppts(appts);
+  localStorage.setItem('serviagenda_inited', '1');
+}
+
+// ===========================
+// THEME
+// ===========================
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.classList.toggle('dark');
+  document.getElementById('sun-icon').classList.toggle('hidden', !isDark);
+  document.getElementById('moon-icon').classList.toggle('hidden', isDark);
+  localStorage.setItem('serviagenda_theme', isDark ? 'dark' : 'light');
+}
+function initTheme() {
+  const t = localStorage.getItem('serviagenda_theme');
+  if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    document.documentElement.classList.add('dark');
+    document.getElementById('sun-icon').classList.remove('hidden');
+    document.getElementById('moon-icon').classList.add('hidden');
+  }
+}
+
+// ===========================
+// TABS
+// ===========================
+function showTab(name) {
+  ['calendar','route','clients','earnings'].forEach(t => {
+    document.getElementById(`tab-${t}-content`).classList.add('hidden');
+    document.getElementById(`tab-${t}`)?.classList.remove('tab-active');
+    document.getElementById(`tab-${t}`)?.classList.add('text-gray-500','dark:text-gray-400');
+  });
+  const el = document.getElementById(`tab-${name}-content`);
+  el.classList.remove('hidden');
+  el.classList.add('fade-in');
+  document.getElementById(`tab-${name}`)?.classList.add('tab-active');
+  document.getElementById(`tab-${name}`)?.classList.remove('text-gray-500','dark:text-gray-400');
+  if (name === 'calendar') renderCalendar();
+  if (name === 'route') renderRoute();
+  if (name === 'clients') renderClients();
+  if (name === 'earnings') renderEarnings();
+}
+
+// ===========================
+// CALENDAR
+// ===========================
+function getWeekDates(offset = 0) {
+  const today = new Date();
+  const day = today.getDay(); // 0=Sun
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - day + 1 + offset * 7);
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i - 1); // start Sunday
+    return d;
+  });
+}
+
+function renderCalendar() {
+  // We'll show Mon-Sun
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const monday = new Date(today);
+  const day = today.getDay() === 0 ? 6 : today.getDay() - 1;
+  monday.setDate(today.getDate() - day + currentWeekOffset * 7);
+
+  const days = Array.from({length:7}, (_,i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+
+  document.getElementById('week-range').textContent =
+    `${days[0].getDate()} de ${MONTHS_ES[days[0].getMonth()]} — ${days[6].getDate()} de ${MONTHS_ES[days[6].getMonth()]} ${days[6].getFullYear()}`;
+
+  const appts = getAppts();
+  const headers = document.getElementById('cal-headers');
+  const cells = document.getElementById('cal-cells');
+
+  headers.innerHTML = days.map(d => {
+    const dStr = d.toISOString().split('T')[0];
+    const isToday = dStr === todayStr;
+    return `<div class="py-3 px-2 text-center border-b border-r last:border-r-0 border-gray-200 dark:border-gray-800 ${isToday ? 'bg-blue-50 dark:bg-blue-950/30' : ''}">
+      <div class="text-xs font-600 text-gray-500 dark:text-gray-400 uppercase tracking-wide" style="font-weight:600">${DAYS_ES[(d.getDay())]}</div>
+      <div class="text-lg font-700 mt-0.5 ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'}" style="font-weight:700">${d.getDate()}</div>
+    </div>`;
+  }).join('');
+
+  cells.innerHTML = days.map(d => {
+    const dStr = d.toISOString().split('T')[0];
+    const isToday = dStr === todayStr;
+    const dayAppts = appts.filter(a => a.date === dStr).sort((a,b) => a.time.localeCompare(b.time));
+    return `<div class="cal-day p-2 border-r last:border-r-0 border-gray-100 dark:border-gray-800 ${isToday ? 'bg-blue-50/50 dark:bg-blue-950/10' : ''}" onclick="dayClick('${dStr}')">
+      ${dayAppts.map(a => `
+        <div class="appt-pill ${STATUS_MAP[a.status]?.cls || 'status-agendado'} font-600" style="font-weight:600" onclick="event.stopPropagation(); showDetail('${a.id}')">
+          <div>${a.time} ${serviceEmoji(a.category)}</div>
+          <div class="truncate">${a.clientName.split(' ')[0]}</div>
+        </div>
+      `).join('')}
+    </div>`;
+  }).join('');
+
+  // Week stats
+  const allWeekAppts = appts.filter(a => {
+    const dStr = days.map(d => d.toISOString().split('T')[0]);
+    return dStr.includes(a.date);
+  });
+  const earned = allWeekAppts.filter(a => a.status === 'Completado').reduce((s,a) => s + Number(a.cost), 0);
+  const pending = allWeekAppts.filter(a => a.status === 'Agendado').length;
+  const completed = allWeekAppts.filter(a => a.status === 'Completado').length;
+  const total = allWeekAppts.length;
+
+  document.getElementById('week-stats').innerHTML = `
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Total semana</p>
+      <p class="text-2xl font-800 text-gray-900 dark:text-white" style="font-weight:800">${total}</p>
+      <p class="text-xs text-gray-400">servicios</p>
+    </div>
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Pendientes</p>
+      <p class="text-2xl font-800 text-blue-600 dark:text-blue-400" style="font-weight:800">${pending}</p>
+      <p class="text-xs text-gray-400">agendados</p>
+    </div>
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Completados</p>
+      <p class="text-2xl font-800 text-green-600 dark:text-green-400" style="font-weight:800">${completed}</p>
+      <p class="text-xs text-gray-400">servicios</p>
+    </div>
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Cobrado</p>
+      <p class="text-2xl font-800 dark:text-white" style="font-weight:800;color:#f97316">${fmtMXN(earned)}</p>
+      <p class="text-xs text-gray-400">esta semana</p>
+    </div>
+  `;
+}
+
+function prevWeek() { currentWeekOffset--; renderCalendar(); }
+function nextWeek() { currentWeekOffset++; renderCalendar(); }
+function goToday() { currentWeekOffset = 0; renderCalendar(); }
+
+function dayClick(dateStr) {
+  openNewAppointment(dateStr);
+}
+
+function serviceEmoji(cat) {
+  if (!cat) return '🔧';
+  if (cat === 'Plomería') return '🔧';
+  if (cat === 'Electricidad') return '⚡';
+  if (cat === 'Limpieza') return '🧹';
+  return '🔧';
+}
+
+function fmtMXN(n) {
+  return new Intl.NumberFormat('es-MX', {style:'currency',currency:'MXN',minimumFractionDigits:0}).format(n);
+}
+
+// ===========================
+// APPOINTMENT DETAIL MODAL
+// ===========================
+function showDetail(id) {
+  const appts = getAppts();
+  const a = appts.find(x => x.id === id);
+  if (!a) return;
+
+  const sm = STATUS_MAP[a.status] || STATUS_MAP['Agendado'];
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.address)}`;
+  const waMsg = encodeURIComponent(`Hola ${a.clientName.split(' ')[0]}, soy su técnico de servicios. Voy en camino a su domicilio en ${a.address}. Mi hora estimada de llegada es alrededor de las ${a.time}. ¡Hasta pronto! 🔧`);
+  const waUrl = `https://wa.me/52${a.phone?.replace(/\D/g,'')}?text=${waMsg}`;
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="flex items-start justify-between mb-5">
+      <div>
+        <span class="${sm.cls} text-xs font-700 px-3 py-1 rounded-full" style="font-weight:700">${sm.emoji} ${a.status}</span>
+        <h3 class="text-lg font-800 mt-2 dark:text-white" style="font-weight:800">${a.service}</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400">${a.category || ''}</p>
+      </div>
+      <button onclick="closeModal('modal-detail')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 flex-shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="space-y-3 mb-5">
+      <div class="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+        <span class="text-xl">👤</span>
+        <div>
+          <p class="font-700 dark:text-white text-sm" style="font-weight:700">${a.clientName}</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">${a.phone || 'Sin teléfono'}</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800">
+        <span class="text-xl">📍</span>
+        <div>
+          <p class="font-600 dark:text-white text-sm" style="font-weight:600">${a.address}</p>
+          <a href="${mapsUrl}" target="_blank" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">Ver en Google Maps →</a>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-center">
+          <p class="text-xs text-gray-500 dark:text-gray-400">Fecha</p>
+          <p class="font-700 text-sm dark:text-white" style="font-weight:700">${fmtDate(a.date)}</p>
+        </div>
+        <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-center">
+          <p class="text-xs text-gray-500 dark:text-gray-400">Hora</p>
+          <p class="font-700 text-sm dark:text-white" style="font-weight:700">${a.time}</p>
+        </div>
+        <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-center">
+          <p class="text-xs text-gray-500 dark:text-gray-400">Costo</p>
+          <p class="font-700 text-sm" style="font-weight:700;color:#f97316">${fmtMXN(a.cost)}</p>
+        </div>
+      </div>
+      ${a.notes ? `<div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+        <p class="text-xs font-600 text-amber-700 dark:text-amber-400 mb-1" style="font-weight:600">📝 Notas</p>
+        <p class="text-sm text-gray-700 dark:text-gray-300">${a.notes}</p>
+      </div>` : ''}
+    </div>
+
+    <!-- Status Quick Change -->
+    <div class="mb-4">
+      <p class="text-xs font-600 text-gray-500 dark:text-gray-400 mb-2" style="font-weight:600">CAMBIAR ESTADO</p>
+      <div class="flex gap-2 flex-wrap">
+        ${Object.keys(STATUS_MAP).map(s => `
+          <button onclick="quickStatus('${id}','${s}')" class="${STATUS_MAP[s].cls} text-xs font-700 px-3 py-1.5 rounded-full transition-all hover:opacity-80 ${a.status===s?'ring-2 ring-offset-1 ring-gray-400':''}" style="font-weight:700">${STATUS_MAP[s].emoji} ${s}</button>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="grid grid-cols-2 gap-2">
+      ${a.phone ? `<a href="${waUrl}" target="_blank" class="flex items-center justify-center gap-2 py-2.5 rounded-xl text-white text-sm font-600 bg-green-600 hover:bg-green-700 transition-colors" style="font-weight:600">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+        En camino
+      </a>` : '<div></div>'}
+      <button onclick="editAppointment('${id}')" class="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-600 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" style="font-weight:600">
+        ✏️ Editar
+      </button>
+      ${a.status === 'Completado' ? `<button onclick="showInvoice('${id}')" class="flex items-center justify-center gap-2 py-2.5 rounded-xl text-white text-sm font-600 col-span-2 hover:opacity-90 transition-all" style="background:#0369a1;font-weight:600">
+        🧾 Ver Factura / Imprimir
+      </button>` : ''}
+      <button onclick="deleteAppointment('${id}')" class="flex items-center justify-center gap-2 py-2.5 rounded-xl text-red-600 border border-red-200 dark:border-red-900 text-sm font-600 col-span-${a.status==='Completado'?'2':'1'} hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors" style="font-weight:600">
+        🗑️ Eliminar
+      </button>
+    </div>
+  `;
+  openModal('modal-detail');
+}
+
+function quickStatus(id, status) {
+  const appts = getAppts();
+  const idx = appts.findIndex(a => a.id === id);
+  if (idx === -1) return;
+  appts[idx].status = status;
+  saveAppts(appts);
+  showToast(`Estado cambiado a ${status}`);
+  closeModal('modal-detail');
+  renderCalendar();
+}
+
+// ===========================
+// ROUTE
+// ===========================
+function renderRoute() {
+  const todayStr = new Date().toISOString().split('T')[0];
+  document.getElementById('today-label').textContent = `${DAYS_FULL[new Date().getDay()]}, ${new Date().getDate()} de ${MONTHS_ES[new Date().getMonth()]} ${new Date().getFullYear()}`;
+
+  const appts = getAppts().filter(a => a.date === todayStr && a.status !== 'Cancelado')
+    .sort((a,b) => a.time.localeCompare(b.time));
+
+  const list = document.getElementById('route-list');
+  const empty = document.getElementById('route-empty');
+
+  if (appts.length === 0) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  list.innerHTML = appts.map((a, i) => {
+    const sm = STATUS_MAP[a.status] || STATUS_MAP['Agendado'];
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.address)}`;
+    const waMsg = encodeURIComponent(`Hola ${a.clientName.split(' ')[0]}, soy su técnico de servicios. Voy en camino a su domicilio en ${a.address}. Mi hora estimada de llegada es alrededor de las ${a.time}. ¡Hasta pronto! ${serviceEmoji(a.category)}`);
+    const waUrl = `https://wa.me/52${a.phone?.replace(/\D/g,'')}?text=${waMsg}`;
+
+    return `
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-4 fade-in flex gap-4">
+      <div class="flex-shrink-0 flex flex-col items-center">
+        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-800" style="background:#0369a1;font-weight:800">${i+1}</div>
+        ${i < appts.length-1 ? '<div class="flex-1 w-0.5 bg-gray-200 dark:bg-gray-700 my-2 min-h-[20px]"></div>' : ''}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="${sm.cls} text-xs font-700 px-2 py-0.5 rounded-full" style="font-weight:700">${sm.emoji} ${a.status}</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400 font-600" style="font-weight:600">${a.time} · ${a.duration || 1}h</span>
+            </div>
+            <p class="font-700 text-gray-900 dark:text-white text-sm" style="font-weight:700">${serviceEmoji(a.category)} ${a.service}</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">${a.clientName}</p>
+          </div>
+          <p class="text-lg font-800 flex-shrink-0" style="font-weight:800;color:#f97316">${fmtMXN(a.cost)}</p>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">📍 ${a.address}</p>
+        <div class="flex flex-wrap gap-2">
+          <a href="${mapsUrl}" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-600 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors" style="font-weight:600">
+            🗺️ Google Maps
+          </a>
+          ${a.phone ? `<a href="${waUrl}" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-600 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 hover:bg-green-100 transition-colors" style="font-weight:600">
+            💬 WhatsApp
+          </a>` : ''}
+          <button onclick="quickStatus('${a.id}','Completado')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-600 bg-green-600 text-white hover:bg-green-700 transition-colors" style="font-weight:600">
+            ✓ Completar
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===========================
+// CLIENTS
+// ===========================
+function renderClients() {
+  const q = document.getElementById('client-search')?.value?.toLowerCase() || '';
+  const clients = getClients().filter(c =>
+    !q || c.name.toLowerCase().includes(q) || (c.neighborhood||'').toLowerCase().includes(q) || (c.city||'').toLowerCase().includes(q)
+  );
+  const appts = getAppts();
+
+  document.getElementById('clients-list').innerHTML = clients.length === 0
+    ? '<div class="col-span-3 text-center py-12 text-gray-400"><div class="text-4xl mb-2">👥</div><p>Sin clientes</p></div>'
+    : clients.map(c => {
+      const clientAppts = appts.filter(a => a.clientId === c.id || a.clientName === c.name);
+      const total = clientAppts.reduce((s,a) => s + (a.status==='Completado'?Number(a.cost):0), 0);
+      const last = clientAppts.filter(a=>a.status==='Completado').sort((a,b)=>b.date.localeCompare(a.date))[0];
+      return `
+      <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-4 hover:shadow-md transition-shadow cursor-pointer" onclick="showClientDetail('${c.id}')">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-orange-400 flex items-center justify-center text-white font-800 text-sm flex-shrink-0" style="font-weight:800">${c.name.charAt(0)}</div>
+          <span class="text-xs font-600 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400" style="font-weight:600">${clientAppts.length} servicios</span>
+        </div>
+        <h4 class="font-700 text-gray-900 dark:text-white text-sm mb-1" style="font-weight:700">${c.name}</h4>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">📱 ${c.phone}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 truncate">📍 ${c.neighborhood || c.city || 'Sin colonia'}</p>
+        <div class="flex items-center justify-between">
+          <p class="text-xs text-gray-400">${last ? 'Último: ' + fmtDate(last.date) : 'Sin historial'}</p>
+          <p class="text-sm font-700" style="font-weight:700;color:#f97316">${fmtMXN(total)}</p>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+function showClientDetail(id) {
+  const clients = getClients();
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  const appts = getAppts().filter(a => a.clientId === id || a.clientName === c.name)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
+  const waUrl = `https://wa.me/52${c.phone?.replace(/\D/g,'')}`;
+  document.getElementById('detail-content').innerHTML = `
+    <div class="flex items-start justify-between mb-5">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-orange-400 flex items-center justify-center text-white font-800 text-lg" style="font-weight:800">${c.name.charAt(0)}</div>
+        <div>
+          <h3 class="font-800 text-gray-900 dark:text-white" style="font-weight:800">${c.name}</h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400">${c.neighborhood || ''} ${c.city || ''}</p>
+        </div>
+      </div>
+      <button onclick="closeModal('modal-detail')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-2 mb-4">
+      <div class="flex items-center gap-2 text-sm"><span class="text-gray-500">📱</span> <span class="dark:text-gray-200">${c.phone}</span></div>
+      ${c.email ? `<div class="flex items-center gap-2 text-sm"><span class="text-gray-500">📧</span> <span class="dark:text-gray-200">${c.email}</span></div>` : ''}
+      <div class="flex items-start gap-2 text-sm"><span class="text-gray-500">📍</span> <span class="dark:text-gray-200">${c.address}</span></div>
+      ${c.notes ? `<div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm text-gray-700 dark:text-gray-300">📝 ${c.notes}</div>` : ''}
+    </div>
+    <div class="flex gap-2 mb-5">
+      ${c.phone ? `<a href="${waUrl}" target="_blank" class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-white text-sm font-600 bg-green-600 hover:bg-green-700 transition-colors" style="font-weight:600">💬 WhatsApp</a>` : ''}
+      <button onclick="editClient('${id}')" class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-600 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800" style="font-weight:600">✏️ Editar</button>
+      <button onclick="openNewAppointment(null,'${id}')" class="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-white text-sm font-600 hover:opacity-90" style="background:#0369a1;font-weight:600">+ Servicio</button>
+    </div>
+    <div>
+      <p class="text-sm font-700 text-gray-700 dark:text-gray-300 mb-3" style="font-weight:700">Historial (${appts.length})</p>
+      ${appts.length === 0 ? '<p class="text-sm text-gray-400 text-center py-4">Sin servicios registrados</p>' : appts.map(a => `
+        <div class="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors mb-2" onclick="closeModal('modal-detail'); showDetail('${a.id}')">
+          <span class="${STATUS_MAP[a.status]?.cls||'status-agendado'} text-xs font-700 px-2 py-0.5 rounded-full flex-shrink-0" style="font-weight:700">${STATUS_MAP[a.status]?.emoji} ${a.status}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-600 dark:text-white truncate" style="font-weight:600">${a.service}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">${fmtDate(a.date)} · ${a.time}</p>
+          </div>
+          <p class="text-sm font-700 flex-shrink-0" style="font-weight:700;color:#f97316">${fmtMXN(a.cost)}</p>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  openModal('modal-detail');
+}
+
+// ===========================
+// EARNINGS
+// ===========================
+function renderEarnings() {
+  const appts = getAppts();
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+
+  // Current week
+  const day = now.getDay() === 0 ? 6 : now.getDay() - 1;
+  const monday = new Date(now); monday.setDate(now.getDate() - day);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  const weekStart = monday.toISOString().split('T')[0];
+  const weekEnd = sunday.toISOString().split('T')[0];
+
+  // Current month
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const monthEnd = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0];
+
+  function sumCompleted(filter) {
+    return appts.filter(filter).filter(a => a.status === 'Completado').reduce((s,a) => s + Number(a.cost), 0);
+  }
+  function countCompleted(filter) {
+    return appts.filter(filter).filter(a => a.status === 'Completado').length;
+  }
+  function countStatus(status, filter) {
+    return appts.filter(filter).filter(a => a.status === status).length;
+  }
+
+  const weekFilter = a => a.date >= weekStart && a.date <= weekEnd;
+  const monthFilter = a => a.date >= monthStart && a.date <= monthEnd;
+  const todayFilter = a => a.date === todayStr;
+
+  const weekEarnings = sumCompleted(weekFilter);
+  const weekCount = countCompleted(weekFilter);
+  const monthEarnings = sumCompleted(monthFilter);
+  const monthCount = countCompleted(monthFilter);
+  const todayEarnings = sumCompleted(todayFilter);
+
+  // By category this week
+  const catStats = {};
+  appts.filter(weekFilter).filter(a => a.status === 'Completado').forEach(a => {
+    const cat = a.category || 'Otro';
+    catStats[cat] = (catStats[cat] || 0) + Number(a.cost);
+  });
+
+  // By day this week
+  const days = Array.from({length:7}, (_,i) => {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    return d.toISOString().split('T')[0];
+  });
+  const dayEarnings = days.map(d => ({
+    day: d,
+    label: DAYS_ES[new Date(d+'T12:00:00').getDay()],
+    total: sumCompleted(a => a.date === d),
+  }));
+  const maxDay = Math.max(...dayEarnings.map(d => d.total), 1);
+
+  document.getElementById('earnings-content').innerHTML = `
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm col-span-2 md:col-span-1">
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide font-600" style="font-weight:600">Hoy</p>
+        <p class="text-3xl font-800 mb-1" style="font-weight:800;color:#f97316">${fmtMXN(todayEarnings)}</p>
+        <p class="text-xs text-gray-400">${countCompleted(todayFilter)} servicio(s) completado(s)</p>
+      </div>
+      <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm">
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide font-600" style="font-weight:600">Esta semana</p>
+        <p class="text-2xl font-800 text-gray-900 dark:text-white mb-1" style="font-weight:800">${fmtMXN(weekEarnings)}</p>
+        <p class="text-xs text-gray-400">${weekCount} completado(s)</p>
+      </div>
+      <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm">
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide font-600" style="font-weight:600">Este mes</p>
+        <p class="text-2xl font-800 text-gray-900 dark:text-white mb-1" style="font-weight:800">${fmtMXN(monthEarnings)}</p>
+        <p class="text-xs text-gray-400">${monthCount} completado(s)</p>
+      </div>
+    </div>
+
+    <!-- Bar chart: daily this week -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 mb-4">
+      <h3 class="font-700 text-gray-900 dark:text-white mb-4 text-sm" style="font-weight:700">Ingresos por día — Semana actual</h3>
+      <div class="flex items-end gap-2 h-32">
+        ${dayEarnings.map(d => `
+          <div class="flex-1 flex flex-col items-center gap-1">
+            <p class="text-xs font-700 ${d.day === todayStr ? 'text-orange-500' : 'text-gray-600 dark:text-gray-400'}" style="font-weight:700">${d.total > 0 ? fmtMXN(d.total).replace('MX$','') : ''}</p>
+            <div class="w-full rounded-t-lg transition-all" style="height:${Math.max((d.total/maxDay)*100,2)}%;background:${d.day===todayStr?'#f97316':'#0369a1'};opacity:${d.total>0?1:0.2}"></div>
+            <p class="text-xs font-600 ${d.day===todayStr?'text-orange-500':'text-gray-500 dark:text-gray-400'}" style="font-weight:600">${d.label}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- By category -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5 mb-4">
+      <h3 class="font-700 text-gray-900 dark:text-white mb-4 text-sm" style="font-weight:700">Por categoría — Esta semana</h3>
+      ${Object.keys(catStats).length === 0 ? '<p class="text-sm text-gray-400">Sin ingresos completados esta semana</p>' :
+        Object.entries(catStats).map(([cat, total]) => {
+          const pct = Math.round((total / weekEarnings) * 100);
+          const emoji = cat === 'Plomería' ? '🔧' : cat === 'Electricidad' ? '⚡' : '🧹';
+          return `<div class="mb-3">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-sm font-600 dark:text-gray-200" style="font-weight:600">${emoji} ${cat}</span>
+              <span class="text-sm font-700" style="font-weight:700;color:#f97316">${fmtMXN(total)} <span class="text-gray-400 text-xs">(${pct}%)</span></span>
+            </div>
+            <div class="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+              <div class="h-full rounded-full" style="width:${pct}%;background:#0369a1"></div>
+            </div>
+          </div>`;
+        }).join('')
+      }
+    </div>
+
+    <!-- Status summary -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm p-5">
+      <h3 class="font-700 text-gray-900 dark:text-white mb-4 text-sm" style="font-weight:700">Resumen del mes</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        ${['Agendado','En camino','Completado','Cancelado'].map(s => `
+          <div class="p-3 rounded-xl ${STATUS_MAP[s].cls} text-center">
+            <p class="text-2xl font-800" style="font-weight:800">${countStatus(s, monthFilter)}</p>
+            <p class="text-xs font-600 mt-1" style="font-weight:600">${STATUS_MAP[s].emoji} ${s}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ===========================
+// INVOICE
+// ===========================
+function showInvoice(id) {
+  const a = getAppts().find(x => x.id === id);
+  if (!a) return;
+  closeModal('modal-detail');
+  const invoiceNum = `SRV-${a.id.slice(-6).toUpperCase()}`;
+  const subtotal = Number(a.cost);
+  const iva = subtotal * 0.16;
+  const total = subtotal + iva;
+
+  document.getElementById('invoice-content').innerHTML = `
+    <div class="flex items-start justify-between mb-6 no-print-none">
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:linear-gradient(135deg,#0369a1,#f97316)">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </div>
+          <span class="font-800 text-lg dark:text-white" style="font-weight:800">ServiAgenda</span>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">Servicios profesionales</p>
+      </div>
+      <div class="text-right">
+        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-600" style="font-weight:600">Recibo de servicio</p>
+        <p class="text-lg font-800 dark:text-white" style="font-weight:800;color:#0369a1">${invoiceNum}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">${fmtDate(a.date)}</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-6 p-4 rounded-xl bg-gray-50 dark:bg-gray-800">
+      <div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-600 mb-1" style="font-weight:600">Cliente</p>
+        <p class="font-700 dark:text-white" style="font-weight:700">${a.clientName}</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">${a.phone || ''}</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">${a.address}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-600 mb-1" style="font-weight:600">Servicio</p>
+        <p class="font-700 dark:text-white" style="font-weight:700">${a.service}</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">${a.category || ''}</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400">${a.time} · ${a.duration || 1}h</p>
+      </div>
+    </div>
+
+    ${a.notes ? `<div class="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+      <p class="text-xs font-600 text-amber-700 dark:text-amber-400 mb-1" style="font-weight:600">Notas</p>
+      <p class="text-sm text-gray-700 dark:text-gray-300">${a.notes}</p>
+    </div>` : ''}
+
+    <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-6">
+      <div class="flex justify-between py-2 text-sm">
+        <span class="text-gray-600 dark:text-gray-400">Subtotal</span>
+        <span class="font-600 dark:text-white" style="font-weight:600">${fmtMXN(subtotal)}</span>
+      </div>
+      <div class="flex justify-between py-2 text-sm">
+        <span class="text-gray-600 dark:text-gray-400">IVA (16%)</span>
+        <span class="font-600 dark:text-white" style="font-weight:600">${fmtMXN(iva)}</span>
+      </div>
+      <div class="flex justify-between py-3 border-t border-gray-200 dark:border-gray-700 mt-2">
+        <span class="font-800 text-lg dark:text-white" style="font-weight:800">Total</span>
+        <span class="font-800 text-xl" style="font-weight:800;color:#f97316">${fmtMXN(total)}</span>
+      </div>
+    </div>
+
+    <div class="flex gap-2 no-print">
+      <button onclick="closeModal('modal-invoice')" class="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-600 hover:bg-gray-50 dark:hover:bg-gray-800" style="font-weight:600">Cerrar</button>
+      <button onclick="window.print()" class="flex-1 py-2.5 rounded-xl text-white text-sm font-700 hover:opacity-90" style="background:#0369a1;font-weight:700">🖨️ Imprimir</button>
+    </div>
+
+    <p class="text-center text-xs text-gray-400 dark:text-gray-600 mt-4">Powered by Novamente Studio</p>
+  `;
+  openModal('modal-invoice');
+}
+
+// ===========================
+// FORM: APPOINTMENT
+// ===========================
+function populateServiceSelect() {
+  const sel = document.getElementById('appt-service');
+  const cats = [...new Set(SERVICE_CATALOG.map(s => s.category))];
+  sel.innerHTML = '<option value="">Seleccionar...</option>' +
+    cats.map(cat => `<optgroup label="${serviceEmoji(cat)} ${cat}">${
+      SERVICE_CATALOG.filter(s => s.category === cat).map(s =>
+        `<option value="${s.name}" data-price="${s.basePrice}" data-cat="${s.category}">${s.name}</option>`
+      ).join('')
+    }</optgroup>`).join('');
+}
+
+function populateClientSelect(selectedId = null) {
+  const clients = getClients();
+  const sel = document.getElementById('appt-client');
+  sel.innerHTML = '<option value="">Seleccionar cliente...</option>' +
+    clients.map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${c.name}</option>`).join('') +
+    '<option value="__new__">+ Nuevo cliente...</option>';
+}
+
+function autoFillClient() {
+  const sel = document.getElementById('appt-client');
+  const val = sel.value;
+  if (val === '__new__') { closeModal('modal-appointment'); openNewClient(); return; }
+  if (!val) return;
+  const c = getClients().find(x => x.id === val);
+  if (c) {
+    document.getElementById('appt-phone').value = c.phone || '';
+    document.getElementById('appt-address').value = c.address || '';
+  }
+}
+
+function autoFillCost() {
+  const sel = document.getElementById('appt-service');
+  const opt = sel.options[sel.selectedIndex];
+  if (opt && opt.dataset.price) {
+    document.getElementById('appt-cost').value = opt.dataset.price;
+  }
+}
+
+function openNewAppointment(dateStr = null, clientId = null) {
+  editingAppointmentId = null;
+  document.getElementById('appointment-modal-title').textContent = 'Nuevo Servicio';
+  document.getElementById('appointment-form').reset();
+  document.getElementById('appt-id').value = '';
+  populateServiceSelect();
+  populateClientSelect(clientId);
+  if (clientId) autoFillClient();
+  if (dateStr) document.getElementById('appt-date').value = dateStr;
+  else document.getElementById('appt-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('appt-time').value = '09:00';
+  document.getElementById('appt-duration').value = '2';
+  document.querySelector('input[name="appt-status"][value="Agendado"]').checked = true;
+  openModal('modal-appointment');
+}
+
+function editAppointment(id) {
+  const a = getAppts().find(x => x.id === id);
+  if (!a) return;
+  editingAppointmentId = id;
+  document.getElementById('appointment-modal-title').textContent = 'Editar Servicio';
+  populateServiceSelect();
+  populateClientSelect(a.clientId);
+  document.getElementById('appt-id').value = a.id;
+  document.getElementById('appt-phone').value = a.phone || '';
+  document.getElementById('appt-address').value = a.address || '';
+  document.getElementById('appt-date').value = a.date || '';
+  document.getElementById('appt-time').value = a.time || '';
+  document.getElementById('appt-duration').value = a.duration || 2;
+  document.getElementById('appt-cost').value = a.cost || '';
+  document.getElementById('appt-notes').value = a.notes || '';
+  // Set service
+  Array.from(document.getElementById('appt-service').options).forEach(o => {
+    if (o.value === a.service) o.selected = true;
+  });
+  // Set status
+  const radio = document.querySelector(`input[name="appt-status"][value="${a.status}"]`);
+  if (radio) radio.checked = true;
+  closeModal('modal-detail');
+  openModal('modal-appointment');
+}
+
+function saveAppointment(e) {
+  e.preventDefault();
+  const appts = getAppts();
+  const clientId = document.getElementById('appt-client').value;
+  const clientEl = document.getElementById('appt-client');
+  const clientName = clientEl.options[clientEl.selectedIndex]?.text || '';
+  const serviceSel = document.getElementById('appt-service');
+  const serviceOpt = serviceSel.options[serviceSel.selectedIndex];
+
+  const appt = {
+    id: editingAppointmentId || uid(),
+    clientId,
+    clientName,
+    phone: document.getElementById('appt-phone').value,
+    address: document.getElementById('appt-address').value,
+    service: serviceSel.value,
+    category: serviceOpt?.dataset?.cat || '',
+    date: document.getElementById('appt-date').value,
+    time: document.getElementById('appt-time').value,
+    duration: parseFloat(document.getElementById('appt-duration').value) || 2,
+    cost: parseFloat(document.getElementById('appt-cost').value) || 0,
+    notes: document.getElementById('appt-notes').value,
+    status: document.querySelector('input[name="appt-status"]:checked')?.value || 'Agendado',
+  };
+
+  if (editingAppointmentId) {
+    const idx = appts.findIndex(a => a.id === editingAppointmentId);
+    if (idx !== -1) appts[idx] = appt;
+  } else {
+    appts.push(appt);
+  }
+  saveAppts(appts);
+  closeModal('modal-appointment');
+  showToast(editingAppointmentId ? 'Servicio actualizado' : 'Servicio agendado');
+  renderCalendar();
+}
+
+function deleteAppointment(id) {
+  if (!confirm('¿Eliminar este servicio?')) return;
+  const appts = getAppts().filter(a => a.id !== id);
+  saveAppts(appts);
+  closeModal('modal-detail');
+  showToast('Servicio eliminado');
+  renderCalendar();
+}
+
+// ===========================
+// FORM: CLIENT
+// ===========================
+function openNewClient() {
+  editingClientId = null;
+  document.getElementById('client-modal-title').textContent = 'Nuevo Cliente';
+  document.getElementById('client-form').reset();
+  document.getElementById('client-id').value = '';
+  openModal('modal-client');
+}
+
+function editClient(id) {
+  const c = getClients().find(x => x.id === id);
+  if (!c) return;
+  editingClientId = id;
+  document.getElementById('client-modal-title').textContent = 'Editar Cliente';
+  document.getElementById('client-id').value = c.id;
+  document.getElementById('client-name').value = c.name || '';
+  document.getElementById('client-phone').value = c.phone || '';
+  document.getElementById('client-email').value = c.email || '';
+  document.getElementById('client-address').value = c.address || '';
+  document.getElementById('client-neighborhood').value = c.neighborhood || '';
+  document.getElementById('client-city').value = c.city || '';
+  document.getElementById('client-notes').value = c.notes || '';
+  closeModal('modal-detail');
+  openModal('modal-client');
+}
+
+function saveClient(e) {
+  e.preventDefault();
+  const clients = getClients();
+  const client = {
+    id: editingClientId || uid(),
+    name: document.getElementById('client-name').value,
+    phone: document.getElementById('client-phone').value,
+    email: document.getElementById('client-email').value,
+    address: document.getElementById('client-address').value,
+    neighborhood: document.getElementById('client-neighborhood').value,
+    city: document.getElementById('client-city').value,
+    notes: document.getElementById('client-notes').value,
+    createdAt: new Date().toISOString().split('T')[0],
+  };
+  if (editingClientId) {
+    const idx = clients.findIndex(c => c.id === editingClientId);
+    if (idx !== -1) clients[idx] = client;
+  } else {
+    clients.push(client);
+  }
+  saveClients(clients);
+  closeModal('modal-client');
+  showToast(editingClientId ? 'Cliente actualizado' : 'Cliente guardado');
+  renderClients();
+}
+
+// ===========================
+// MODAL HELPERS
+// ===========================
+function openModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+// ===========================
+// TOAST
+// ===========================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-content').textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 2800);
+}
+
+// ===========================
+// UTILS
+// ===========================
+function fmtDate(str) {
+  if (!str) return '';
+  const d = new Date(str + 'T12:00:00');
+  return `${d.getDate()} ${MONTHS_ES[d.getMonth()].slice(0,3)} ${d.getFullYear()}`;
+}
+
+// ===========================
+// INIT
+// ===========================
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+  initDemo();
+  renderCalendar();
+  renderRoute(); // pre-load route
+  showTab('calendar');
+});
+</script>
+</body>
+</html>

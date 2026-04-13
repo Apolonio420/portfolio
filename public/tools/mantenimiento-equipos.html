@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mantenimiento de Equipos — Restaurante</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  :root { --slate: #64748b; }
+  .accent { color: #475569; }
+  .bg-accent { background-color: #475569; }
+  .tab-active { border-bottom: 3px solid #475569; color: #475569; font-weight: 700; }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+  .status-green { background:#dcfce7; color:#166534; }
+  .status-yellow { background:#fef9c3; color:#713f12; }
+  .status-red { background:#fee2e2; color:#991b1b; }
+  .status-blue { background:#dbeafe; color:#1e40af; }
+  .overdue { border-left: 4px solid #ef4444 !important; }
+  .upcoming { border-left: 4px solid #f59e0b !important; }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:white; font-size:12px; }
+    .print-card { break-inside:avoid; border:1px solid #e2e8f0 !important; }
+  }
+  input[type=range] { accent-color: #475569; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-accent text-white shadow-lg no-print">
+  <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="bg-white/20 rounded-xl p-2 text-2xl">🔧</div>
+      <div>
+        <h1 class="text-xl font-bold">Mantenimiento de Equipos</h1>
+        <p class="text-slate-200 text-xs">Control preventivo y correctivo · Cocina profesional</p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="switchTab('nuevo')" class="bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5 text-sm font-medium transition no-print">+ Equipo</button>
+      <button onclick="printCard()" class="bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5 text-sm font-medium transition no-print">🖨️ Imprimir</button>
+    </div>
+  </div>
+</header>
+
+<!-- NAV TABS -->
+<div class="max-w-5xl mx-auto px-4 no-print">
+  <nav class="flex gap-1 mt-4 border-b border-gray-200 overflow-x-auto">
+    <button onclick="switchTab('equipos')" id="tab-equipos" class="tab-active px-4 py-3 text-sm whitespace-nowrap">⚙️ Equipos</button>
+    <button onclick="switchTab('agenda')" id="tab-agenda" class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700">📅 Agenda</button>
+    <button onclick="switchTab('reparaciones')" id="tab-reparaciones" class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700">🔴 Reparaciones</button>
+    <button onclick="switchTab('costos')" id="tab-costos" class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700">💰 Costos</button>
+    <button onclick="switchTab('nuevo')" id="tab-nuevo" class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700">➕ Nuevo</button>
+  </nav>
+</div>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+
+<!-- ============ TAB: EQUIPOS ============ -->
+<div id="pane-equipos" class="fade-in">
+  <div class="flex flex-col sm:flex-row justify-between gap-3 mb-5">
+    <h2 class="text-lg font-bold text-gray-800">Inventario de Equipos</h2>
+    <div class="flex gap-2">
+      <input type="text" id="searchEquipos" oninput="filterEquipos()" placeholder="Buscar equipo…" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-slate-400">
+      <select id="filterStatus" onchange="filterEquipos()" class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+        <option value="">Todos</option>
+        <option value="operativo">🟢 Operativo</option>
+        <option value="programado">🟡 Programado</option>
+        <option value="fuera">🔴 Fuera de servicio</option>
+        <option value="reparacion">🔵 En reparación</option>
+      </select>
+    </div>
+  </div>
+  <div id="equipoGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+</div>
+
+<!-- ============ TAB: AGENDA ============ -->
+<div id="pane-agenda" class="hidden fade-in">
+  <h2 class="text-lg font-bold text-gray-800 mb-5">Agenda de Mantenimiento</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-red-50 border border-red-100 rounded-2xl p-4">
+      <p class="text-xs font-semibold text-red-500 uppercase mb-2">⚠️ Vencidos</p>
+      <div id="agenda-overdue" class="space-y-2"></div>
+    </div>
+    <div class="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+      <p class="text-xs font-semibold text-amber-500 uppercase mb-2">📅 Esta semana</p>
+      <div id="agenda-week" class="space-y-2"></div>
+    </div>
+    <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+      <p class="text-xs font-semibold text-blue-500 uppercase mb-2">📆 Este mes</p>
+      <div id="agenda-month" class="space-y-2"></div>
+    </div>
+  </div>
+  <h3 class="font-semibold text-gray-700 mb-3">Todos los próximos mantenimientos</h3>
+  <div id="agenda-all" class="space-y-2"></div>
+</div>
+
+<!-- ============ TAB: REPARACIONES ============ -->
+<div id="pane-reparaciones" class="hidden fade-in">
+  <div class="flex items-center justify-between mb-5">
+    <h2 class="text-lg font-bold text-gray-800">Reparaciones Correctivas</h2>
+    <button onclick="showRepairForm()" class="bg-accent text-white rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 transition">+ Registrar reparación</button>
+  </div>
+
+  <!-- Repair form -->
+  <div id="repairForm" class="hidden mb-5 bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <h3 class="font-semibold text-gray-700 mb-4">🔴 Nueva Reparación</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Equipo</label>
+        <select id="repEquipo" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"></select>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Fecha</label>
+        <input type="date" id="repDate" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Técnico</label>
+        <input type="text" id="repTecnico" placeholder="Nombre del técnico" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Costo (MXN)</label>
+        <input type="number" id="repCosto" placeholder="0.00" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Tiempo fuera de servicio</label>
+        <input type="text" id="repDowntime" placeholder="ej. 2 días" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Teléfono técnico (WhatsApp)</label>
+        <input type="text" id="repTelefono" placeholder="+52 55 1234 5678" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div class="sm:col-span-2">
+        <label class="text-xs font-medium text-gray-500 block mb-1">Descripción del problema y trabajo realizado</label>
+        <textarea id="repDesc" rows="3" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 resize-none"></textarea>
+      </div>
+    </div>
+    <div class="flex gap-2 mt-4">
+      <button onclick="saveRepair()" class="bg-accent text-white rounded-lg px-5 py-2 text-sm font-semibold hover:opacity-90 transition">Guardar</button>
+      <button onclick="hideRepairForm()" class="border border-gray-200 rounded-lg px-5 py-2 text-sm text-gray-600 hover:bg-gray-50 transition">Cancelar</button>
+    </div>
+  </div>
+
+  <div id="repairList" class="space-y-3"></div>
+</div>
+
+<!-- ============ TAB: COSTOS ============ -->
+<div id="pane-costos" class="hidden fade-in">
+  <h2 class="text-lg font-bold text-gray-800 mb-5">Dashboard de Costos</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+      <p class="text-2xl font-bold text-slate-700" id="cost-total">—</p>
+      <p class="text-xs text-gray-500 mt-1">Total este año (MXN)</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+      <p class="text-2xl font-bold text-red-500" id="cost-correctivo">—</p>
+      <p class="text-xs text-gray-500 mt-1">Correctivo (MXN)</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+      <p class="text-2xl font-bold text-green-600" id="cost-preventivo">—</p>
+      <p class="text-xs text-gray-500 mt-1">Preventivo (MXN)</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
+      <p class="text-2xl font-bold text-amber-500" id="cost-reparaciones">—</p>
+      <p class="text-xs text-gray-500 mt-1">Reparaciones totales</p>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-5">
+    <h3 class="font-semibold text-gray-700 mb-4">Gasto por mes (últimos 6 meses)</h3>
+    <canvas id="costsChart" height="110"></canvas>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+    <h3 class="font-semibold text-gray-700 mb-4">Top 5 — Equipos más costosos</h3>
+    <div id="top5List" class="space-y-3"></div>
+  </div>
+</div>
+
+<!-- ============ TAB: NUEVO EQUIPO ============ -->
+<div id="pane-nuevo" class="hidden fade-in">
+  <h2 class="text-lg font-bold text-gray-800 mb-5">Registrar Nuevo Equipo</h2>
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Nombre del equipo *</label>
+        <input type="text" id="newNombre" placeholder="ej. Estufa industrial 6 quemadores" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Icono (emoji)</label>
+        <input type="text" id="newEmoji" placeholder="🔥" maxlength="2" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Marca</label>
+        <input type="text" id="newMarca" placeholder="ej. Torrey" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Modelo</label>
+        <input type="text" id="newModelo" placeholder="ej. EGI-6L" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">No. de serie</label>
+        <input type="text" id="newSerie" placeholder="ej. TRY-2023-4821" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Ubicación</label>
+        <input type="text" id="newUbicacion" placeholder="ej. Cocina principal" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Fecha de compra</label>
+        <input type="date" id="newCompra" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Costo de compra (MXN)</label>
+        <input type="number" id="newCosto" placeholder="0.00" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Garantía hasta</label>
+        <input type="date" id="newGarantia" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-gray-500 block mb-1">Frecuencia mantenimiento preventivo</label>
+        <select id="newFreq" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+          <option value="diario">Diario</option>
+          <option value="semanal">Semanal</option>
+          <option value="mensual" selected>Mensual</option>
+          <option value="trimestral">Trimestral</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual">Anual</option>
+        </select>
+      </div>
+      <div class="sm:col-span-2">
+        <label class="text-xs font-medium text-gray-500 block mb-1">Notas</label>
+        <textarea id="newNotas" rows="2" placeholder="Instrucciones especiales, proveedor de servicio, etc." class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 resize-none"></textarea>
+      </div>
+    </div>
+    <button onclick="saveEquipo()" class="mt-5 bg-accent text-white rounded-lg px-6 py-2.5 text-sm font-semibold hover:opacity-90 transition">Guardar equipo</button>
+  </div>
+</div>
+
+</main>
+
+<!-- EQUIPMENT DETAIL MODAL -->
+<div id="modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4" onclick="closeModal(event)">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onclick="e => e.stopPropagation()">
+    <div id="modalContent" class="p-6"></div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center py-6 text-xs text-gray-400 no-print border-t border-gray-100 mt-8">
+  Powered by <strong class="text-gray-600">Novamente Studio</strong> · <span id="footerYear"></span>
+</footer>
+
+<script>
+document.getElementById('footerYear').textContent = new Date().getFullYear();
+
+// ============ DATA ============
+function getEquipos() { return JSON.parse(localStorage.getItem('mto_equipos') || '[]'); }
+function setEquipos(d) { localStorage.setItem('mto_equipos', JSON.stringify(d)); }
+function getReparaciones() { return JSON.parse(localStorage.getItem('mto_reparaciones') || '[]'); }
+function setReparaciones(d) { localStorage.setItem('mto_reparaciones', JSON.stringify(d)); }
+
+function nextMaintDate(lastDate, freq) {
+  const d = new Date(lastDate);
+  const map = { diario: 1, semanal: 7, mensual: 30, trimestral: 90, semestral: 180, anual: 365 };
+  d.setDate(d.getDate() + (map[freq] || 30));
+  return d.toISOString().slice(0, 10);
+}
+
+// ============ DEMO DATA ============
+function loadDemo() {
+  if (getEquipos().length > 0) return;
+
+  const equiposDef = [
+    { id: 1, nombre: 'Estufa industrial 6 quemadores', emoji: '🔥', marca: 'Torrey', modelo: 'EGI-6L', serie: 'TRY-2019-4821', ubicacion: 'Cocina principal', compra: '2019-03-15', costo: 32000, garantia: '2021-03-15', freq: 'mensual', estado: 'operativo', notas: 'Limpiar quemadores semanalmente' },
+    { id: 2, nombre: 'Horno convencional', emoji: '♨️', marca: 'Rational', modelo: 'SCC WE 61', serie: 'RAT-2020-9912', ubicacion: 'Cocina principal', compra: '2020-06-10', costo: 85000, garantia: '2023-06-10', freq: 'trimestral', estado: 'operativo', notas: 'Requiere descalcificación trimestral' },
+    { id: 3, nombre: 'Freidora industrial doble tina', emoji: '🍟', marca: 'Vulcan', modelo: 'VF45', serie: 'VUL-2021-3345', ubicacion: 'Cocina principal', compra: '2021-01-20', costo: 28000, garantia: '2023-01-20', freq: 'semanal', estado: 'programado', notas: 'Cambiar aceite cada semana' },
+    { id: 4, nombre: 'Refrigerador vertical 2 puertas', emoji: '❄️', marca: 'Torrey', modelo: 'ERV-2P', serie: 'TRY-2020-7701', ubicacion: 'Cocina fría', compra: '2020-02-08', costo: 18500, garantia: '2022-02-08', freq: 'mensual', estado: 'operativo', notas: 'Verificar temperatura diariamente' },
+    { id: 5, nombre: 'Refrigerador bajo mostrador', emoji: '🧊', marca: 'True', modelo: 'TSSU-27-08', serie: 'TRU-2022-1102', ubicacion: 'Línea de cocina', compra: '2022-05-17', costo: 22000, garantia: '2024-05-17', freq: 'mensual', estado: 'operativo', notas: '' },
+    { id: 6, nombre: 'Congelador horizontal', emoji: '🧊', marca: 'Imbera', modelo: 'VR-26', serie: 'IMB-2019-8823', ubicacion: 'Almacén', compra: '2019-09-30', costo: 15000, garantia: '2021-09-30', freq: 'trimestral', estado: 'reparacion', notas: 'Compresor ruidoso, en revisión' },
+    { id: 7, nombre: 'Lavavajillas industrial', emoji: '🫧', marca: 'Hobart', modelo: 'AM15VL', serie: 'HOB-2021-5590', ubicacion: 'Área de lavado', compra: '2021-07-12', costo: 45000, garantia: '2023-07-12', freq: 'semanal', estado: 'operativo', notas: 'Revisar brazo aspersor semanalmente' },
+    { id: 8, nombre: 'Campana de extracción', emoji: '💨', marca: 'Ventmaster', modelo: 'VM-1500', serie: 'VNT-2019-3312', ubicacion: 'Cocina principal', compra: '2019-03-15', costo: 25000, garantia: '2020-03-15', freq: 'trimestral', estado: 'operativo', notas: 'Limpiar filtros de grasa mensualmente' },
+    { id: 9, nombre: 'Licuadora industrial', emoji: '🥤', marca: 'Vitamix', modelo: 'XL', serie: 'VIT-2022-4489', ubicacion: 'Cocina fría', compra: '2022-01-05', costo: 12000, garantia: '2024-01-05', freq: 'mensual', estado: 'operativo', notas: '' },
+    { id: 10, nombre: 'Máquina de hielo', emoji: '🧊', marca: 'Manitowoc', modelo: 'IDF0450A', serie: 'MAN-2020-6678', ubicacion: 'Bar', compra: '2020-11-20', costo: 38000, garantia: '2022-11-20', freq: 'mensual', estado: 'operativo', notas: 'Sanitizar con tabletas especiales' },
+    { id: 11, nombre: 'Cafetera espresso', emoji: '☕', marca: 'La Cimbali', modelo: 'M34', serie: 'CIM-2021-9900', ubicacion: 'Bar', compra: '2021-04-22', costo: 55000, garantia: '2023-04-22', freq: 'semanal', estado: 'operativo', notas: 'Descalcificar mensualmente' },
+    { id: 12, nombre: 'Plancha de acero', emoji: '🥩', marca: 'Garland', modelo: 'GF36-G', serie: 'GAR-2020-2211', ubicacion: 'Cocina principal', compra: '2020-08-14', costo: 16500, garantia: '2022-08-14', freq: 'semanal', estado: 'fuera', notas: 'Fuera de servicio por termostato dañado' }
+  ];
+
+  const today = new Date();
+  const equipos = equiposDef.map(e => {
+    const lastMaint = new Date(today);
+    lastMaint.setDate(lastMaint.getDate() - Math.floor(Math.random() * 25 + 5));
+    return { ...e, lastMaint: lastMaint.toISOString().slice(0, 10), nextMaint: nextMaintDate(lastMaint.toISOString().slice(0, 10), e.freq) };
+  });
+  setEquipos(equipos);
+
+  // Demo repairs
+  const reparaciones = [
+    {
+      id: 1, equipoId: 6, fecha: (() => { const d = new Date(); d.setMonth(d.getMonth()-3); return d.toISOString().slice(0,10); })(),
+      tecnico: 'Ing. Fernando Ruiz', telefono: '+52 55 2345 6789', costo: 4500,
+      downtime: '3 días', desc: 'El compresor dejó de enfriar correctamente, temperatura subió a -8°C. Se reemplazó el compresor y se recargó el gas refrigerante R-404A.', tipo: 'correctivo'
+    },
+    {
+      id: 2, equipoId: 12, fecha: (() => { const d = new Date(); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,10); })(),
+      tecnico: 'Técnico Apolo Servicios', telefono: '+52 55 9876 5432', costo: 1800,
+      downtime: '1 día', desc: 'El termostato marcaba temperatura incorrecta, la plancha no alcanzaba temperatura de trabajo (250°C). Se reemplazó el termostato y se calibró.', tipo: 'correctivo'
+    },
+    {
+      id: 3, equipoId: 3, fecha: (() => { const d = new Date(); d.setMonth(d.getMonth()-2); return d.toISOString().slice(0,10); })(),
+      tecnico: 'Mariana López (interna)', telefono: '', costo: 320,
+      downtime: '2 horas', desc: 'Mantenimiento preventivo de freidora: cambio de aceite, limpieza de resistencias, revisión de termostatos y flotador de aceite.', tipo: 'preventivo'
+    }
+  ];
+  setReparaciones(reparaciones);
+}
+
+// ============ RENDER EQUIPOS ============
+function renderEquipos() {
+  const equipos = getEquipos();
+  const search = document.getElementById('searchEquipos').value.toLowerCase();
+  const statusFilter = document.getElementById('filterStatus').value;
+  const grid = document.getElementById('equipoGrid');
+
+  const filtered = equipos.filter(e => {
+    const matchSearch = !search || e.nombre.toLowerCase().includes(search) || e.marca?.toLowerCase().includes(search);
+    const matchStatus = !statusFilter || e.estado === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="col-span-3 text-center py-12 text-gray-400"><p class="text-4xl mb-2">🔍</p><p class="text-sm">Sin equipos encontrados</p></div>';
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
+
+  grid.innerHTML = filtered.map(e => {
+    const statusMap = {
+      operativo: { cls: 'status-green', label: '🟢 Operativo' },
+      programado: { cls: 'status-yellow', label: '🟡 Mantenimiento prox.' },
+      fuera: { cls: 'status-red', label: '🔴 Fuera de servicio' },
+      reparacion: { cls: 'status-blue', label: '🔵 En reparación' }
+    };
+    const st = statusMap[e.estado] || statusMap.operativo;
+    const isOverdue = e.nextMaint && e.nextMaint < today;
+    const isUpcoming = e.nextMaint && e.nextMaint >= today && new Date(e.nextMaint) <= weekEnd;
+    const reps = getReparaciones().filter(r => r.equipoId === e.id);
+    const totalCost = reps.reduce((s, r) => s + (Number(r.costo) || 0), 0);
+
+    return `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 cursor-pointer hover:shadow-md transition print-card ${isOverdue ? 'overdue' : isUpcoming ? 'upcoming' : ''}" onclick="openEquipoDetail(${e.id})">
+      <div class="flex items-start justify-between mb-3">
+        <div class="text-3xl">${e.emoji || '⚙️'}</div>
+        <span class="text-xs font-medium px-2 py-0.5 rounded-full ${st.cls}">${st.label}</span>
+      </div>
+      <h3 class="font-semibold text-gray-800 text-sm leading-tight mb-1">${e.nombre}</h3>
+      <p class="text-xs text-gray-400">${e.marca || ''} ${e.modelo || ''}</p>
+      <div class="mt-3 pt-3 border-t border-gray-50 grid grid-cols-2 gap-2 text-xs text-gray-500">
+        <div><p class="font-medium text-gray-700">Próx. servicio</p><p class="${isOverdue ? 'text-red-500 font-semibold' : isUpcoming ? 'text-amber-500 font-semibold' : ''}">${e.nextMaint || '—'}</p></div>
+        <div><p class="font-medium text-gray-700">Costo acum.</p><p>$${totalCost.toLocaleString('es-MX')}</p></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterEquipos() { renderEquipos(); }
+
+// ============ EQUIPMENT DETAIL ============
+function openEquipoDetail(id) {
+  const equipos = getEquipos();
+  const e = equipos.find(eq => eq.id === id);
+  if (!e) return;
+  const reps = getReparaciones().filter(r => r.equipoId === id);
+  const totalCost = reps.reduce((s, r) => s + (Number(r.costo) || 0), 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = e.nextMaint && e.nextMaint < today;
+
+  const modal = document.getElementById('modal');
+  document.getElementById('modalContent').innerHTML = `
+    <div class="flex items-start justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <div class="text-4xl">${e.emoji || '⚙️'}</div>
+        <div>
+          <h2 class="text-lg font-bold text-gray-800">${e.nombre}</h2>
+          <p class="text-sm text-gray-500">${e.marca || ''} · ${e.modelo || ''} · S/N: ${e.serie || '—'}</p>
+        </div>
+      </div>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+      <div class="bg-slate-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">Ubicación</p><p class="text-gray-800 mt-0.5">${e.ubicacion || '—'}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">Compra</p><p class="text-gray-800 mt-0.5">${e.compra || '—'}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">Costo compra</p><p class="text-gray-800 mt-0.5">$${(e.costo || 0).toLocaleString('es-MX')}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">Garantía</p><p class="text-gray-800 mt-0.5">${e.garantia || '—'}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">Frecuencia mant.</p><p class="text-gray-800 mt-0.5">${e.freq || '—'}</p></div>
+      <div class="bg-slate-50 rounded-xl p-3 text-xs"><p class="font-semibold text-gray-600">Costo total mant.</p><p class="text-red-500 font-bold mt-0.5">$${totalCost.toLocaleString('es-MX')}</p></div>
+    </div>
+
+    ${e.notas ? `<div class="bg-amber-50 rounded-xl p-3 mb-4 text-sm text-amber-800"><strong>📝 Notas:</strong> ${e.notas}</div>` : ''}
+
+    <div class="flex gap-2 mb-5 flex-wrap">
+      ${['operativo','programado','fuera','reparacion'].map(s => `<button onclick="changeStatus(${e.id},'${s}')" class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition ${e.estado === s ? 'bg-slate-100 font-semibold' : ''}">${{operativo:'🟢 Operativo', programado:'🟡 Programado', fuera:'🔴 Fuera de servicio', reparacion:'🔵 En reparación'}[s]}</button>`).join('')}
+    </div>
+
+    <div class="flex gap-2 mb-5 flex-wrap">
+      <button onclick="markMaintDone(${e.id})" class="text-xs bg-slate-600 text-white rounded-lg px-4 py-1.5 hover:opacity-90 transition">✅ Marcar mantenimiento realizado hoy</button>
+      ${e.nextMaint ? `<button onclick="whatsappMaint(${e.id})" class="text-xs bg-green-500 text-white rounded-lg px-4 py-1.5 hover:bg-green-600 transition">📱 Recordar técnico (WhatsApp)</button>` : ''}
+    </div>
+
+    <h3 class="font-semibold text-gray-700 mb-3">Historial de mantenimiento (${reps.length})</h3>
+    ${reps.length ? reps.slice().reverse().map(r => `
+      <div class="border border-gray-100 rounded-xl p-3 mb-2 text-sm">
+        <div class="flex justify-between items-start">
+          <span class="font-medium text-gray-700">${r.fecha}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full ${r.tipo === 'correctivo' ? 'status-red' : 'status-green'}">${r.tipo}</span>
+        </div>
+        <p class="text-gray-600 text-xs mt-1">${r.desc}</p>
+        <p class="text-xs text-gray-400 mt-1">👨‍🔧 ${r.tecnico} · 💰 $${(r.costo||0).toLocaleString('es-MX')} · ⏱️ ${r.downtime || '—'}</p>
+      </div>`).join('') : '<p class="text-sm text-gray-400 py-2">Sin registros aún</p>'}
+  `;
+  modal.style.display = 'flex';
+}
+
+function closeModal(event) {
+  if (!event || event.target === document.getElementById('modal')) {
+    document.getElementById('modal').style.display = 'none';
+  }
+}
+
+function changeStatus(id, status) {
+  const equipos = getEquipos();
+  const e = equipos.find(eq => eq.id === id);
+  if (e) { e.estado = status; setEquipos(equipos); }
+  openEquipoDetail(id);
+  renderEquipos();
+}
+
+function markMaintDone(id) {
+  const equipos = getEquipos();
+  const e = equipos.find(eq => eq.id === id);
+  if (e) {
+    const today = new Date().toISOString().slice(0, 10);
+    e.lastMaint = today;
+    e.nextMaint = nextMaintDate(today, e.freq);
+    e.estado = 'operativo';
+    setEquipos(equipos);
+  }
+  openEquipoDetail(id);
+  renderEquipos();
+}
+
+function whatsappMaint(id) {
+  const e = getEquipos().find(eq => eq.id === id);
+  if (!e) return;
+  const msg = encodeURIComponent(`🔧 *Recordatorio de mantenimiento*\n\nEquipo: *${e.nombre}*\n📍 Ubicación: ${e.ubicacion}\n📅 Fecha programada: ${e.nextMaint}\n🔁 Frecuencia: ${e.freq}\n\n¿Puedes confirmar disponibilidad?\n\n_La Hacienda del Sabor_`);
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+// ============ AGENDA ============
+function renderAgenda() {
+  const equipos = getEquipos();
+  const today = new Date().toISOString().slice(0, 10);
+  const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
+  const monthEnd = new Date(); monthEnd.setDate(monthEnd.getDate() + 30);
+
+  const overdue = equipos.filter(e => e.nextMaint && e.nextMaint < today);
+  const week = equipos.filter(e => e.nextMaint && e.nextMaint >= today && new Date(e.nextMaint) <= weekEnd);
+  const month = equipos.filter(e => e.nextMaint && new Date(e.nextMaint) > weekEnd && new Date(e.nextMaint) <= monthEnd);
+  const all = equipos.filter(e => e.nextMaint).sort((a, b) => a.nextMaint.localeCompare(b.nextMaint));
+
+  function agendaCard(e, cls) {
+    return `<div class="bg-white rounded-xl p-2.5 text-xs cursor-pointer hover:shadow-sm transition" onclick="openEquipoDetail(${e.id})">
+      <p class="font-semibold text-gray-700">${e.emoji || '⚙️'} ${e.nombre}</p>
+      <p class="text-gray-400 mt-0.5">${e.nextMaint} · ${e.freq}</p>
+    </div>`;
+  }
+
+  document.getElementById('agenda-overdue').innerHTML = overdue.length
+    ? overdue.map(e => agendaCard(e)).join('')
+    : '<p class="text-xs text-gray-400">Sin vencidos ✅</p>';
+  document.getElementById('agenda-week').innerHTML = week.length
+    ? week.map(e => agendaCard(e)).join('')
+    : '<p class="text-xs text-gray-400">Nada esta semana</p>';
+  document.getElementById('agenda-month').innerHTML = month.length
+    ? month.map(e => agendaCard(e)).join('')
+    : '<p class="text-xs text-gray-400">Nada este mes</p>';
+
+  document.getElementById('agenda-all').innerHTML = all.map(e => {
+    const isOverdue = e.nextMaint < today;
+    const isUpcoming = e.nextMaint >= today && new Date(e.nextMaint) <= weekEnd;
+    return `
+    <div class="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center justify-between cursor-pointer hover:shadow-sm transition ${isOverdue ? 'overdue' : isUpcoming ? 'upcoming' : ''}" onclick="openEquipoDetail(${e.id})">
+      <div class="flex items-center gap-3">
+        <span class="text-xl">${e.emoji || '⚙️'}</span>
+        <div>
+          <p class="text-sm font-medium text-gray-700">${e.nombre}</p>
+          <p class="text-xs text-gray-400">${e.ubicacion} · ${e.freq}</p>
+        </div>
+      </div>
+      <div class="text-right">
+        <p class="text-sm font-semibold ${isOverdue ? 'text-red-500' : isUpcoming ? 'text-amber-500' : 'text-gray-600'}">${e.nextMaint}</p>
+        ${isOverdue ? '<p class="text-xs text-red-400">Vencido</p>' : isUpcoming ? '<p class="text-xs text-amber-400">Esta semana</p>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============ REPAIRS ============
+function renderRepairs() {
+  const repairs = getReparaciones();
+  const list = document.getElementById('repairList');
+  if (!repairs.length) {
+    list.innerHTML = '<div class="text-center py-12 text-gray-400"><p class="text-4xl mb-2">✅</p><p class="text-sm">Sin reparaciones registradas</p></div>';
+    return;
+  }
+  const equipos = getEquipos();
+  list.innerHTML = repairs.slice().reverse().map(r => {
+    const e = equipos.find(eq => eq.id === r.equipoId);
+    return `
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">${e?.emoji || '⚙️'}</span>
+          <div>
+            <p class="font-semibold text-gray-700 text-sm">${e?.nombre || 'Equipo desconocido'}</p>
+            <p class="text-xs text-gray-400">${r.fecha} · ${r.tipo}</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <p class="font-bold text-lg text-red-500">$${(r.costo||0).toLocaleString('es-MX')}</p>
+          <p class="text-xs text-gray-400">${r.downtime || '—'} fuera</p>
+        </div>
+      </div>
+      <p class="text-sm text-gray-600 mb-3">${r.desc}</p>
+      <div class="flex items-center justify-between">
+        <p class="text-xs text-gray-500">👨‍🔧 ${r.tecnico}</p>
+        <div class="flex gap-2">
+          ${r.telefono ? `<button onclick="window.open('https://wa.me/${r.telefono.replace(/\D/g,'')}?text=${encodeURIComponent('Hola, necesito coordinar mantenimiento del equipo ' + (e?.nombre||''))}')" class="text-xs bg-green-500 text-white rounded-lg px-3 py-1.5 hover:bg-green-600 transition">📱 WhatsApp</button>` : ''}
+          <button onclick="deleteRepair(${r.id})" class="text-xs text-red-400 hover:text-red-600 transition">Eliminar</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showRepairForm() {
+  const equipos = getEquipos();
+  document.getElementById('repEquipo').innerHTML = equipos.map(e => `<option value="${e.id}">${e.emoji || '⚙️'} ${e.nombre}</option>`).join('');
+  document.getElementById('repDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('repairForm').classList.remove('hidden');
+}
+
+function hideRepairForm() { document.getElementById('repairForm').classList.add('hidden'); }
+
+function saveRepair() {
+  const repairs = getReparaciones();
+  const equipoId = parseInt(document.getElementById('repEquipo').value);
+  repairs.push({
+    id: Date.now(), equipoId,
+    fecha: document.getElementById('repDate').value,
+    tecnico: document.getElementById('repTecnico').value || 'Sin especificar',
+    telefono: document.getElementById('repTelefono').value,
+    costo: parseFloat(document.getElementById('repCosto').value) || 0,
+    downtime: document.getElementById('repDowntime').value,
+    desc: document.getElementById('repDesc').value || '(sin descripción)',
+    tipo: 'correctivo'
+  });
+  setReparaciones(repairs);
+
+  // Update equipment status
+  const equipos = getEquipos();
+  const e = equipos.find(eq => eq.id === equipoId);
+  if (e) { e.estado = 'reparacion'; setEquipos(equipos); }
+
+  hideRepairForm();
+  renderRepairs();
+  renderEquipos();
+}
+
+function deleteRepair(id) {
+  if (!confirm('¿Eliminar este registro?')) return;
+  setReparaciones(getReparaciones().filter(r => r.id !== id));
+  renderRepairs();
+}
+
+// ============ COSTS ============
+let costsChartInst;
+function renderCostos() {
+  const repairs = getReparaciones();
+  const correctivo = repairs.filter(r => r.tipo === 'correctivo').reduce((s, r) => s + (r.costo||0), 0);
+  const preventivo = repairs.filter(r => r.tipo === 'preventivo').reduce((s, r) => s + (r.costo||0), 0);
+  document.getElementById('cost-total').textContent = '$' + (correctivo + preventivo).toLocaleString('es-MX');
+  document.getElementById('cost-correctivo').textContent = '$' + correctivo.toLocaleString('es-MX');
+  document.getElementById('cost-preventivo').textContent = '$' + preventivo.toLocaleString('es-MX');
+  document.getElementById('cost-reparaciones').textContent = repairs.filter(r => r.tipo==='correctivo').length;
+
+  // Monthly chart
+  const months = [];
+  const monthLabels = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    months.push(repairs.filter(r => r.fecha.startsWith(key)).reduce((s, r) => s + (r.costo||0), 0));
+    monthLabels.push(d.toLocaleDateString('es-MX', { month:'short', year:'2-digit' }));
+  }
+
+  if (costsChartInst) costsChartInst.destroy();
+  costsChartInst = new Chart(document.getElementById('costsChart'), {
+    type: 'bar',
+    data: {
+      labels: monthLabels,
+      datasets: [{ label: 'Gasto MXN', data: months, backgroundColor: '#94a3b8', borderRadius: 8 }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { ticks: { callback: v => '$' + v.toLocaleString('es-MX') }, grid: { color: '#f1f5f9' } },
+        x: { grid: { display: false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  // Top 5
+  const equipos = getEquipos();
+  const byCost = equipos.map(e => ({
+    ...e,
+    total: repairs.filter(r => r.equipoId === e.id).reduce((s, r) => s + (r.costo||0), 0)
+  })).sort((a, b) => b.total - a.total).slice(0, 5);
+
+  const maxCost = byCost[0]?.total || 1;
+  document.getElementById('top5List').innerHTML = byCost.map((e, i) => `
+    <div class="flex items-center gap-3">
+      <span class="text-lg">${e.emoji || '⚙️'}</span>
+      <div class="flex-1">
+        <div class="flex justify-between text-sm mb-1">
+          <span class="font-medium text-gray-700">${e.nombre}</span>
+          <span class="font-bold text-red-500">$${e.total.toLocaleString('es-MX')}</span>
+        </div>
+        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full rounded-full bg-slate-400" style="width:${Math.round((e.total/maxCost)*100)}%"></div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ============ NEW EQUIPO ============
+function saveEquipo() {
+  const equipos = getEquipos();
+  const nombre = document.getElementById('newNombre').value.trim();
+  if (!nombre) { alert('El nombre es requerido.'); return; }
+  const today = new Date().toISOString().slice(0, 10);
+  const freq = document.getElementById('newFreq').value;
+  const newEq = {
+    id: Date.now(),
+    nombre,
+    emoji: document.getElementById('newEmoji').value || '⚙️',
+    marca: document.getElementById('newMarca').value,
+    modelo: document.getElementById('newModelo').value,
+    serie: document.getElementById('newSerie').value,
+    ubicacion: document.getElementById('newUbicacion').value,
+    compra: document.getElementById('newCompra').value,
+    costo: parseFloat(document.getElementById('newCosto').value) || 0,
+    garantia: document.getElementById('newGarantia').value,
+    freq,
+    notas: document.getElementById('newNotas').value,
+    estado: 'operativo',
+    lastMaint: today,
+    nextMaint: nextMaintDate(today, freq)
+  };
+  equipos.push(newEq);
+  setEquipos(equipos);
+  switchTab('equipos');
+}
+
+// ============ TABS ============
+const TABS = ['equipos','agenda','reparaciones','costos','nuevo'];
+function switchTab(tab) {
+  TABS.forEach(t => {
+    document.getElementById(`pane-${t}`).classList.add('hidden');
+    const btn = document.getElementById(`tab-${t}`);
+    if (btn) btn.className = 'px-4 py-3 text-sm text-gray-500 whitespace-nowrap hover:text-gray-700';
+  });
+  document.getElementById(`pane-${tab}`).classList.remove('hidden');
+  const activeBtn = document.getElementById(`tab-${tab}`);
+  if (activeBtn) activeBtn.className = 'tab-active px-4 py-3 text-sm whitespace-nowrap';
+  if (tab === 'equipos') renderEquipos();
+  if (tab === 'agenda') renderAgenda();
+  if (tab === 'reparaciones') renderRepairs();
+  if (tab === 'costos') renderCostos();
+}
+
+function printCard() { window.print(); }
+
+// ============ INIT ============
+loadDemo();
+renderEquipos();
+</script>
+</body>
+</html>

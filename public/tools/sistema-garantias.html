@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Garantias</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  @media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white !important; }
+    .print-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+  }
+  .print-only { display: none; }
+  .tab-btn.active { background: #2563eb; color: white; }
+  .status-vigente { background: #dcfce7; color: #166534; }
+  .status-vencer { background: #fef9c3; color: #854d0e; }
+  .status-vencida { background: #fee2e2; color: #991b1b; }
+  .claim-recibido { background: #dbeafe; color: #1e40af; }
+  .claim-revision { background: #fef3c7; color: #92400e; }
+  .claim-reparado { background: #dcfce7; color: #166534; }
+  .claim-rechazado { background: #fee2e2; color: #991b1b; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #2563eb; outline-offset: 0; }
+  .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- Header -->
+<header class="bg-blue-600 text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold">Sistema de Garantias</h1>
+      <p class="text-blue-200 text-sm">Gestion de garantias y reclamos</p>
+    </div>
+    <button onclick="openModal('modalRegistro')" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded-lg hover:bg-blue-50 transition text-sm">
+      + Nueva Garantia
+    </button>
+  </div>
+</header>
+
+<!-- Dashboard Stats -->
+<div class="max-w-7xl mx-auto px-4 py-6 no-print">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Garantias Activas</p>
+      <p id="statActivas" class="text-3xl font-bold text-blue-600 mt-1">0</p>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Vencen Este Mes</p>
+      <p id="statVencer" class="text-3xl font-bold text-yellow-500 mt-1">0</p>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Vencidas</p>
+      <p id="statVencidas" class="text-3xl font-bold text-red-500 mt-1">0</p>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Reclamos Pendientes</p>
+      <p id="statReclamos" class="text-3xl font-bold text-slate-700 mt-1">0</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+    <div class="flex border-b border-slate-100">
+      <button onclick="showTab('garantias')" id="tab-garantias" class="tab-btn active flex-1 py-3 text-sm font-semibold transition">Garantias</button>
+      <button onclick="showTab('buscar')" id="tab-buscar" class="tab-btn flex-1 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">Buscar Cliente</button>
+      <button onclick="showTab('reclamos')" id="tab-reclamos" class="tab-btn flex-1 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">Reclamos</button>
+    </div>
+
+    <!-- Tab: Garantias -->
+    <div id="tab-content-garantias" class="p-4">
+      <div class="flex gap-2 mb-4 flex-wrap">
+        <input id="searchGarantias" onkeyup="renderGarantias()" type="text" placeholder="Buscar por producto, cliente..." class="flex-1 min-w-48 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        <select id="filterStatus" onchange="renderGarantias()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+          <option value="">Todos los estados</option>
+          <option value="vigente">Vigente</option>
+          <option value="vencer">Por vencer</option>
+          <option value="vencida">Vencida</option>
+        </select>
+      </div>
+      <div id="listaGarantias" class="space-y-3"></div>
+    </div>
+
+    <!-- Tab: Buscar Cliente -->
+    <div id="tab-content-buscar" class="p-4 hidden">
+      <div class="flex gap-2 mb-4">
+        <input id="searchCliente" type="text" placeholder="Telefono o numero de recibo..." class="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        <button onclick="buscarCliente()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Buscar</button>
+      </div>
+      <div id="resultadoCliente"></div>
+    </div>
+
+    <!-- Tab: Reclamos -->
+    <div id="tab-content-reclamos" class="p-4 hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold text-slate-700">Reclamos Registrados</h3>
+        <button onclick="openModal('modalReclamo')" class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">+ Nuevo Reclamo</button>
+      </div>
+      <div id="listaReclamos" class="space-y-3"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Registrar Garantia -->
+<div id="modalRegistro" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-5">
+        <h2 class="text-lg font-bold text-slate-800">Registrar Nueva Garantia</h2>
+        <button onclick="closeModal('modalRegistro')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Producto</label>
+          <input id="f-producto" type="text" placeholder="Ej: Television Samsung 55&quot;" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">No. Serie / Recibo</label>
+            <input id="f-serie" type="text" placeholder="SN-001234" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Fecha de Compra</label>
+            <input id="f-fecha" type="date" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Nombre del Cliente</label>
+          <input id="f-cliente" type="text" placeholder="Nombre completo" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Telefono</label>
+          <input id="f-telefono" type="tel" placeholder="10 digitos" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Periodo de Garantia</label>
+          <select id="f-periodo" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+            <option value="3">3 meses</option>
+            <option value="6">6 meses</option>
+            <option value="12" selected>12 meses</option>
+            <option value="24">24 meses</option>
+          </select>
+        </div>
+        <div id="f-vencimiento-display" class="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-700 hidden">
+          Vence: <span id="f-vencimiento-text" class="font-semibold"></span>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeModal('modalRegistro')" class="flex-1 border border-slate-200 text-slate-600 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition">Cancelar</button>
+        <button onclick="guardarGarantia()" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Guardar Garantia</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Registrar Reclamo -->
+<div id="modalReclamo" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-5">
+        <h2 class="text-lg font-bold text-slate-800">Registrar Reclamo</h2>
+        <button onclick="closeModal('modalReclamo')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">No. Serie / Recibo</label>
+          <input id="r-serie" type="text" placeholder="Buscar garantia por serie o recibo..." class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Descripcion del Problema</label>
+          <textarea id="r-descripcion" rows="3" placeholder="Detalle el problema reportado..." class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Estado del Reclamo</label>
+          <select id="r-estado" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+            <option value="Recibido">Recibido</option>
+            <option value="En revision">En revision</option>
+            <option value="Reparado">Reparado</option>
+            <option value="Rechazado">Rechazado</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeModal('modalReclamo')" class="flex-1 border border-slate-200 text-slate-600 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition">Cancelar</button>
+        <button onclick="guardarReclamo()" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Guardar Reclamo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Detalle Garantia -->
+<div id="modalDetalle" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div id="detalleContent" class="p-6"></div>
+  </div>
+</div>
+
+<!-- Print Certificate -->
+<div id="printCert" class="print-only fixed inset-0 bg-white z-[100] p-12">
+  <div id="certContent"></div>
+</div>
+
+<!-- Footer -->
+<footer class="text-center py-6 text-slate-400 text-xs no-print">
+  Powered by <span class="font-semibold text-blue-600">Novamente Studio</span>
+</footer>
+
+<script>
+const STORAGE_KEY = 'garantias_data';
+const RECLAMOS_KEY = 'reclamos_data';
+
+function getData() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+function setData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+function getReclamos() { return JSON.parse(localStorage.getItem(RECLAMOS_KEY) || '[]'); }
+function setReclamos(d) { localStorage.setItem(RECLAMOS_KEY, JSON.stringify(d)); }
+
+function addMonths(dateStr, months) {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split('T')[0];
+}
+
+function getStatus(vencimiento) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const vence = new Date(vencimiento);
+  const diff = (vence - today) / (1000 * 60 * 60 * 24);
+  if (diff < 0) return 'vencida';
+  if (diff <= 30) return 'vencer';
+  return 'vigente';
+}
+
+function statusLabel(s) {
+  if (s === 'vigente') return { text: 'Vigente', cls: 'status-vigente' };
+  if (s === 'vencer') return { text: 'Por vencer (30 dias)', cls: 'status-vencer' };
+  return { text: 'Vencida', cls: 'status-vencida' };
+}
+
+function claimBadge(estado) {
+  const map = { 'Recibido': 'claim-recibido', 'En revision': 'claim-revision', 'Reparado': 'claim-reparado', 'Rechazado': 'claim-rechazado' };
+  return map[estado] || 'claim-recibido';
+}
+
+function formatDate(str) {
+  if (!str) return '-';
+  const [y,m,d] = str.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function updateStats() {
+  const data = getData();
+  const reclamos = getReclamos();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const endMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  let activas = 0, vencer = 0, vencidas = 0;
+  data.forEach(g => {
+    const s = getStatus(g.vencimiento);
+    if (s === 'vigente') activas++;
+    else if (s === 'vencer') { activas++; vencer++; }
+    else vencidas++;
+  });
+  const pendientes = reclamos.filter(r => r.estado === 'Recibido' || r.estado === 'En revision').length;
+  document.getElementById('statActivas').textContent = activas;
+  document.getElementById('statVencer').textContent = vencer;
+  document.getElementById('statVencidas').textContent = vencidas;
+  document.getElementById('statReclamos').textContent = pendientes;
+}
+
+function renderGarantias() {
+  const data = getData();
+  const search = document.getElementById('searchGarantias').value.toLowerCase();
+  const filter = document.getElementById('filterStatus').value;
+  const container = document.getElementById('listaGarantias');
+  const filtered = data.filter(g => {
+    const s = getStatus(g.vencimiento);
+    const matchSearch = !search || g.producto.toLowerCase().includes(search) || g.cliente.toLowerCase().includes(search) || g.serie.toLowerCase().includes(search);
+    const matchFilter = !filter || s === filter;
+    return matchSearch && matchFilter;
+  });
+  if (!filtered.length) {
+    container.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">No se encontraron garantias.</p>';
+    return;
+  }
+  container.innerHTML = filtered.map(g => {
+    const s = getStatus(g.vencimiento);
+    const { text, cls } = statusLabel(s);
+    return `<div class="border border-slate-100 rounded-xl p-4 hover:shadow-md transition cursor-pointer" onclick="verDetalle('${g.id}')">
+      <div class="flex justify-between items-start gap-2">
+        <div class="flex-1 min-w-0">
+          <p class="font-semibold text-slate-800 truncate">${g.producto}</p>
+          <p class="text-slate-500 text-xs mt-0.5">${g.cliente} &bull; ${g.telefono}</p>
+          <p class="text-slate-400 text-xs">Serie/Recibo: ${g.serie}</p>
+        </div>
+        <span class="${cls} text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap">${text}</span>
+      </div>
+      <div class="flex gap-4 mt-2 text-xs text-slate-500">
+        <span>Compra: ${formatDate(g.fechaCompra)}</span>
+        <span>Vence: ${formatDate(g.vencimiento)}</span>
+        <span>${g.periodo} meses</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderReclamos() {
+  const reclamos = getReclamos();
+  const garantias = getData();
+  const container = document.getElementById('listaReclamos');
+  if (!reclamos.length) {
+    container.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">No hay reclamos registrados.</p>';
+    return;
+  }
+  container.innerHTML = reclamos.map(r => {
+    const g = garantias.find(x => x.serie === r.serie) || {};
+    return `<div class="border border-slate-100 rounded-xl p-4">
+      <div class="flex justify-between items-start gap-2">
+        <div class="flex-1">
+          <p class="font-semibold text-slate-800">${g.producto || 'Producto no encontrado'}</p>
+          <p class="text-slate-500 text-xs">Serie/Recibo: ${r.serie} &bull; ${g.cliente || '-'}</p>
+          <p class="text-slate-600 text-sm mt-1">${r.descripcion}</p>
+          <p class="text-slate-400 text-xs mt-1">Registrado: ${formatDate(r.fecha)}</p>
+        </div>
+        <div class="flex flex-col items-end gap-2">
+          <span class="${claimBadge(r.estado)} text-xs font-semibold px-2 py-1 rounded-full">${r.estado}</span>
+          <select onchange="cambiarEstadoReclamo('${r.id}', this.value)" class="border border-slate-200 rounded text-xs px-2 py-1">
+            <option ${r.estado==='Recibido'?'selected':''}>Recibido</option>
+            <option ${r.estado==='En revision'?'selected':''}>En revision</option>
+            <option ${r.estado==='Reparado'?'selected':''}>Reparado</option>
+            <option ${r.estado==='Rechazado'?'selected':''}>Rechazado</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function cambiarEstadoReclamo(id, estado) {
+  const reclamos = getReclamos();
+  const idx = reclamos.findIndex(r => r.id === id);
+  if (idx >= 0) { reclamos[idx].estado = estado; setReclamos(reclamos); }
+  renderReclamos(); updateStats();
+}
+
+function verDetalle(id) {
+  const g = getData().find(x => x.id === id);
+  if (!g) return;
+  const s = getStatus(g.vencimiento);
+  const { text, cls } = statusLabel(s);
+  const reclamos = getReclamos().filter(r => r.serie === g.serie);
+  document.getElementById('detalleContent').innerHTML = `
+    <div class="flex justify-between items-center mb-5">
+      <h2 class="text-lg font-bold text-slate-800">Detalle de Garantia</h2>
+      <button onclick="closeModal('modalDetalle')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+    </div>
+    <div class="bg-blue-50 rounded-xl p-4 mb-4">
+      <p class="font-bold text-slate-800 text-lg">${g.producto}</p>
+      <span class="${cls} text-xs font-semibold px-2 py-1 rounded-full inline-block mt-1">${text}</span>
+    </div>
+    <div class="space-y-2 text-sm mb-4">
+      <div class="flex justify-between"><span class="text-slate-500">Cliente:</span><span class="font-medium">${g.cliente}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Telefono:</span><span class="font-medium">${g.telefono}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Serie/Recibo:</span><span class="font-medium font-mono">${g.serie}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Fecha de compra:</span><span class="font-medium">${formatDate(g.fechaCompra)}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Periodo:</span><span class="font-medium">${g.periodo} meses</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Vencimiento:</span><span class="font-medium">${formatDate(g.vencimiento)}</span></div>
+    </div>
+    ${reclamos.length ? `<div class="mt-4"><p class="font-semibold text-slate-700 mb-2">Reclamos (${reclamos.length})</p>
+    ${reclamos.map(r=>`<div class="border rounded-lg p-3 mb-2 text-sm"><div class="flex justify-between"><span>${r.descripcion}</span><span class="${claimBadge(r.estado)} text-xs px-2 py-0.5 rounded-full">${r.estado}</span></div><p class="text-xs text-slate-400 mt-1">${formatDate(r.fecha)}</p></div>`).join('')}</div>` : ''}
+    <div class="flex gap-3 mt-5">
+      <a href="https://wa.me/52${g.telefono}?text=Hola%20${encodeURIComponent(g.cliente)},%20le%20recordamos%20que%20su%20garantia%20del%20${encodeURIComponent(g.producto)}%20vence%20el%20${encodeURIComponent(formatDate(g.vencimiento))}."
+         target="_blank" class="flex-1 bg-green-500 text-white text-center py-2 rounded-lg text-sm font-semibold hover:bg-green-600 transition">WhatsApp</a>
+      <button onclick="imprimirCertificado('${id}')" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Imprimir Certificado</button>
+    </div>`;
+  openModal('modalDetalle');
+}
+
+function imprimirCertificado(id) {
+  const g = getData().find(x => x.id === id);
+  if (!g) return;
+  const { text } = statusLabel(getStatus(g.vencimiento));
+  document.getElementById('certContent').innerHTML = `
+    <div style="max-width:600px;margin:0 auto;font-family:'Plus Jakarta Sans',sans-serif;">
+      <div style="text-align:center;border-bottom:3px solid #2563eb;padding-bottom:20px;margin-bottom:30px;">
+        <h1 style="color:#2563eb;font-size:28px;font-weight:800;margin:0;">CERTIFICADO DE GARANTIA</h1>
+        <p style="color:#64748b;margin:5px 0 0;">Documento oficial de garantia del producto</p>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="padding:8px 0;color:#64748b;width:40%;">Producto:</td><td style="padding:8px 0;font-weight:600;">${g.producto}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">No. Serie/Recibo:</td><td style="padding:8px 0;font-weight:600;font-family:monospace;">${g.serie}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Cliente:</td><td style="padding:8px 0;font-weight:600;">${g.cliente}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Telefono:</td><td style="padding:8px 0;font-weight:600;">${g.telefono}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Fecha de Compra:</td><td style="padding:8px 0;font-weight:600;">${formatDate(g.fechaCompra)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Periodo de Garantia:</td><td style="padding:8px 0;font-weight:600;">${g.periodo} meses</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Fecha de Vencimiento:</td><td style="padding:8px 0;font-weight:600;color:#dc2626;">${formatDate(g.vencimiento)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Estado:</td><td style="padding:8px 0;font-weight:600;">${text}</td></tr>
+      </table>
+      <div style="margin-top:40px;padding-top:20px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+        <p style="color:#94a3b8;font-size:12px;">Powered by Novamente Studio</p>
+        <p style="color:#94a3b8;font-size:12px;">Impreso: ${new Date().toLocaleDateString('es-MX')}</p>
+      </div>
+    </div>`;
+  window.print();
+}
+
+function buscarCliente() {
+  const q = document.getElementById('searchCliente').value.toLowerCase();
+  const data = getData();
+  const resultados = data.filter(g => g.serie.toLowerCase().includes(q) || g.telefono.includes(q));
+  const container = document.getElementById('resultadoCliente');
+  if (!q) { container.innerHTML = ''; return; }
+  if (!resultados.length) {
+    container.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">No se encontraron resultados.</p>';
+    return;
+  }
+  const cliente = resultados[0];
+  container.innerHTML = `
+    <div class="bg-blue-50 rounded-xl p-4 mb-4">
+      <p class="font-bold text-slate-800">${cliente.cliente}</p>
+      <p class="text-slate-500 text-sm">${cliente.telefono}</p>
+    </div>
+    <div class="space-y-3">
+      ${resultados.map(g => {
+        const s = getStatus(g.vencimiento);
+        const { text, cls } = statusLabel(s);
+        return `<div class="border border-slate-100 rounded-xl p-4 cursor-pointer hover:shadow-md transition" onclick="verDetalle('${g.id}')">
+          <div class="flex justify-between items-start">
+            <div><p class="font-semibold text-slate-800">${g.producto}</p>
+            <p class="text-xs text-slate-400">Serie: ${g.serie} &bull; Vence: ${formatDate(g.vencimiento)}</p></div>
+            <span class="${cls} text-xs font-semibold px-2 py-1 rounded-full">${text}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function showTab(tab) {
+  ['garantias','buscar','reclamos'].forEach(t => {
+    document.getElementById(`tab-content-${t}`).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById(`tab-${t}`);
+    btn.classList.toggle('active', t === tab);
+    if (t !== tab) { btn.classList.remove('active'); btn.classList.add('text-slate-600'); }
+    else { btn.classList.add('active'); btn.classList.remove('text-slate-600'); }
+  });
+  if (tab === 'reclamos') renderReclamos();
+}
+
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+document.getElementById('f-fecha').addEventListener('input', function() {
+  const periodo = parseInt(document.getElementById('f-periodo').value);
+  if (this.value && periodo) {
+    const vence = addMonths(this.value, periodo);
+    document.getElementById('f-vencimiento-text').textContent = formatDate(vence);
+    document.getElementById('f-vencimiento-display').classList.remove('hidden');
+  }
+});
+document.getElementById('f-periodo').addEventListener('change', function() {
+  const fecha = document.getElementById('f-fecha').value;
+  if (fecha) {
+    const vence = addMonths(fecha, parseInt(this.value));
+    document.getElementById('f-vencimiento-text').textContent = formatDate(vence);
+    document.getElementById('f-vencimiento-display').classList.remove('hidden');
+  }
+});
+
+function guardarGarantia() {
+  const producto = document.getElementById('f-producto').value.trim();
+  const serie = document.getElementById('f-serie').value.trim();
+  const cliente = document.getElementById('f-cliente').value.trim();
+  const telefono = document.getElementById('f-telefono').value.trim();
+  const fecha = document.getElementById('f-fecha').value;
+  const periodo = parseInt(document.getElementById('f-periodo').value);
+  if (!producto || !serie || !cliente || !telefono || !fecha) {
+    alert('Por favor completa todos los campos.'); return;
+  }
+  const data = getData();
+  data.unshift({ id: Date.now().toString(), producto, serie, cliente, telefono, fechaCompra: fecha, periodo, vencimiento: addMonths(fecha, periodo) });
+  setData(data);
+  closeModal('modalRegistro');
+  ['f-producto','f-serie','f-cliente','f-telefono'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-fecha').value = '';
+  document.getElementById('f-vencimiento-display').classList.add('hidden');
+  renderGarantias(); updateStats();
+}
+
+function guardarReclamo() {
+  const serie = document.getElementById('r-serie').value.trim();
+  const descripcion = document.getElementById('r-descripcion').value.trim();
+  const estado = document.getElementById('r-estado').value;
+  if (!serie || !descripcion) { alert('Por favor completa todos los campos.'); return; }
+  const reclamos = getReclamos();
+  reclamos.unshift({ id: Date.now().toString(), serie, descripcion, estado, fecha: new Date().toISOString().split('T')[0] });
+  setReclamos(reclamos);
+  closeModal('modalReclamo');
+  document.getElementById('r-serie').value = '';
+  document.getElementById('r-descripcion').value = '';
+  renderReclamos(); updateStats();
+}
+
+function loadDemoData() {
+  if (getData().length > 0) return;
+  const hoy = new Date();
+  function d(offset) {
+    const dd = new Date(hoy); dd.setDate(dd.getDate() + offset);
+    return dd.toISOString().split('T')[0];
+  }
+  function compra(mesesAtras) {
+    const dd = new Date(hoy); dd.setMonth(dd.getMonth() - mesesAtras);
+    return dd.toISOString().split('T')[0];
+  }
+  const garantias = [
+    { id: '1', producto: 'Television Samsung 55" QLED', serie: 'REC-2024-001', cliente: 'Carlos Mendoza', telefono: '5512345678', fechaCompra: compra(2), periodo: 12, vencimiento: addMonths(compra(2), 12) },
+    { id: '2', producto: 'Refrigerador LG No Frost 18 pies', serie: 'REC-2024-002', cliente: 'Maria Garcia', telefono: '5523456789', fechaCompra: compra(11), periodo: 12, vencimiento: addMonths(compra(11), 12) },
+    { id: '3', producto: 'Lavadora Whirlpool 18 kg', serie: 'REC-2024-003', cliente: 'Jose Rodriguez', telefono: '5534567890', fechaCompra: compra(3), periodo: 24, vencimiento: addMonths(compra(3), 24) },
+    { id: '4', producto: 'Laptop HP Pavilion 15"', serie: 'SN-HP-4521', cliente: 'Ana Martinez', telefono: '5545678901', fechaCompra: compra(14), periodo: 12, vencimiento: addMonths(compra(14), 12) },
+    { id: '5', producto: 'Aire Acondicionado Carrier 1.5 ton', serie: 'REC-2024-005', cliente: 'Luis Hernandez', telefono: '5556789012', fechaCompra: compra(1), periodo: 24, vencimiento: addMonths(compra(1), 24) },
+    { id: '6', producto: 'Microondas Panasonic 30 L', serie: 'REC-2024-006', cliente: 'Sofia Lopez', telefono: '5567890123', fechaCompra: compra(6), periodo: 6, vencimiento: addMonths(compra(6), 6) },
+    { id: '7', producto: 'Bocina Sony XB43 Bluetooth', serie: 'SN-SONY-789', cliente: 'Pedro Gonzalez', telefono: '5578901234', fechaCompra: compra(10), periodo: 12, vencimiento: addMonths(compra(10), 12) },
+    { id: '8', producto: 'Estufa Mabe 6 quemadores', serie: 'REC-2024-008', cliente: 'Lucia Torres', telefono: '5589012345', fechaCompra: compra(8), periodo: 12, vencimiento: addMonths(compra(8), 12) },
+    { id: '9', producto: 'Smart TV TCL 43" Android TV', serie: 'REC-2024-009', cliente: 'Roberto Diaz', telefono: '5590123456', fechaCompra: compra(13), periodo: 12, vencimiento: addMonths(compra(13), 12) },
+    { id: '10', producto: 'Aspiradora Dyson V11', serie: 'SN-DYS-1122', cliente: 'Carmen Ruiz', telefono: '5501234567', fechaCompra: compra(4), periodo: 24, vencimiento: addMonths(compra(4), 24) },
+  ];
+  setData(garantias);
+  const reclamos = [
+    { id: 'r1', serie: 'SN-SONY-789', descripcion: 'La bocina pierde conexion Bluetooth despues de 5 minutos de uso. Se reinicia sola.', estado: 'En revision', fecha: d(-3) },
+    { id: 'r2', serie: 'REC-2024-009', descripcion: 'La pantalla presenta lineas horizontales en la parte inferior del televisor al encender.', estado: 'Recibido', fecha: d(-1) },
+  ];
+  setReclamos(reclamos);
+}
+
+loadDemoData();
+renderGarantias();
+updateStats();
+</script>
+</body>
+</html>

@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fichas de Paciente</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { jakarta: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        teal: { 50:'#f0fdfa', 100:'#ccfbf1', 200:'#99f6e4', 300:'#5eead4', 400:'#2dd4bf', 500:'#14b8a6', 600:'#0d9488', 700:'#0f766e', 800:'#115e59', 900:'#134e4a' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .glass { background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); }
+  .slide-right { animation: slideRight 0.35s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes slideRight { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+  .slide-up { animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes slideUp { from { opacity:0; transform:translateY(20px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+  .fade { animation: fade 0.2s ease; }
+  @keyframes fade { from { opacity:0; } to { opacity:1; } }
+  .tab-active { background:#0d9488; color:white; }
+  .tab-inactive { background:#f0fdfa; color:#0f766e; }
+  @media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white !important; font-size: 12px; }
+    .glass { background: white !important; backdrop-filter: none !important; box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+    #patient-detail { position: static !important; }
+    .sidebar { display: none !important; }
+  }
+  .print-only { display: none; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #99f6e4; border-radius: 2px; }
+</style>
+</head>
+<body class="h-full bg-teal-50 min-h-screen">
+
+<!-- Top Bar -->
+<header class="no-print bg-white border-b border-teal-100 shadow-sm sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center shadow-sm">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </div>
+      <div>
+        <h1 class="font-bold text-gray-900 text-sm leading-tight">Fichas de Paciente</h1>
+        <p class="text-xs text-gray-400">Sistema dental / médico</p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="exportCSV()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition-all border border-teal-200 no-print">
+        ↓ Exportar CSV
+      </button>
+      <button onclick="openNewPatient()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-all no-print">
+        + Nuevo Paciente
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- App Layout -->
+<div class="max-w-7xl mx-auto flex h-[calc(100vh-57px)]">
+
+  <!-- Sidebar: Patient List -->
+  <aside class="sidebar no-print w-72 flex-shrink-0 bg-white border-r border-teal-100 flex flex-col overflow-hidden">
+    <div class="p-4 border-b border-teal-50">
+      <input type="text" id="search-patient" oninput="renderPatientList()" placeholder="Buscar nombre o teléfono..." class="w-full px-3 py-2 rounded-xl border border-teal-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-teal-50 placeholder-gray-400">
+      <p class="text-xs text-gray-400 mt-2" id="patient-count">Cargando...</p>
+    </div>
+    <div id="patient-list" class="flex-1 overflow-y-auto p-3 space-y-1.5"></div>
+  </aside>
+
+  <!-- Main: Patient Detail -->
+  <main class="flex-1 overflow-y-auto" id="main-area">
+    <!-- Empty state -->
+    <div id="empty-state" class="flex flex-col items-center justify-center h-full text-center px-6">
+      <div class="w-16 h-16 rounded-2xl bg-teal-100 flex items-center justify-center mb-4">
+        <svg class="w-8 h-8 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      </div>
+      <h2 class="font-bold text-gray-700 mb-1">Selecciona un paciente</h2>
+      <p class="text-sm text-gray-400 mb-4">O crea uno nuevo para comenzar</p>
+      <button onclick="openNewPatient()" class="px-5 py-2.5 bg-teal-600 text-white font-semibold rounded-xl hover:bg-teal-700 transition-all text-sm">+ Agregar Paciente</button>
+    </div>
+
+    <!-- Patient Detail Panel -->
+    <div id="patient-detail" class="hidden slide-right p-6 space-y-5">
+      <!-- Patient Header -->
+      <div class="glass rounded-3xl border border-teal-100 shadow-sm p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-2xl bg-teal-600 flex items-center justify-center shadow-sm">
+              <span class="text-white font-black text-xl" id="pd-avatar">?</span>
+            </div>
+            <div>
+              <h2 class="font-black text-xl text-gray-900" id="pd-name">—</h2>
+              <p class="text-sm text-gray-400" id="pd-meta">—</p>
+            </div>
+          </div>
+          <div class="flex gap-2 no-print flex-shrink-0">
+            <button onclick="printPatient()" class="px-3 py-2 rounded-xl bg-teal-50 text-teal-700 text-xs font-semibold hover:bg-teal-100 transition-all border border-teal-200">🖨️ Imprimir</button>
+            <button onclick="openEditPatient()" class="px-3 py-2 rounded-xl bg-gray-50 text-gray-600 text-xs font-semibold hover:bg-gray-100 transition-all border border-gray-200">✏️ Editar</button>
+            <button onclick="openNewVisit()" class="px-3 py-2 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 transition-all">+ Visita</button>
+          </div>
+        </div>
+        <!-- Tabs -->
+        <div class="flex gap-2 mt-4 no-print">
+          <button onclick="switchTab('info')" id="tab-info" class="tab-active px-4 py-1.5 rounded-xl text-xs font-bold transition-all">Información</button>
+          <button onclick="switchTab('history')" id="tab-history" class="tab-inactive px-4 py-1.5 rounded-xl text-xs font-bold transition-all">Historial</button>
+          <button onclick="switchTab('medical')" id="tab-medical" class="tab-inactive px-4 py-1.5 rounded-xl text-xs font-bold transition-all">Antecedentes</button>
+        </div>
+      </div>
+
+      <!-- Tab: Info -->
+      <div id="tab-content-info" class="fade space-y-4">
+        <div class="glass rounded-2xl border border-teal-100 shadow-sm p-5">
+          <h3 class="font-bold text-gray-700 text-sm mb-3">Datos personales</h3>
+          <div class="grid grid-cols-2 gap-3 text-sm" id="pd-personal"></div>
+        </div>
+      </div>
+
+      <!-- Tab: History -->
+      <div id="tab-content-history" class="hidden fade space-y-3">
+        <div id="pd-visits" class="space-y-3"></div>
+      </div>
+
+      <!-- Tab: Medical -->
+      <div id="tab-content-medical" class="hidden fade">
+        <div class="glass rounded-2xl border border-teal-100 shadow-sm p-5 space-y-4" id="pd-medical-content"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- New/Edit Patient Modal -->
+<div id="modal-patient" class="hidden fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/30 backdrop-blur-sm no-print">
+  <div class="slide-up bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-teal-100 overflow-hidden">
+    <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex justify-between items-center">
+      <h3 class="font-bold text-gray-900" id="modal-patient-title">Nuevo Paciente</h3>
+      <button onclick="closeModal('modal-patient')" class="p-2 rounded-xl hover:bg-gray-100">
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="px-6 py-4 space-y-3 overflow-y-auto max-h-[70vh]">
+      <input type="hidden" id="p-id">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2">
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Nombre completo *</label>
+          <input type="text" id="p-name" placeholder="María García López" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Teléfono *</label>
+          <input type="text" id="p-phone" placeholder="55 1234 5678" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Fecha de nacimiento</label>
+          <input type="date" id="p-dob" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Sexo</label>
+          <select id="p-sex" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+            <option value="">No especificado</option>
+            <option value="Femenino">Femenino</option>
+            <option value="Masculino">Masculino</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Ocupación</label>
+          <input type="text" id="p-job" placeholder="Profesora" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Dirección</label>
+        <input type="text" id="p-address" placeholder="Calle, número, colonia" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Email</label>
+        <input type="email" id="p-email" placeholder="correo@ejemplo.com" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+      </div>
+      <div class="border-t border-gray-100 pt-3">
+        <p class="text-xs font-bold text-gray-500 mb-2">Antecedentes médicos</p>
+        <div class="space-y-2">
+          <div>
+            <label class="text-xs font-semibold text-gray-500 mb-1 block">Alergias</label>
+            <input type="text" id="p-allergies" placeholder="Penicilina, látex..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 mb-1 block">Padecimientos / Condiciones</label>
+            <input type="text" id="p-conditions" placeholder="Diabetes tipo 2, hipertensión..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 mb-1 block">Medicamentos actuales</label>
+            <textarea id="p-meds" rows="2" placeholder="Metformina 500mg, Losartán 50mg..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"></textarea>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-500 mb-1 block">Notas médicas generales</label>
+            <textarea id="p-medical-notes" rows="2" placeholder="Cirugías previas, antecedentes familiares..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 pb-6 pt-3 flex gap-3">
+      <button onclick="savePatient()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2.5 rounded-xl transition-all text-sm">Guardar Paciente</button>
+      <button onclick="closeModal('modal-patient')" class="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-all">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Visit Modal -->
+<div id="modal-visit" class="hidden fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/30 backdrop-blur-sm no-print">
+  <div class="slide-up bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-teal-100 overflow-hidden">
+    <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex justify-between items-center">
+      <h3 class="font-bold text-gray-900" id="modal-visit-title">Nueva Visita</h3>
+      <button onclick="closeModal('modal-visit')" class="p-2 rounded-xl hover:bg-gray-100">
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="px-6 py-4 space-y-3 overflow-y-auto max-h-[70vh]">
+      <input type="hidden" id="v-id">
+      <input type="hidden" id="v-patient-id">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Fecha *</label>
+          <input type="date" id="v-date" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Hora</label>
+          <input type="time" id="v-time" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Motivo de consulta *</label>
+        <input type="text" id="v-reason" placeholder="Dolor de muela, revisión general..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Diagnóstico</label>
+        <textarea id="v-diagnosis" rows="2" placeholder="Caries en pieza 36, pericoronitis..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Tratamiento realizado</label>
+        <textarea id="v-treatment" rows="2" placeholder="Extracción, limpieza, obturación..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Recetas / Medicamentos</label>
+        <textarea id="v-prescriptions" rows="2" placeholder="Amoxicilina 500mg c/8h x 7 días..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Próxima cita</label>
+        <input type="date" id="v-followup" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Costo</label>
+        <input type="number" id="v-cost" placeholder="500" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/30">
+      </div>
+    </div>
+    <div class="px-6 pb-6 pt-3 flex gap-3">
+      <button onclick="saveVisit()" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2.5 rounded-xl transition-all text-sm">Guardar Visita</button>
+      <button onclick="closeModal('modal-visit')" class="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-all">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="no-print text-center py-8 bg-white border-t border-teal-100 mt-4">
+  <p class="text-xs text-gray-400">Powered by <span class="font-semibold text-gray-500">Novamente Studio</span></p>
+</footer>
+
+<script>
+// ==================== DATA ====================
+function getPatients() { return JSON.parse(localStorage.getItem('ficha_patients') || '[]'); }
+function savePatients(d) { localStorage.setItem('ficha_patients', JSON.stringify(d)); }
+function getVisits() { return JSON.parse(localStorage.getItem('ficha_visits') || '[]'); }
+function saveVisits(d) { localStorage.setItem('ficha_visits', JSON.stringify(d)); }
+
+let currentPatientId = null;
+let currentTab = 'info';
+
+function loadDemo() {
+  if (getPatients().length > 0) return;
+  const patients = [
+    { id:'p1', name:'María Fernanda García', phone:'5512345678', dob:'1985-03-15', sex:'Femenino', job:'Maestra', address:'Calle Tabasco 23, Roma Norte, CDMX', email:'mfgarcia@gmail.com', allergies:'Penicilina', conditions:'Hipertensión controlada', meds:'Losartán 50mg diario', medNotes:'Sin cirugías previas. Madre diabética.' },
+    { id:'p2', name:'Carlos Eduardo Ramos', phone:'5523456789', dob:'1972-11-08', sex:'Masculino', job:'Contador', address:'Av. Coyoacán 445, Del Valle', email:'cramos@outlook.com', allergies:'Ninguna', conditions:'Diabetes tipo 2', meds:'Metformina 500mg c/12h', medNotes:'Control glucémico regular. Último HbA1c: 7.2%' },
+    { id:'p3', name:'Sofía Alejandra López', phone:'5534567890', dob:'1995-07-22', sex:'Femenino', job:'Diseñadora', address:'Calle Orizaba 67, Roma Sur', email:'sofia.lopez@gmail.com', allergies:'Látex', conditions:'Ninguna', meds:'Ninguno', medNotes:'Embarazada — 6 semanas (abril 2026). Evitar rayos X.' },
+    { id:'p4', name:'Roberto Jiménez Torres', phone:'5545678901', dob:'1960-01-30', sex:'Masculino', job:'Jubilado', address:'Blvd. Puerto Aéreo 12, Iztacalco', email:'', allergies:'Aspirina, AINEs', conditions:'Osteoartritis, hipertensión', meds:'Enalapril 10mg, Paracetamol 500mg', medNotes:'Marcapasos implantado 2019. Requiere profilaxis antibiótica.' },
+    { id:'p5', name:'Valentina Cruz Morales', phone:'5556789012', dob:'2005-09-14', sex:'Femenino', job:'Estudiante', address:'Calle Moctezuma 89, Tepito', email:'vale.cruz@gmail.com', allergies:'Ninguna', conditions:'Ninguna', meds:'Ninguno', medNotes:'Paciente adolescente. Asiste con tutora (mamá: Ana Morales).' },
+  ];
+  const visits = [
+    { id:'v1', patientId:'p1', date:'2026-04-02', time:'10:00', reason:'Limpieza dental de rutina', diagnosis:'Cálculo dental leve en piezas anteriores. Sin caries activas.', treatment:'Profilaxis, detartraje supragingival, pulido coronario.', prescriptions:'Colutorio de clorhexidina 0.12% por 7 días.', followup:'2026-10-02', cost:850 },
+    { id:'v2', patientId:'p1', date:'2025-10-15', time:'11:30', reason:'Dolor en muela del juicio', diagnosis:'Pericoronitis pieza 48 (tercer molar inferior derecho).', treatment:'Lavado de opérculo, aplicación de gel analgésico local.', prescriptions:'Amoxicilina 500mg c/8h x 7 días. Ibuprofeno 400mg PRN.', followup:'2026-04-15', cost:600 },
+    { id:'v3', patientId:'p2', date:'2026-03-20', time:'09:00', reason:'Revisión semestral + caries reportada', diagnosis:'Caries en pieza 36 (primer molar inferior izquierdo), clase II.', treatment:'Anestesia local, remoción de tejido cariado, obturación con resina composite.', prescriptions:'Ibuprofeno 400mg c/8h x 2 días si hay molestia.', followup:'2026-09-20', cost:1200 },
+    { id:'v4', patientId:'p2', date:'2025-09-05', time:'10:30', reason:'Limpieza y revisión', diagnosis:'Gingivitis moderada. Sin caries.', treatment:'Profilaxis completa, instrucción de higiene oral.', prescriptions:'Colutorio antiséptico. Hilo dental diario.', followup:'2026-03-05', cost:750 },
+    { id:'v5', patientId:'p3', date:'2026-04-01', time:'14:00', reason:'Primera consulta — dolor intermitente pieza 21', diagnosis:'Fractura incompleta de esmalte pieza 21. Sin compromiso pulpar.', treatment:'Pulido y sellado con ionómero de vidrio.', prescriptions:'Sin medicación necesaria.', followup:'2026-07-01', cost:950 },
+    { id:'v6', patientId:'p4', date:'2026-03-10', time:'09:30', reason:'Extracción pieza 14 (indicada)', diagnosis:'Pieza 14 con caries profunda. No restaurable.', treatment:'Previa consulta con cardiólogo. Profilaxis antibiótica (Amoxicilina 2g 1h antes). Extracción con fórceps.', prescriptions:'Amoxicilina 500mg c/8h x 5 días. Paracetamol 500mg PRN.', followup:'2026-03-17', cost:1800 },
+    { id:'v7', patientId:'p4', date:'2026-03-17', time:'10:00', reason:'Revisión post-extracción', diagnosis:'Cicatrización normal. Sin signos de infección.', treatment:'Limpieza de alvéolo, indicaciones de higiene.', prescriptions:'Continuar paracetamol PRN si hay molestia.', followup:'2026-09-17', cost:300 },
+    { id:'v8', patientId:'p5', date:'2026-04-08', time:'16:00', reason:'Primera visita — ortodoncia', diagnosis:'Maloclusión clase II, apiñamiento leve en ambas arcadas. Se requiere ortodoncia.', treatment:'Estudio de modelos. Rx panorámica y lateral de cráneo indicadas.', prescriptions:'Sin medicación.', followup:'2026-04-22', cost:500 },
+    { id:'v9', patientId:'p5', date:'2025-11-20', time:'15:00', reason:'Revisión rutinaria', diagnosis:'Sin caries. Gingivitis leve por mala técnica de cepillado.', treatment:'Profilaxis pediátrica. Instrucción de técnica de Bass modificada.', prescriptions:'Pasta con fluoruro 1000ppm. Colutorio sin alcohol.', followup:'2026-04-20', cost:600 },
+  ];
+  savePatients(patients);
+  saveVisits(visits);
+}
+
+// ==================== PATIENT LIST ====================
+function renderPatientList() {
+  const q = (document.getElementById('search-patient')?.value || '').toLowerCase();
+  const patients = getPatients().filter(p => p.name.toLowerCase().includes(q) || p.phone.includes(q));
+  document.getElementById('patient-count').textContent = `${patients.length} paciente${patients.length !== 1 ? 's' : ''}`;
+  const list = document.getElementById('patient-list');
+  list.innerHTML = '';
+  patients.forEach(p => {
+    const visits = getVisits().filter(v => v.patientId === p.id);
+    const last = visits.sort((a,b) => b.date.localeCompare(a.date))[0];
+    const el = document.createElement('button');
+    el.className = `w-full text-left p-3 rounded-xl border transition-all hover:shadow-sm ${currentPatientId === p.id ? 'bg-teal-50 border-teal-300 shadow-sm' : 'bg-white border-gray-100 hover:border-teal-200'}`;
+    el.onclick = () => loadPatient(p.id);
+    el.innerHTML = `
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${currentPatientId === p.id ? 'bg-teal-600' : 'bg-teal-100'}">
+          <span class="font-bold text-sm ${currentPatientId === p.id ? 'text-white' : 'text-teal-700'}">${p.name.charAt(0)}</span>
+        </div>
+        <div class="overflow-hidden">
+          <p class="font-semibold text-gray-800 text-xs truncate">${p.name}</p>
+          <p class="text-xs text-gray-400">${visits.length} visita${visits.length !== 1 ? 's' : ''} ${last ? '· ' + last.date : ''}</p>
+        </div>
+      </div>
+    `;
+    list.appendChild(el);
+  });
+}
+
+// ==================== PATIENT DETAIL ====================
+function loadPatient(id) {
+  currentPatientId = id;
+  currentTab = 'info';
+  const p = getPatients().find(x => x.id === id);
+  if (!p) return;
+
+  document.getElementById('empty-state').classList.add('hidden');
+  document.getElementById('patient-detail').classList.remove('hidden');
+  document.getElementById('patient-detail').classList.add('slide-right');
+  setTimeout(() => document.getElementById('patient-detail').classList.remove('slide-right'), 400);
+
+  // Header
+  document.getElementById('pd-avatar').textContent = p.name.charAt(0);
+  document.getElementById('pd-name').textContent = p.name;
+  const age = p.dob ? Math.floor((new Date() - new Date(p.dob)) / (365.25*24*60*60*1000)) : null;
+  document.getElementById('pd-meta').textContent = [p.sex, age ? age + ' años' : null, p.phone].filter(Boolean).join(' · ');
+
+  switchTab('info');
+  renderPatientList();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  ['info','history','medical'].forEach(t => {
+    const content = document.getElementById('tab-content-' + t);
+    const btn = document.getElementById('tab-' + t);
+    if (t === tab) {
+      content.classList.remove('hidden');
+      content.classList.add('fade');
+      btn.className = 'tab-active px-4 py-1.5 rounded-xl text-xs font-bold transition-all';
+    } else {
+      content.classList.add('hidden');
+      btn.className = 'tab-inactive px-4 py-1.5 rounded-xl text-xs font-bold transition-all';
+    }
+  });
+
+  const p = getPatients().find(x => x.id === currentPatientId);
+  if (!p) return;
+
+  if (tab === 'info') {
+    const fields = [
+      ['Teléfono', p.phone],
+      ['Email', p.email || 'No registrado'],
+      ['Fecha de nac.', p.dob || 'No registrada'],
+      ['Sexo', p.sex || 'No especificado'],
+      ['Ocupación', p.job || 'No registrada'],
+      ['Dirección', p.address || 'No registrada'],
+    ];
+    document.getElementById('pd-personal').innerHTML = fields.map(([k,v]) => `
+      <div>
+        <p class="text-xs text-gray-400 mb-0.5">${k}</p>
+        <p class="font-semibold text-gray-800 text-sm">${v}</p>
+      </div>
+    `).join('');
+  }
+
+  if (tab === 'history') {
+    const visits = getVisits().filter(v => v.patientId === currentPatientId).sort((a,b) => b.date.localeCompare(a.date));
+    const container = document.getElementById('pd-visits');
+    if (!visits.length) {
+      container.innerHTML = '<div class="glass rounded-2xl border border-teal-100 p-8 text-center text-gray-400 text-sm">Sin visitas registradas</div>';
+      return;
+    }
+    container.innerHTML = visits.map((v, i) => `
+      <div class="glass rounded-2xl border border-teal-100 shadow-sm overflow-hidden">
+        <div class="px-4 py-3 bg-teal-600 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-white/60 text-xs font-semibold">#${visits.length - i}</span>
+            <span class="font-bold text-white text-sm">${v.date}${v.time ? ' · ' + v.time : ''}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            ${v.cost ? `<span class="text-white/80 text-xs font-semibold">$${parseFloat(v.cost).toLocaleString('es-MX')}</span>` : ''}
+            <button onclick="editVisit('${v.id}')" class="text-white/60 hover:text-white text-xs no-print">✏️</button>
+            <button onclick="deleteVisit('${v.id}')" class="text-white/40 hover:text-red-300 text-xs no-print">✕</button>
+          </div>
+        </div>
+        <div class="p-4 space-y-3 text-sm">
+          <div>
+            <p class="text-xs text-gray-400 font-semibold mb-0.5">Motivo</p>
+            <p class="text-gray-800">${v.reason}</p>
+          </div>
+          ${v.diagnosis ? `<div><p class="text-xs text-gray-400 font-semibold mb-0.5">Diagnóstico</p><p class="text-gray-800">${v.diagnosis}</p></div>` : ''}
+          ${v.treatment ? `<div><p class="text-xs text-gray-400 font-semibold mb-0.5">Tratamiento</p><p class="text-gray-800">${v.treatment}</p></div>` : ''}
+          ${v.prescriptions ? `<div><p class="text-xs text-gray-400 font-semibold mb-0.5">Recetas</p><p class="text-gray-800 font-medium">${v.prescriptions}</p></div>` : ''}
+          ${v.followup ? `<div class="flex items-center gap-2 pt-1 border-t border-teal-50"><svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg><p class="text-xs text-teal-700 font-semibold">Próxima cita: ${v.followup}</p></div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  if (tab === 'medical') {
+    const content = document.getElementById('pd-medical-content');
+    const items = [
+      { label:'Alergias', value: p.allergies, icon:'⚠️', color:'bg-red-50 border-red-200 text-red-700' },
+      { label:'Padecimientos / Condiciones', value: p.conditions, icon:'🩺', color:'bg-amber-50 border-amber-200 text-amber-800' },
+      { label:'Medicamentos actuales', value: p.meds, icon:'💊', color:'bg-blue-50 border-blue-200 text-blue-800' },
+      { label:'Notas médicas', value: p.medNotes, icon:'📋', color:'bg-gray-50 border-gray-200 text-gray-700' },
+    ];
+    content.innerHTML = items.map(item => item.value ? `
+      <div class="p-4 rounded-xl border ${item.color}">
+        <p class="text-xs font-bold mb-1 opacity-70">${item.icon} ${item.label}</p>
+        <p class="text-sm font-medium">${item.value}</p>
+      </div>
+    ` : `
+      <div class="p-4 rounded-xl border border-gray-100 bg-gray-50">
+        <p class="text-xs font-bold text-gray-400 mb-0.5">${item.icon} ${item.label}</p>
+        <p class="text-sm text-gray-300">No registrado</p>
+      </div>
+    `).join('');
+  }
+}
+
+// ==================== PATIENT MODAL ====================
+function openNewPatient() {
+  document.getElementById('modal-patient-title').textContent = 'Nuevo Paciente';
+  ['p-id','p-name','p-phone','p-dob','p-address','p-email','p-job','p-allergies','p-conditions','p-meds','p-medical-notes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('p-sex').value = '';
+  document.getElementById('modal-patient').classList.remove('hidden');
+}
+
+function openEditPatient() {
+  const p = getPatients().find(x => x.id === currentPatientId);
+  if (!p) return;
+  document.getElementById('modal-patient-title').textContent = 'Editar Paciente';
+  document.getElementById('p-id').value = p.id;
+  document.getElementById('p-name').value = p.name || '';
+  document.getElementById('p-phone').value = p.phone || '';
+  document.getElementById('p-dob').value = p.dob || '';
+  document.getElementById('p-sex').value = p.sex || '';
+  document.getElementById('p-job').value = p.job || '';
+  document.getElementById('p-address').value = p.address || '';
+  document.getElementById('p-email').value = p.email || '';
+  document.getElementById('p-allergies').value = p.allergies || '';
+  document.getElementById('p-conditions').value = p.conditions || '';
+  document.getElementById('p-meds').value = p.meds || '';
+  document.getElementById('p-medical-notes').value = p.medNotes || '';
+  document.getElementById('modal-patient').classList.remove('hidden');
+}
+
+function savePatient() {
+  const name = document.getElementById('p-name').value.trim();
+  const phone = document.getElementById('p-phone').value.trim();
+  if (!name || !phone) { alert('Nombre y teléfono son obligatorios.'); return; }
+
+  const data = getPatients();
+  const editId = document.getElementById('p-id').value;
+  const patient = {
+    id: editId || 'p' + Date.now(),
+    name, phone,
+    dob: document.getElementById('p-dob').value,
+    sex: document.getElementById('p-sex').value,
+    job: document.getElementById('p-job').value.trim(),
+    address: document.getElementById('p-address').value.trim(),
+    email: document.getElementById('p-email').value.trim(),
+    allergies: document.getElementById('p-allergies').value.trim(),
+    conditions: document.getElementById('p-conditions').value.trim(),
+    meds: document.getElementById('p-meds').value.trim(),
+    medNotes: document.getElementById('p-medical-notes').value.trim(),
+  };
+
+  if (editId) {
+    const idx = data.findIndex(x => x.id === editId);
+    if (idx >= 0) data[idx] = patient;
+  } else {
+    data.push(patient);
+  }
+  savePatients(data);
+  closeModal('modal-patient');
+  renderPatientList();
+  if (editId && currentPatientId === editId) loadPatient(editId);
+  else loadPatient(patient.id);
+}
+
+// ==================== VISIT MODAL ====================
+function openNewVisit() {
+  if (!currentPatientId) return;
+  document.getElementById('modal-visit-title').textContent = 'Nueva Visita';
+  document.getElementById('v-id').value = '';
+  document.getElementById('v-patient-id').value = currentPatientId;
+  document.getElementById('v-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('v-time').value = '';
+  ['v-reason','v-diagnosis','v-treatment','v-prescriptions','v-followup','v-cost'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('modal-visit').classList.remove('hidden');
+}
+
+function editVisit(id) {
+  const v = getVisits().find(x => x.id === id);
+  if (!v) return;
+  document.getElementById('modal-visit-title').textContent = 'Editar Visita';
+  document.getElementById('v-id').value = v.id;
+  document.getElementById('v-patient-id').value = v.patientId;
+  document.getElementById('v-date').value = v.date || '';
+  document.getElementById('v-time').value = v.time || '';
+  document.getElementById('v-reason').value = v.reason || '';
+  document.getElementById('v-diagnosis').value = v.diagnosis || '';
+  document.getElementById('v-treatment').value = v.treatment || '';
+  document.getElementById('v-prescriptions').value = v.prescriptions || '';
+  document.getElementById('v-followup').value = v.followup || '';
+  document.getElementById('v-cost').value = v.cost || '';
+  document.getElementById('modal-visit').classList.remove('hidden');
+}
+
+function saveVisit() {
+  const date = document.getElementById('v-date').value;
+  const reason = document.getElementById('v-reason').value.trim();
+  const patientId = document.getElementById('v-patient-id').value;
+  if (!date || !reason) { alert('Fecha y motivo son obligatorios.'); return; }
+
+  const data = getVisits();
+  const editId = document.getElementById('v-id').value;
+  const visit = {
+    id: editId || 'v' + Date.now(),
+    patientId, date,
+    time: document.getElementById('v-time').value,
+    reason,
+    diagnosis: document.getElementById('v-diagnosis').value.trim(),
+    treatment: document.getElementById('v-treatment').value.trim(),
+    prescriptions: document.getElementById('v-prescriptions').value.trim(),
+    followup: document.getElementById('v-followup').value,
+    cost: document.getElementById('v-cost').value
+  };
+
+  if (editId) {
+    const idx = data.findIndex(x => x.id === editId);
+    if (idx >= 0) data[idx] = visit;
+  } else {
+    data.push(visit);
+  }
+  saveVisits(data);
+  closeModal('modal-visit');
+  renderPatientList();
+  switchTab('history');
+}
+
+function deleteVisit(id) {
+  if (!confirm('¿Eliminar esta visita?')) return;
+  saveVisits(getVisits().filter(x => x.id !== id));
+  renderPatientList();
+  switchTab('history');
+}
+
+// ==================== PRINT ====================
+function printPatient() {
+  if (!currentPatientId) return;
+  switchTab('info');
+  setTimeout(() => {
+    switchTab('medical');
+    setTimeout(() => {
+      switchTab('history');
+      setTimeout(() => window.print(), 100);
+    }, 50);
+  }, 50);
+}
+
+// ==================== EXPORT CSV ====================
+function exportCSV() {
+  const patients = getPatients();
+  const visits = getVisits();
+  const rows = [['ID','Nombre','Teléfono','Email','Fecha Nac','Sexo','Ocupación','Alergias','Condiciones','Visitas','Última Visita']];
+  patients.forEach(p => {
+    const pvs = visits.filter(v => v.patientId === p.id).sort((a,b) => b.date.localeCompare(a.date));
+    rows.push([p.id, p.name, p.phone, p.email||'', p.dob||'', p.sex||'', p.job||'', p.allergies||'', p.conditions||'', pvs.length, pvs[0]?.date||'']);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pacientes_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// ==================== MISC ====================
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+// ==================== INIT ====================
+loadDemo();
+renderPatientList();
+</script>
+</body>
+</html>

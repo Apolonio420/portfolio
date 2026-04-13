@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recetario Digital — Restaurante</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #fefce8; }
+  .amber-grad { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .tab-btn { padding: 8px 18px; border-radius: 999px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; }
+  .tab-btn.active { background: #d97706; color: #fff; }
+  .tab-btn:not(.active) { color: #92400e; background: #fef3c7; }
+  .cat-btn { padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
+  .cat-btn.active { background: #d97706; color: #fff; }
+  .cat-btn:not(.active) { color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; }
+  .recipe-card { border-radius: 14px; background: #fff; border: 2px solid transparent; cursor: pointer; transition: all .2s; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+  .recipe-card:hover, .recipe-card.selected { border-color: #d97706; box-shadow: 0 4px 16px rgba(217,119,6,.15); }
+  .cost-bar { height: 6px; border-radius: 3px; background: #fef3c7; }
+  .cost-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#d97706,#f59e0b); transition: width .5s; }
+  input, select, textarea { outline: none; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 8px 12px; font-size: 14px; width: 100%; transition: border .15s; font-family: 'Plus Jakarta Sans',sans-serif; }
+  input:focus, select:focus, textarea:focus { border-color: #d97706; }
+  .btn-amber { background: #d97706; color: #fff; border-radius: 10px; padding: 9px 20px; font-weight: 700; font-size: 13px; cursor: pointer; transition: background .15s; border: none; }
+  .btn-amber:hover { background: #b45309; }
+  .btn-outline { border: 1.5px solid #d97706; color: #d97706; border-radius: 10px; padding: 8px 18px; font-weight: 700; font-size: 13px; cursor: pointer; background: #fff; transition: all .15s; }
+  .btn-outline:hover { background: #fef3c7; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal { background: #fff; border-radius: 20px; width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 28px; }
+  .section-title { font-size: 18px; font-weight: 800; color: #92400e; margin-bottom: 12px; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #fef3c7; } ::-webkit-scrollbar-thumb { background: #fcd34d; border-radius: 3px; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; }
+    .print-recipe { display: block !important; }
+    .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+  }
+  .print-recipe { display: none; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- HEADER -->
+<header class="amber-grad text-white no-print">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">🍳</div>
+      <div>
+        <div class="font-bold text-lg leading-tight">Recetario Digital</div>
+        <div class="text-amber-100 text-xs">Gestión de recetas para restaurantes</div>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="openNewRecipe()" class="bg-white/20 hover:bg-white/30 text-white font-bold px-4 py-2 rounded-xl text-sm transition">+ Nueva Receta</button>
+      <button onclick="showView('dashboard')" class="tab-btn" id="tab-dashboard">Dashboard</button>
+    </div>
+  </div>
+</header>
+
+<!-- TABS NAV -->
+<nav class="no-print bg-white border-b border-amber-100 sticky top-0 z-40">
+  <div class="max-w-6xl mx-auto px-4 py-2 flex gap-2 overflow-x-auto">
+    <button onclick="showView('lista')" class="tab-btn active" id="tab-lista">📋 Recetas</button>
+    <button onclick="showView('detalle')" class="tab-btn" id="tab-detalle">📖 Detalle</button>
+    <button onclick="showView('calculadora')" class="tab-btn" id="tab-calculadora">⚖️ Calculadora</button>
+    <button onclick="showView('costos')" class="tab-btn" id="tab-costos">💰 Análisis Costos</button>
+    <button onclick="showView('dashboard')" class="tab-btn" id="tab-dash2">📊 Dashboard</button>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="max-w-6xl mx-auto px-4 py-6 no-print">
+
+  <!-- LISTA DE RECETAS -->
+  <div id="view-lista">
+    <!-- Category filter -->
+    <div class="flex gap-2 flex-wrap mb-4">
+      <button class="cat-btn active" onclick="filterCat(this,'Todas')">Todas</button>
+      <button class="cat-btn" onclick="filterCat(this,'Entradas')">Entradas</button>
+      <button class="cat-btn" onclick="filterCat(this,'Principales')">Principales</button>
+      <button class="cat-btn" onclick="filterCat(this,'Postres')">Postres</button>
+      <button class="cat-btn" onclick="filterCat(this,'Bebidas')">Bebidas</button>
+      <button class="cat-btn" onclick="filterCat(this,'Salsas')">Salsas</button>
+    </div>
+    <!-- Search -->
+    <div class="mb-4">
+      <input type="search" id="searchRecipe" placeholder="Buscar receta..." oninput="renderRecipes()" class="max-w-sm">
+    </div>
+    <!-- Grid -->
+    <div id="recipes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </div>
+
+  <!-- DETALLE RECETA -->
+  <div id="view-detalle" class="hidden">
+    <div id="detail-content" class="space-y-5"></div>
+  </div>
+
+  <!-- CALCULADORA DE PORCIONES -->
+  <div id="view-calculadora" class="hidden">
+    <div class="card p-6 max-w-2xl">
+      <h2 class="section-title">⚖️ Calculadora de Porciones</h2>
+      <div class="mb-4">
+        <label class="text-sm font-600 text-gray-600 block mb-1">Selecciona receta</label>
+        <select id="calc-recipe" onchange="calcLoad()">
+          <option value="">— Seleccionar —</option>
+        </select>
+      </div>
+      <div id="calc-body" class="hidden">
+        <div class="flex gap-3 mb-5 flex-wrap">
+          <button onclick="calcScale(.5)" class="btn-outline">0.5x</button>
+          <button onclick="calcScale(1)" class="btn-outline btn-amber">1x</button>
+          <button onclick="calcScale(2)" class="btn-outline">2x</button>
+          <button onclick="calcScale(3)" class="btn-outline">3x</button>
+          <button onclick="calcScale(4)" class="btn-outline">4x</button>
+          <div class="flex items-center gap-2">
+            <input type="number" id="custom-scale" placeholder="Personalizado" class="w-32" min="0.1" step="0.1" oninput="calcScale(parseFloat(this.value)||1)">
+            <span class="text-sm text-gray-500">x</span>
+          </div>
+        </div>
+        <div class="bg-amber-50 rounded-xl p-4 mb-4">
+          <div class="flex justify-between items-center mb-3">
+            <span class="font-700 text-amber-900" id="calc-name"></span>
+            <span class="badge bg-amber-100 text-amber-800" id="calc-portions"></span>
+          </div>
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-gray-500 text-xs uppercase"><th class="pb-2">Ingrediente</th><th class="pb-2">Cantidad</th><th class="pb-2">Unidad</th><th class="pb-2">Costo</th></tr></thead>
+            <tbody id="calc-table"></tbody>
+          </table>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="card p-3 text-center">
+            <div class="text-xs text-gray-500 mb-1">Costo total receta</div>
+            <div class="text-2xl font-800 text-amber-700" id="calc-total-cost"></div>
+          </div>
+          <div class="card p-3 text-center">
+            <div class="text-xs text-gray-500 mb-1">Costo por porción</div>
+            <div class="text-2xl font-800 text-green-700" id="calc-cost-per"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANÁLISIS DE COSTOS -->
+  <div id="view-costos" class="hidden">
+    <div id="costos-content" class="space-y-5"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="view-dashboard" class="hidden">
+    <div id="dashboard-content"></div>
+  </div>
+
+</main>
+
+<!-- MODAL NUEVA / EDITAR RECETA -->
+<div id="modal-recipe" class="modal-bg hidden">
+  <div class="modal">
+    <div class="flex justify-between items-center mb-5">
+      <h2 class="text-xl font-800 text-amber-900" id="modal-title">Nueva Receta</h2>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none">&times;</button>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div><label class="text-xs font-600 text-gray-500 block mb-1">Nombre</label><input id="r-name" type="text" placeholder="Ej. Guacamole Clásico"></div>
+      <div><label class="text-xs font-600 text-gray-500 block mb-1">Categoría</label>
+        <select id="r-cat"><option>Entradas</option><option>Principales</option><option>Postres</option><option>Bebidas</option><option>Salsas</option></select>
+      </div>
+      <div><label class="text-xs font-600 text-gray-500 block mb-1">Porciones base</label><input id="r-portions" type="number" value="4" min="1"></div>
+      <div><label class="text-xs font-600 text-gray-500 block mb-1">Tiempo preparación</label><input id="r-time" type="text" placeholder="Ej. 20 min"></div>
+    </div>
+    <div class="mb-4">
+      <div class="flex justify-between items-center mb-2">
+        <label class="text-xs font-600 text-gray-500">Ingredientes</label>
+        <button onclick="addIngRow()" class="text-amber-700 text-xs font-700 hover:underline">+ Agregar</button>
+      </div>
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-400 text-xs"><th class="pb-1">Ingrediente</th><th class="pb-1">Cantidad</th><th class="pb-1">Unidad</th><th class="pb-1">Costo(MXN)</th><th></th></tr></thead>
+        <tbody id="ing-table"></tbody>
+      </table>
+    </div>
+    <div class="mb-4">
+      <label class="text-xs font-600 text-gray-500 block mb-1">Instrucciones (paso a paso)</label>
+      <textarea id="r-steps" rows="5" placeholder="1. Partir los aguacates por la mitad...&#10;2. Retirar el hueso...&#10;3. ..."></textarea>
+    </div>
+    <div class="flex gap-3 justify-end">
+      <button onclick="closeModal()" class="btn-outline">Cancelar</button>
+      <button onclick="saveRecipe()" class="btn-amber">Guardar Receta</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT RECIPE CARD -->
+<div class="print-recipe" id="print-area"></div>
+
+<!-- FOOTER -->
+<footer class="no-print text-center py-6 text-xs text-amber-700 opacity-60 mt-8">
+  Powered by <strong>Novamente Studio</strong> — recetario-digital v1.0
+</footer>
+
+<script>
+// ===================== DATA =====================
+const CATS = ['Entradas','Principales','Postres','Bebidas','Salsas'];
+const UNITS = ['g','kg','ml','L','pzas','cdas','cditas','tazas','manojos','dientes','hojas'];
+
+const DEMO_RECIPES = [
+  {
+    id:1, name:'Guacamole Clásico', category:'Entradas', portions:6, time:'15 min',
+    ingredients:[
+      {name:'Aguacate Hass',qty:4,unit:'pzas',cost:28},
+      {name:'Jitomate roma',qty:2,unit:'pzas',cost:4},
+      {name:'Cebolla blanca',qty:0.5,unit:'pzas',cost:3},
+      {name:'Chile serrano',qty:2,unit:'pzas',cost:2},
+      {name:'Limón',qty:3,unit:'pzas',cost:3},
+      {name:'Cilantro',qty:1,unit:'manojos',cost:5},
+      {name:'Sal',qty:1,unit:'cditas',cost:0.5},
+    ],
+    steps:'1. Partir los aguacates, retirar el hueso y extraer la pulpa.\n2. Machacar con un tenedor hasta obtener una textura cremosa.\n3. Picar finamente el jitomate, cebolla, chile serrano y cilantro.\n4. Mezclar todo con el aguacate machacado.\n5. Agregar jugo de limón y sal al gusto.\n6. Servir inmediatamente con totopos.',
+  },
+  {
+    id:2, name:'Enchiladas Verdes', category:'Principales', portions:4, time:'40 min',
+    ingredients:[
+      {name:'Tortillas de maíz',qty:12,unit:'pzas',cost:12},
+      {name:'Pechuga de pollo',qty:500,unit:'g',cost:55},
+      {name:'Tomatillo verde',qty:400,unit:'g',cost:18},
+      {name:'Chile poblano',qty:2,unit:'pzas',cost:10},
+      {name:'Crema ácida',qty:100,unit:'ml',cost:12},
+      {name:'Queso fresco',qty:150,unit:'g',cost:22},
+      {name:'Cebolla',qty:1,unit:'pzas',cost:5},
+      {name:'Ajo',qty:3,unit:'dientes',cost:2},
+      {name:'Aceite vegetal',qty:50,unit:'ml',cost:4},
+    ],
+    steps:'1. Cocer la pechuga con sal, cebolla y ajo. Deshebrar.\n2. Asar los tomatillos y chiles en comal.\n3. Licuar tomatillos, chiles, ajo y cebolla. Sazonar con sal.\n4. Freír las tortillas ligeramente en aceite.\n5. Pasar cada tortilla por la salsa verde.\n6. Rellenar con pollo deshebrado y enrollar.\n7. Bañar con más salsa, crema y queso fresco desmoronado.\n8. Gratinar 5 min en horno a 180°C.',
+  },
+  {
+    id:3, name:'Tacos al Pastor', category:'Principales', portions:8, time:'2 hrs',
+    ingredients:[
+      {name:'Cerdo (espaldilla)',qty:1,unit:'kg',cost:110},
+      {name:'Chile guajillo seco',qty:5,unit:'pzas',cost:8},
+      {name:'Chile ancho',qty:3,unit:'pzas',cost:6},
+      {name:'Achiote pasta',qty:50,unit:'g',cost:8},
+      {name:'Piña natural',qty:0.5,unit:'pzas',cost:15},
+      {name:'Cebolla',qty:1,unit:'pzas',cost:5},
+      {name:'Ajo',qty:4,unit:'dientes',cost:3},
+      {name:'Tortillas de maíz',qty:24,unit:'pzas',cost:24},
+      {name:'Cilantro',qty:1,unit:'manojos',cost:5},
+      {name:'Limón',qty:4,unit:'pzas',cost:4},
+      {name:'Vinagre blanco',qty:30,unit:'ml',cost:2},
+    ],
+    steps:'1. Hidratar chiles guajillo y ancho en agua caliente 20 min.\n2. Licuar chiles con achiote, vinagre, ajo y cebolla.\n3. Marinar la carne en la salsa de adobo mínimo 1 hora.\n4. Cortar la carne en rebanadas delgadas y colocar en trompo o sartén.\n5. Agregar piña en capas alternadas.\n6. Cocinar en trompo vertical o sartén a fuego medio-alto.\n7. Picar la carne en trozos pequeños.\n8. Servir en tortillas con cebolla, cilantro y jugo de limón.',
+  },
+  {
+    id:4, name:'Flan Napolitano', category:'Postres', portions:10, time:'90 min',
+    ingredients:[
+      {name:'Leche condensada',qty:400,unit:'ml',cost:32},
+      {name:'Leche evaporada',qty:400,unit:'ml',cost:26},
+      {name:'Queso crema',qty:200,unit:'g',cost:38},
+      {name:'Huevos',qty:4,unit:'pzas',cost:20},
+      {name:'Azúcar',qty:200,unit:'g',cost:8},
+      {name:'Vainilla',qty:1,unit:'cditas',cost:3},
+    ],
+    steps:'1. Preparar caramelo: fundir el azúcar en molde a fuego medio sin revolver.\n2. Cuando esté dorado, inclinar para cubrir el molde. Dejar enfriar.\n3. Licuar leche condensada, evaporada, queso crema, huevos y vainilla.\n4. Verter la mezcla sobre el caramelo.\n5. Tapar con papel aluminio.\n6. Hornear a baño María a 180°C por 60-70 min.\n7. Dejar enfriar completamente antes de desmoldar.\n8. Refrigerar mínimo 2 horas antes de servir.',
+  },
+  {
+    id:5, name:'Margarita Clásica', category:'Bebidas', portions:1, time:'5 min',
+    ingredients:[
+      {name:'Tequila blanco',qty:45,unit:'ml',cost:25},
+      {name:'Triple seco (Cointreau)',qty:20,unit:'ml',cost:18},
+      {name:'Jugo de limón fresco',qty:30,unit:'ml',cost:4},
+      {name:'Sal gruesa',qty:1,unit:'cdas',cost:0.5},
+      {name:'Hielo',qty:200,unit:'g',cost:1},
+      {name:'Limón (decorar)',qty:1,unit:'pzas',cost:1.5},
+    ],
+    steps:'1. Escarchar el vaso con limón y sal en el borde.\n2. Llenar una coctelera con hielo.\n3. Agregar tequila, triple seco y jugo de limón.\n4. Agitar vigorosamente por 15 segundos.\n5. Colar y servir en vaso escarchado con hielo.\n6. Decorar con rodaja de limón.',
+  },
+  {
+    id:6, name:'Salsa Roja Tatemada', category:'Salsas', portions:8, time:'25 min',
+    ingredients:[
+      {name:'Jitomate',qty:4,unit:'pzas',cost:12},
+      {name:'Chile de árbol seco',qty:8,unit:'pzas',cost:5},
+      {name:'Ajo',qty:3,unit:'dientes',cost:2},
+      {name:'Cebolla',qty:0.25,unit:'pzas',cost:2},
+      {name:'Sal',qty:1,unit:'cditas',cost:0.5},
+      {name:'Aceite',qty:15,unit:'ml',cost:1.5},
+    ],
+    steps:'1. Calentar comal a fuego alto sin aceite.\n2. Asar jitomates, chiles de árbol, ajo y cebolla hasta tatemar (manchas negras).\n3. Licuar todos los ingredientes tatemados con un poco de agua.\n4. Calentar aceite en sartén y agregar la salsa.\n5. Freír a fuego alto revolviendo hasta que suelte el hervor.\n6. Sazonar con sal al gusto.\n7. Dejar enfriar y guardar refrigerado hasta 7 días.',
+  },
+  {
+    id:7, name:'Ceviche de Camarón', category:'Entradas', portions:5, time:'30 min',
+    ingredients:[
+      {name:'Camarón mediano limpio',qty:500,unit:'g',cost:90},
+      {name:'Limón',qty:8,unit:'pzas',cost:8},
+      {name:'Jitomate',qty:3,unit:'pzas',cost:9},
+      {name:'Pepino',qty:1,unit:'pzas',cost:6},
+      {name:'Cebolla morada',qty:0.5,unit:'pzas',cost:4},
+      {name:'Chile jalapeño',qty:2,unit:'pzas',cost:4},
+      {name:'Cilantro',qty:0.5,unit:'manojos',cost:3},
+      {name:'Aguacate',qty:1,unit:'pzas',cost:15},
+      {name:'Salsa cátsup',qty:30,unit:'ml',cost:2},
+    ],
+    steps:'1. Cocer los camarones en agua con sal y laurel hasta que estén rosados (3-4 min).\n2. Enfriar en agua con hielo. Pelar y cortar en trozos.\n3. Marinar camarones en jugo de limón por 15 min.\n4. Picar jitomate, pepino, cebolla, chile y cilantro en cubos pequeños.\n5. Mezclar todo con los camarones marinados.\n6. Agregar salsa cátsup y aguacate en trozos.\n7. Servir en tostadas o tazas con más limón.',
+  },
+  {
+    id:8, name:'Pozole Rojo', category:'Principales', portions:8, time:'3 hrs',
+    ingredients:[
+      {name:'Cabeza de cerdo / espaldilla',qty:1,unit:'kg',cost:95},
+      {name:'Maíz pozolero (preparado)',qty:800,unit:'g',cost:35},
+      {name:'Chile ancho',qty:5,unit:'pzas',cost:10},
+      {name:'Chile guajillo',qty:5,unit:'pzas',cost:8},
+      {name:'Ajo',qty:6,unit:'dientes',cost:4},
+      {name:'Cebolla',qty:1.5,unit:'pzas',cost:7},
+      {name:'Orégano seco',qty:1,unit:'cdas',cost:1},
+      {name:'Sal',qty:2,unit:'cdas',cost:1},
+      {name:'Tostadas',qty:16,unit:'pzas',cost:18},
+      {name:'Lechuga',qty:0.5,unit:'pzas',cost:8},
+      {name:'Rábanos',qty:1,unit:'manojos',cost:7},
+    ],
+    steps:'1. Cocer la carne con cebolla, ajo y sal a fuego lento 2 horas.\n2. Deshuesar y deshebrar la carne. Reservar el caldo.\n3. Desvenar y tostar los chiles en comal. Remojar en agua caliente 20 min.\n4. Licuar chiles con ajo, cebolla y parte del caldo.\n5. Colar la salsa y agregar al caldo restante.\n6. Agregar el maíz pozolero y la carne deshebrada.\n7. Cocer a fuego medio 30 min más. Sazonar.\n8. Servir con lechuga, rábanos, orégano y tostadas.',
+  },
+];
+
+// ===================== STATE =====================
+let recipes = [];
+let selectedCat = 'Todas';
+let selectedRecipeId = null;
+let editingId = null;
+let ingRows = [];
+let calcMultiplier = 1;
+
+function load() {
+  const s = localStorage.getItem('recetario');
+  if(s) { recipes = JSON.parse(s); } else { recipes = JSON.parse(JSON.stringify(DEMO_RECIPES)); save(); }
+}
+function save() { localStorage.setItem('recetario', JSON.stringify(recipes)); }
+
+// ===================== VIEWS =====================
+const views = ['lista','detalle','calculadora','costos','dashboard'];
+const tabs = ['lista','detalle','calculadora','costos','dash2'];
+
+function showView(v) {
+  views.forEach(x => { const el=document.getElementById('view-'+x); if(el) el.classList.add('hidden'); });
+  document.getElementById('view-'+v).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if(v==='dashboard') { document.getElementById('tab-dash2').classList.add('active'); buildDashboard(); }
+  else { const t=document.getElementById('tab-'+v); if(t) t.classList.add('active'); }
+  if(v==='detalle') buildDetail();
+  if(v==='calculadora') buildCalcSelect();
+  if(v==='costos') buildCostos();
+}
+
+function filterCat(btn, cat) {
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedCat = cat;
+  renderRecipes();
+}
+
+// ===================== RECIPE LIST =====================
+function renderRecipes() {
+  const q = document.getElementById('searchRecipe').value.toLowerCase();
+  let list = recipes.filter(r => {
+    const matchCat = selectedCat==='Todas' || r.category===selectedCat;
+    const matchQ = r.name.toLowerCase().includes(q);
+    return matchCat && matchQ;
+  });
+  const grid = document.getElementById('recipes-grid');
+  if(!list.length) { grid.innerHTML='<p class="text-gray-400 col-span-3 text-center py-12">No hay recetas en esta categoría.</p>'; return; }
+  const catColors = {Entradas:'bg-orange-100 text-orange-700', Principales:'bg-red-100 text-red-700', Postres:'bg-pink-100 text-pink-700', Bebidas:'bg-blue-100 text-blue-700', Salsas:'bg-green-100 text-green-700'};
+  grid.innerHTML = list.map(r => {
+    const totalCost = r.ingredients.reduce((s,i)=>s+i.cost,0);
+    const costPer = (totalCost/r.portions).toFixed(2);
+    const suggested = (totalCost/r.portions/0.31).toFixed(2);
+    const margin = (((suggested-costPer)/suggested)*100).toFixed(0);
+    const sel = selectedRecipeId===r.id ? 'selected' : '';
+    return `<div class="recipe-card p-4 ${sel}" onclick="selectRecipe(${r.id})">
+      <div class="flex justify-between items-start mb-2">
+        <span class="badge ${catColors[r.category]||'bg-gray-100 text-gray-600'}">${r.category}</span>
+        <div class="flex gap-1">
+          <button onclick="event.stopPropagation();openEditRecipe(${r.id})" class="text-gray-300 hover:text-amber-600 text-xs px-1">✏️</button>
+          <button onclick="event.stopPropagation();deleteRecipe(${r.id})" class="text-gray-300 hover:text-red-500 text-xs px-1">🗑</button>
+        </div>
+      </div>
+      <div class="font-700 text-gray-800 text-base mb-1">${r.name}</div>
+      <div class="text-xs text-gray-500 mb-3">${r.ingredients.length} ingredientes · ${r.portions} porciones · ${r.time||'—'}</div>
+      <div class="cost-bar mb-1"><div class="cost-fill" style="width:${Math.min(100, totalCost/5)}%"></div></div>
+      <div class="flex justify-between text-xs">
+        <span class="text-gray-500">Costo/porción</span>
+        <span class="font-700 text-amber-700">$${costPer} MXN</span>
+      </div>
+      <div class="flex justify-between text-xs mt-1">
+        <span class="text-gray-500">Precio sugerido</span>
+        <span class="font-700 text-green-700">$${suggested} MXN</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selectRecipe(id) {
+  selectedRecipeId = id;
+  renderRecipes();
+  showView('detalle');
+}
+
+// ===================== DETAIL VIEW =====================
+function buildDetail() {
+  const cont = document.getElementById('detail-content');
+  if(!selectedRecipeId) {
+    cont.innerHTML='<div class="card p-8 text-center text-gray-400"><div class="text-5xl mb-3">🍽️</div><p>Selecciona una receta de la lista</p></div>';
+    return;
+  }
+  const r = recipes.find(x=>x.id===selectedRecipeId);
+  if(!r){ cont.innerHTML='<p class="text-gray-400">Receta no encontrada.</p>'; return; }
+  const totalCost = r.ingredients.reduce((s,i)=>s+i.cost,0);
+  const costPer = (totalCost/r.portions).toFixed(2);
+  const suggested = (totalCost/r.portions/0.31).toFixed(2);
+  const foodCostPct = ((costPer/suggested)*100).toFixed(1);
+  const margin = (((suggested-costPer)/suggested)*100).toFixed(1);
+  const catColors = {Entradas:'bg-orange-100 text-orange-700', Principales:'bg-red-100 text-red-700', Postres:'bg-pink-100 text-pink-700', Bebidas:'bg-blue-100 text-blue-700', Salsas:'bg-green-100 text-green-700'};
+
+  const steps = r.steps ? r.steps.split('\n').filter(s=>s.trim()) : [];
+
+  cont.innerHTML=`
+    <div class="flex flex-wrap gap-3 items-start justify-between">
+      <div>
+        <span class="badge ${catColors[r.category]||'bg-gray-100 text-gray-600'} mb-2">${r.category}</span>
+        <h1 class="text-2xl font-800 text-gray-800">${r.name}</h1>
+        <p class="text-gray-500 text-sm">${r.portions} porciones base · ${r.time||'—'} preparación</p>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="shareRecipeWA(${r.id})" class="btn-outline text-sm" style="border-color:#16a34a;color:#16a34a">WhatsApp</button>
+        <button onclick="printRecipe(${r.id})" class="btn-outline text-sm">🖨 Imprimir</button>
+        <button onclick="openEditRecipe(${r.id})" class="btn-amber text-sm">✏️ Editar</button>
+      </div>
+    </div>
+
+    <!-- Cost summary cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="card p-3 text-center"><div class="text-xs text-gray-500 mb-1">Costo receta</div><div class="text-xl font-800 text-amber-700">$${totalCost.toFixed(2)}</div><div class="text-xs text-gray-400">MXN</div></div>
+      <div class="card p-3 text-center"><div class="text-xs text-gray-500 mb-1">Costo/porción</div><div class="text-xl font-800 text-amber-600">$${costPer}</div><div class="text-xs text-gray-400">MXN</div></div>
+      <div class="card p-3 text-center"><div class="text-xs text-gray-500 mb-1">Precio sugerido</div><div class="text-xl font-800 text-green-700">$${suggested}</div><div class="text-xs text-gray-400">MXN</div></div>
+      <div class="card p-3 text-center"><div class="text-xs text-gray-500 mb-1">Margen</div><div class="text-xl font-800 ${parseFloat(margin)>=65?'text-green-700':'text-red-600'}">${margin}%</div><div class="text-xs text-gray-400">Food cost: ${foodCostPct}%</div></div>
+    </div>
+
+    <!-- Ingredients table -->
+    <div class="card p-5">
+      <h3 class="section-title">🧅 Ingredientes (${r.portions} porciones)</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="text-left text-gray-400 text-xs border-b border-gray-100"><th class="pb-2 pr-3">Ingrediente</th><th class="pb-2 pr-3">Cantidad</th><th class="pb-2 pr-3">Unidad</th><th class="pb-2 text-right">Costo</th><th class="pb-2 text-right">% del total</th></tr></thead>
+          <tbody>
+            ${r.ingredients.map(i=>`<tr class="border-b border-gray-50 hover:bg-amber-50 transition"><td class="py-2 pr-3 font-500">${i.name}</td><td class="py-2 pr-3 text-gray-600">${i.qty}</td><td class="py-2 pr-3 text-gray-500">${i.unit}</td><td class="py-2 text-right font-600 text-amber-700">$${i.cost.toFixed(2)}</td><td class="py-2 text-right text-gray-500">${((i.cost/totalCost)*100).toFixed(1)}%</td></tr>`).join('')}
+          </tbody>
+          <tfoot><tr class="border-t-2 border-amber-200"><td colspan="3" class="pt-2 font-700 text-gray-700">TOTAL</td><td class="pt-2 text-right font-800 text-amber-800">$${totalCost.toFixed(2)}</td><td></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    ${steps.length ? `<div class="card p-5">
+      <h3 class="section-title">📋 Instrucciones</h3>
+      <ol class="space-y-3">
+        ${steps.map((s,i)=>`<li class="flex gap-3"><span class="w-7 h-7 flex-shrink-0 rounded-full bg-amber-100 text-amber-700 font-800 text-sm flex items-center justify-center">${i+1}</span><span class="text-gray-700 text-sm leading-relaxed pt-0.5">${s.replace(/^\d+\.\s*/,'')}</span></li>`).join('')}
+      </ol>
+    </div>` : ''}
+  `;
+}
+
+// ===================== CALCULADORA =====================
+function buildCalcSelect() {
+  const sel = document.getElementById('calc-recipe');
+  sel.innerHTML = '<option value="">— Seleccionar —</option>' +
+    recipes.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  if(selectedRecipeId) { sel.value = selectedRecipeId; calcLoad(); }
+}
+
+function calcLoad() {
+  const id = parseInt(document.getElementById('calc-recipe').value);
+  if(!id){ document.getElementById('calc-body').classList.add('hidden'); return; }
+  selectedRecipeId = id;
+  document.getElementById('calc-body').classList.remove('hidden');
+  calcScale(1);
+}
+
+function calcScale(m) {
+  if(!m||isNaN(m)||m<=0) m=1;
+  calcMultiplier = m;
+  const id = parseInt(document.getElementById('calc-recipe').value);
+  const r = recipes.find(x=>x.id===id);
+  if(!r) return;
+  document.getElementById('calc-name').textContent = r.name;
+  document.getElementById('calc-portions').textContent = `${(r.portions*m).toFixed(1)} porciones`;
+  const tbody = document.getElementById('calc-table');
+  let total = 0;
+  tbody.innerHTML = r.ingredients.map(i=>{
+    const scaledCost = i.cost*m;
+    total += scaledCost;
+    return `<tr class="border-b border-gray-50"><td class="py-1.5 text-gray-700">${i.name}</td><td class="py-1.5 font-600">${(i.qty*m).toFixed(2)}</td><td class="py-1.5 text-gray-500">${i.unit}</td><td class="py-1.5 text-amber-700 font-600">$${scaledCost.toFixed(2)}</td></tr>`;
+  }).join('');
+  document.getElementById('calc-total-cost').textContent = `$${total.toFixed(2)} MXN`;
+  document.getElementById('calc-cost-per').textContent = `$${(total/(r.portions*m)).toFixed(2)} MXN`;
+}
+
+// ===================== COSTOS =====================
+function buildCostos() {
+  const sorted = [...recipes].map(r=>{
+    const tc = r.ingredients.reduce((s,i)=>s+i.cost,0);
+    const cp = tc/r.portions;
+    const sp = cp/0.31;
+    const fc = (cp/sp)*100;
+    const mg = ((sp-cp)/sp)*100;
+    return {...r, totalCost:tc, costPer:cp, suggested:sp, foodCost:fc, margin:mg};
+  }).sort((a,b)=>b.totalCost-a.totalCost);
+
+  const cont = document.getElementById('costos-content');
+  cont.innerHTML = `
+    <h2 class="section-title">💰 Análisis de Costos</h2>
+    <div class="card p-5 overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-400 text-xs border-b border-gray-100">
+          <th class="pb-2 pr-3">Receta</th>
+          <th class="pb-2 pr-3">Categoría</th>
+          <th class="pb-2 pr-3 text-right">Costo receta</th>
+          <th class="pb-2 pr-3 text-right">Costo/porción</th>
+          <th class="pb-2 pr-3 text-right">Precio sugerido</th>
+          <th class="pb-2 pr-3 text-right">Food cost %</th>
+          <th class="pb-2 text-right">Margen %</th>
+        </tr></thead>
+        <tbody>
+          ${sorted.map(r=>{
+            const fcColor = r.foodCost>35 ? 'text-red-600 font-700' : r.foodCost<28 ? 'text-blue-600 font-700' : 'text-green-700 font-700';
+            const mgColor = r.margin<60 ? 'text-red-600' : 'text-green-700';
+            return `<tr class="border-b border-gray-50 hover:bg-amber-50 cursor-pointer transition" onclick="selectRecipe(${r.id})">
+              <td class="py-2 pr-3 font-600 text-gray-800">${r.name}</td>
+              <td class="py-2 pr-3"><span class="badge bg-amber-50 text-amber-700">${r.category}</span></td>
+              <td class="py-2 pr-3 text-right font-600 text-amber-700">$${r.totalCost.toFixed(2)}</td>
+              <td class="py-2 pr-3 text-right text-gray-600">$${r.costPer.toFixed(2)}</td>
+              <td class="py-2 pr-3 text-right text-green-700 font-600">$${r.suggested.toFixed(2)}</td>
+              <td class="py-2 pr-3 text-right ${fcColor}">${r.foodCost.toFixed(1)}%</td>
+              <td class="py-2 text-right ${mgColor} font-600">${r.margin.toFixed(1)}%</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+      <div class="card p-4">
+        <div class="text-sm font-700 text-gray-600 mb-3">Recetas más costosas (costo total)</div>
+        ${sorted.slice(0,4).map((r,i)=>`
+          <div class="mb-3">
+            <div class="flex justify-between text-sm mb-1"><span class="font-500 text-gray-700">${i+1}. ${r.name}</span><span class="font-700 text-amber-700">$${r.totalCost.toFixed(0)}</span></div>
+            <div class="cost-bar"><div class="cost-fill" style="width:${(r.totalCost/sorted[0].totalCost*100).toFixed(0)}%"></div></div>
+          </div>`).join('')}
+      </div>
+      <div class="card p-4">
+        <div class="text-sm font-700 text-gray-600 mb-3">Menor margen (revisar precios)</div>
+        ${[...sorted].sort((a,b)=>a.margin-b.margin).slice(0,4).map((r,i)=>`
+          <div class="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+            <span class="text-sm font-500 text-gray-700">${r.name}</span>
+            <span class="badge ${r.margin<65?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}">${r.margin.toFixed(1)}%</span>
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ===================== DASHBOARD =====================
+function buildDashboard() {
+  const totalRecipes = recipes.length;
+  const totalCost = recipes.reduce((s,r)=>s+r.ingredients.reduce((x,i)=>x+i.cost,0),0);
+  const byCategory = {};
+  CATS.forEach(c=>byCategory[c]=0);
+  recipes.forEach(r=>{ byCategory[r.category]=(byCategory[r.category]||0)+1; });
+
+  const worstMargin = [...recipes].map(r=>{
+    const tc=r.ingredients.reduce((s,i)=>s+i.cost,0);
+    const cp=tc/r.portions; const sp=cp/0.31;
+    return {...r, margin:((sp-cp)/sp*100)};
+  }).sort((a,b)=>a.margin-b.margin)[0];
+
+  const mostExpensive = [...recipes].map(r=>({...r, tc:r.ingredients.reduce((s,i)=>s+i.cost,0)})).sort((a,b)=>b.tc-a.tc)[0];
+
+  const cont = document.getElementById('dashboard-content');
+  cont.innerHTML = `
+    <h2 class="section-title">📊 Dashboard Recetario</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div class="card p-4 text-center"><div class="text-3xl font-800 text-amber-700">${totalRecipes}</div><div class="text-xs text-gray-500 mt-1">Recetas registradas</div></div>
+      <div class="card p-4 text-center"><div class="text-3xl font-800 text-amber-700">${recipes.reduce((s,r)=>s+r.ingredients.length,0)}</div><div class="text-xs text-gray-500 mt-1">Ingredientes totales</div></div>
+      <div class="card p-4 text-center"><div class="text-3xl font-800 text-amber-700">$${totalCost.toFixed(0)}</div><div class="text-xs text-gray-500 mt-1">Gasto total ingredientes</div></div>
+      <div class="card p-4 text-center"><div class="text-3xl font-800 text-green-700">$${(totalCost/recipes.reduce((s,r)=>s+r.portions,0)).toFixed(0)}</div><div class="text-xs text-gray-500 mt-1">Costo promedio/porción</div></div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+      <div class="card p-4">
+        <div class="text-sm font-700 text-gray-600 mb-3">Recetas por categoría</div>
+        ${CATS.map(c=>`<div class="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0 text-sm"><span class="text-gray-700">${c}</span><span class="badge bg-amber-50 text-amber-700">${byCategory[c]||0}</span></div>`).join('')}
+      </div>
+      <div class="card p-4">
+        <div class="text-sm font-700 text-gray-600 mb-2">⚠️ Menor margen</div>
+        ${worstMargin ? `<div class="text-lg font-800 text-gray-800 mb-1">${worstMargin.name}</div>
+        <div class="text-red-600 font-700 text-2xl">${worstMargin.margin.toFixed(1)}%</div>
+        <div class="text-xs text-gray-500 mt-1">Revisar precio de venta</div>` : ''}
+      </div>
+      <div class="card p-4">
+        <div class="text-sm font-700 text-gray-600 mb-2">💸 Más costosa (total)</div>
+        ${mostExpensive ? `<div class="text-lg font-800 text-gray-800 mb-1">${mostExpensive.name}</div>
+        <div class="text-amber-700 font-700 text-2xl">$${mostExpensive.tc.toFixed(0)} MXN</div>
+        <div class="text-xs text-gray-500 mt-1">Costo ingredientes receta</div>` : ''}
+      </div>
+    </div>
+
+    <div class="card p-5">
+      <div class="text-sm font-700 text-gray-600 mb-4">Análisis rápido por receta (food cost %)</div>
+      <div class="space-y-2">
+        ${recipes.map(r=>{
+          const tc=r.ingredients.reduce((s,i)=>s+i.cost,0);
+          const cp=tc/r.portions; const sp=cp/0.31;
+          const fc=(cp/sp*100);
+          const barColor = fc>35 ? 'bg-red-400' : fc<28 ? 'bg-blue-400' : 'bg-green-400';
+          return `<div class="flex items-center gap-3 text-sm">
+            <span class="w-36 truncate text-gray-700 font-500">${r.name}</span>
+            <div class="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div class="${barColor} h-3 rounded-full transition-all" style="width:${Math.min(100,fc*2).toFixed(0)}%"></div>
+            </div>
+            <span class="w-16 text-right font-700 ${fc>35?'text-red-600':fc<28?'text-blue-600':'text-green-700'}">${fc.toFixed(1)}%</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="mt-3 flex gap-4 text-xs text-gray-500">
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-blue-400 inline-block"></span> &lt;28% (muy bueno)</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-green-400 inline-block"></span> 28-35% (óptimo)</span>
+        <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span> &gt;35% (revisar)</span>
+      </div>
+    </div>
+  `;
+}
+
+// ===================== MODAL =====================
+function openNewRecipe() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Nueva Receta';
+  document.getElementById('r-name').value='';
+  document.getElementById('r-cat').value='Entradas';
+  document.getElementById('r-portions').value=4;
+  document.getElementById('r-time').value='';
+  document.getElementById('r-steps').value='';
+  ingRows = [{name:'',qty:1,unit:'g',cost:0}];
+  renderIngTable();
+  document.getElementById('modal-recipe').classList.remove('hidden');
+}
+
+function openEditRecipe(id) {
+  editingId = id;
+  const r = recipes.find(x=>x.id===id);
+  if(!r) return;
+  document.getElementById('modal-title').textContent = 'Editar Receta';
+  document.getElementById('r-name').value = r.name;
+  document.getElementById('r-cat').value = r.category;
+  document.getElementById('r-portions').value = r.portions;
+  document.getElementById('r-time').value = r.time||'';
+  document.getElementById('r-steps').value = r.steps||'';
+  ingRows = r.ingredients.map(i=>({...i}));
+  renderIngTable();
+  document.getElementById('modal-recipe').classList.remove('hidden');
+}
+
+function closeModal() { document.getElementById('modal-recipe').classList.add('hidden'); }
+
+function addIngRow() { ingRows.push({name:'',qty:1,unit:'g',cost:0}); renderIngTable(); }
+function removeIngRow(i) { ingRows.splice(i,1); renderIngTable(); }
+
+function renderIngTable() {
+  const tbody = document.getElementById('ing-table');
+  tbody.innerHTML = ingRows.map((row,i)=>`
+    <tr>
+      <td class="pr-2 py-1"><input type="text" value="${row.name}" onchange="ingRows[${i}].name=this.value" placeholder="Ingrediente"></td>
+      <td class="pr-2 py-1"><input type="number" value="${row.qty}" onchange="ingRows[${i}].qty=parseFloat(this.value)||0" class="w-20" step="0.01" min="0"></td>
+      <td class="pr-2 py-1">
+        <select onchange="ingRows[${i}].unit=this.value" class="w-24">
+          ${UNITS.map(u=>`<option ${u===row.unit?'selected':''}>${u}</option>`).join('')}
+        </select>
+      </td>
+      <td class="pr-2 py-1"><input type="number" value="${row.cost}" onchange="ingRows[${i}].cost=parseFloat(this.value)||0" class="w-24" step="0.01" min="0" placeholder="$0.00"></td>
+      <td><button onclick="removeIngRow(${i})" class="text-red-400 hover:text-red-600 text-lg font-bold px-2">&times;</button></td>
+    </tr>`).join('');
+}
+
+function saveRecipe() {
+  const name = document.getElementById('r-name').value.trim();
+  if(!name){ alert('Ingresa el nombre de la receta.'); return; }
+  const recipe = {
+    id: editingId || Date.now(),
+    name, category: document.getElementById('r-cat').value,
+    portions: parseInt(document.getElementById('r-portions').value)||4,
+    time: document.getElementById('r-time').value.trim(),
+    ingredients: ingRows.filter(r=>r.name.trim()),
+    steps: document.getElementById('r-steps').value.trim(),
+  };
+  if(editingId) { const idx=recipes.findIndex(x=>x.id===editingId); if(idx>-1) recipes[idx]=recipe; }
+  else { recipes.push(recipe); }
+  save();
+  closeModal();
+  renderRecipes();
+  if(selectedRecipeId===editingId) buildDetail();
+}
+
+function deleteRecipe(id) {
+  if(!confirm('¿Eliminar esta receta?')) return;
+  recipes = recipes.filter(x=>x.id!==id);
+  if(selectedRecipeId===id) { selectedRecipeId=null; }
+  save(); renderRecipes();
+}
+
+// ===================== PRINT =====================
+function printRecipe(id) {
+  const r = recipes.find(x=>x.id===id);
+  if(!r) return;
+  const tc = r.ingredients.reduce((s,i)=>s+i.cost,0);
+  const cp = (tc/r.portions).toFixed(2);
+  const sp = (tc/r.portions/0.31).toFixed(2);
+  const steps = r.steps ? r.steps.split('\n').filter(s=>s.trim()) : [];
+
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>Receta: ${r.name}</title>
+  <style>
+    * { font-family: 'Georgia', serif; margin: 0; padding: 0; box-sizing: border-box; }
+    body { padding: 30px; max-width: 700px; margin: auto; color: #1a1a1a; }
+    .header { border-bottom: 3px solid #d97706; padding-bottom: 12px; margin-bottom: 20px; }
+    h1 { font-size: 26px; color: #92400e; margin-bottom: 4px; }
+    .meta { font-size: 13px; color: #666; }
+    h3 { font-size: 14px; color: #92400e; border-bottom: 1px solid #fcd34d; padding-bottom: 4px; margin: 16px 0 8px; text-transform: uppercase; letter-spacing: .05em; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 6px 8px; background: #fef3c7; font-size: 11px; text-transform: uppercase; }
+    td { padding: 5px 8px; border-bottom: 1px solid #fef3c7; }
+    ol { padding-left: 20px; }
+    li { margin-bottom: 6px; font-size: 13px; line-height: 1.6; }
+    .cost-box { background: #fef3c7; border-radius: 8px; padding: 12px; display: flex; gap: 20px; margin-top: 16px; flex-wrap: wrap; }
+    .cost-item { text-align: center; }
+    .cost-item .val { font-size: 20px; font-weight: bold; color: #d97706; }
+    .cost-item .lbl { font-size: 11px; color: #666; }
+    .footer { margin-top: 30px; font-size: 10px; color: #aaa; text-align: center; }
+  </style></head><body>
+  <div class="header">
+    <h1>${r.name}</h1>
+    <div class="meta">${r.category} &bull; ${r.portions} porciones &bull; ${r.time||'—'}</div>
+  </div>
+  <h3>Ingredientes</h3>
+  <table>
+    <thead><tr><th>Ingrediente</th><th>Cantidad</th><th>Unidad</th><th>Costo MXN</th></tr></thead>
+    <tbody>${r.ingredients.map(i=>`<tr><td>${i.name}</td><td>${i.qty}</td><td>${i.unit}</td><td>$${i.cost.toFixed(2)}</td></tr>`).join('')}</tbody>
+  </table>
+  ${steps.length ? `<h3>Instrucciones</h3><ol>${steps.map(s=>`<li>${s.replace(/^\d+\.\s*/,'')}</li>`).join('')}</ol>` : ''}
+  <div class="cost-box">
+    <div class="cost-item"><div class="val">$${tc.toFixed(2)}</div><div class="lbl">Costo receta</div></div>
+    <div class="cost-item"><div class="val">$${cp}</div><div class="lbl">Costo/porción</div></div>
+    <div class="cost-item"><div class="val">$${sp}</div><div class="lbl">Precio sugerido</div></div>
+  </div>
+  <div class="footer">Powered by Novamente Studio &bull; Recetario Digital</div>
+  </body></html>`);
+  w.document.close();
+  w.print();
+}
+
+// ===================== WHATSAPP SHARE =====================
+function shareRecipeWA(id) {
+  const r = recipes.find(x=>x.id===id); if(!r) return;
+  const tc = r.ingredients.reduce((s,i)=>s+i.cost,0);
+  const cp = (tc/r.portions).toFixed(2);
+  const sp = (tc/r.portions/0.31).toFixed(2);
+  const ings = r.ingredients.slice(0,5).map(i=>`- ${i.name}: ${i.qty} ${i.unit}`).join('\n');
+  const msg = `*Receta: ${r.name}*\nCategoria: ${r.category} | Porciones: ${r.portions}\n\nIngredientes principales:\n${ings}\n\nCosto/porcion: $${cp} MXN\nPrecio sugerido (30%FC): $${sp} MXN\n\n_Compartido desde Recetario Digital — Novamente Studio_`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+// ===================== INIT =====================
+load();
+renderRecipes();
+</script>
+</body>
+</html>

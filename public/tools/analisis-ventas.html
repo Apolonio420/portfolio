@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análisis de Ventas — Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .accent { color: #2563eb; }
+  .accent-bg { background-color: #2563eb; }
+  .accent-light { background-color: #eff6ff; }
+  .accent-border { border-color: #2563eb; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06); }
+  .kpi-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06); padding: 20px; }
+  .heatmap-cell { width: 32px; height: 32px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #f1f5f9; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  .badge-up { color: #16a34a; background: #dcfce7; }
+  .badge-down { color: #dc2626; background: #fee2e2; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    .card, .kpi-card { box-shadow: none; border: 1px solid #e2e8f0; }
+    canvas { max-width: 100%; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="accent-bg text-white no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div>
+      <p class="text-blue-200 text-xs font-medium uppercase tracking-widest">Restaurante</p>
+      <h1 class="text-xl font-bold">Análisis de Ventas</h1>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="exportCSV()" class="bg-blue-700 hover:bg-blue-600 text-white text-sm px-4 py-2 rounded-lg font-medium transition">↓ CSV</button>
+      <button onclick="window.print()" class="bg-white text-blue-700 text-sm px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition">⎙ Imprimir</button>
+      <button onclick="shareWhatsApp()" class="bg-green-500 hover:bg-green-400 text-white text-sm px-4 py-2 rounded-lg font-medium transition">📲 WA</button>
+    </div>
+  </div>
+</header>
+
+<!-- PERIOD SELECTOR -->
+<div class="max-w-7xl mx-auto px-4 pt-6 pb-2 no-print">
+  <div class="flex flex-wrap gap-2 items-center">
+    <span class="text-sm text-slate-500 font-medium mr-2">Período:</span>
+    <button onclick="setPeriod('today')" id="btn-today" class="period-btn px-4 py-2 rounded-lg text-sm font-semibold border-2 transition">Hoy</button>
+    <button onclick="setPeriod('week')" id="btn-week" class="period-btn px-4 py-2 rounded-lg text-sm font-semibold border-2 transition">Esta semana</button>
+    <button onclick="setPeriod('month')" id="btn-month" class="period-btn px-4 py-2 rounded-lg text-sm font-semibold border-2 transition">Este mes</button>
+    <button onclick="setPeriod('custom')" id="btn-custom" class="period-btn px-4 py-2 rounded-lg text-sm font-semibold border-2 transition">Personalizado</button>
+    <div id="custom-dates" class="hidden flex gap-2 items-center">
+      <input type="date" id="date-from" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+      <span class="text-slate-400">→</span>
+      <input type="date" id="date-to" class="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+      <button onclick="applyCustom()" class="accent-bg text-white px-4 py-2 rounded-lg text-sm font-semibold">Aplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- KPI CARDS -->
+<div class="max-w-7xl mx-auto px-4 mt-4 grid grid-cols-2 lg:grid-cols-5 gap-3" id="kpi-section">
+  <div class="kpi-card col-span-2 lg:col-span-1">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Ingresos Totales</p>
+    <p class="text-2xl font-bold text-slate-800 mt-1" id="kpi-revenue">$0</p>
+    <p class="text-xs mt-2" id="kpi-revenue-change"></p>
+  </div>
+  <div class="kpi-card">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Transacciones</p>
+    <p class="text-2xl font-bold text-slate-800 mt-1" id="kpi-txn">0</p>
+    <p class="text-xs mt-2" id="kpi-txn-change"></p>
+  </div>
+  <div class="kpi-card">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Ticket Promedio</p>
+    <p class="text-2xl font-bold text-slate-800 mt-1" id="kpi-avg">$0</p>
+    <p class="text-xs mt-2" id="kpi-avg-change"></p>
+  </div>
+  <div class="kpi-card">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Mejor Platillo</p>
+    <p class="text-base font-bold text-slate-800 mt-1 leading-tight" id="kpi-best">—</p>
+    <p class="text-xs text-slate-400 mt-1" id="kpi-best-qty"></p>
+  </div>
+  <div class="kpi-card">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Menor Venta</p>
+    <p class="text-base font-bold text-slate-800 mt-1 leading-tight" id="kpi-worst">—</p>
+    <p class="text-xs text-slate-400 mt-1" id="kpi-worst-qty"></p>
+  </div>
+</div>
+
+<!-- COMPARISON BANNER -->
+<div class="max-w-7xl mx-auto px-4 mt-4">
+  <div class="card p-4 flex flex-wrap gap-6 items-center">
+    <div class="flex items-center gap-3">
+      <span class="text-sm font-semibold text-slate-600">Esta semana vs semana anterior:</span>
+    </div>
+    <div class="flex gap-6 flex-wrap text-sm">
+      <span>Ingresos: <strong id="comp-rev" class="font-bold"></strong></span>
+      <span>Tickets: <strong id="comp-txn" class="font-bold"></strong></span>
+      <span>Ticket promedio: <strong id="comp-avg" class="font-bold"></strong></span>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS ROW 1 -->
+<div class="max-w-7xl mx-auto px-4 mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <div class="card p-5">
+    <h3 class="font-semibold text-slate-700 mb-4">Top 10 Platillos Más Vendidos</h3>
+    <canvas id="chartTopDishes" height="280"></canvas>
+  </div>
+  <div class="card p-5">
+    <h3 class="font-semibold text-slate-700 mb-4">Ventas Diarias — Últimos 30 días</h3>
+    <canvas id="chartDaily" height="280"></canvas>
+  </div>
+</div>
+
+<!-- CHARTS ROW 2 -->
+<div class="max-w-7xl mx-auto px-4 mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="card p-5">
+    <h3 class="font-semibold text-slate-700 mb-4">Ventas por Categoría</h3>
+    <canvas id="chartCategory" height="250"></canvas>
+  </div>
+  <div class="card p-5">
+    <h3 class="font-semibold text-slate-700 mb-4">Ventas por Hora del Día</h3>
+    <canvas id="chartHour" height="250"></canvas>
+  </div>
+  <div class="card p-5">
+    <h3 class="font-semibold text-slate-700 mb-4">Ticket Promedio — Tendencia</h3>
+    <canvas id="chartAvgTicket" height="250"></canvas>
+  </div>
+</div>
+
+<!-- HEATMAP -->
+<div class="max-w-7xl mx-auto px-4 mt-4">
+  <div class="card p-5">
+    <h3 class="font-semibold text-slate-700 mb-4">Heatmap de Ventas por Día de la Semana</h3>
+    <div id="heatmap-container" class="overflow-x-auto"></div>
+  </div>
+</div>
+
+<!-- TABLA DETALLADA -->
+<div class="max-w-7xl mx-auto px-4 mt-4 mb-8">
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-slate-700">Tabla Detallada de Platillos</h3>
+      <input type="text" id="table-search" oninput="filterTable()" placeholder="Buscar platillo…" class="border border-slate-200 rounded-lg px-3 py-2 text-sm w-48">
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm" id="dishes-table">
+        <thead>
+          <tr class="text-left text-slate-500 border-b border-slate-100">
+            <th class="pb-3 font-semibold">Platillo</th>
+            <th class="pb-3 font-semibold">Categoría</th>
+            <th class="pb-3 font-semibold text-right">Cant.</th>
+            <th class="pb-3 font-semibold text-right">Ingresos</th>
+            <th class="pb-3 font-semibold text-right">% Total</th>
+            <th class="pb-3 font-semibold text-right">Costo %</th>
+            <th class="pb-3 font-semibold text-right">Ganancia</th>
+          </tr>
+        </thead>
+        <tbody id="dishes-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center py-6 text-slate-400 text-xs no-print">
+  Powered by <span class="font-semibold text-slate-600">Novamente Studio</span> &copy; <span id="footer-year"></span>
+</footer>
+
+<script>
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+// ── DEMO DATA ──────────────────────────────────────────────────────────────
+const MENU = [
+  {name:'Tacos al Pastor', cat:'Principales', price:165, cost:0.27},
+  {name:'Tacos de Carnitas', cat:'Principales', price:155, cost:0.29},
+  {name:'Enchiladas Verdes', cat:'Principales', price:145, cost:0.31},
+  {name:'Chiles en Nogada', cat:'Principales', price:265, cost:0.34},
+  {name:'Pozole Rojo', cat:'Principales', price:185, cost:0.30},
+  {name:'Quesadillas Especiales', cat:'Principales', price:130, cost:0.28},
+  {name:'Sopa de Lima', cat:'Entradas', price:95, cost:0.32},
+  {name:'Guacamole c/ Tostadas', cat:'Entradas', price:115, cost:0.36},
+  {name:'Elote Callejero', cat:'Entradas', price:75, cost:0.33},
+  {name:'Sopa Azteca', cat:'Entradas', price:105, cost:0.31},
+  {name:'Agua de Jamaica', cat:'Bebidas', price:45, cost:0.18},
+  {name:'Agua de Horchata', cat:'Bebidas', price:45, cost:0.20},
+  {name:'Margarita Clásica', cat:'Bebidas', price:135, cost:0.22},
+  {name:'Cerveza Modelo', cat:'Bebidas', price:75, cost:0.38},
+  {name:'Michelada', cat:'Bebidas', price:95, cost:0.35},
+  {name:'Flan Napolitano', cat:'Postres', price:85, cost:0.28},
+  {name:'Churros con Cajeta', cat:'Postres', price:95, cost:0.30},
+  {name:'Tres Leches', cat:'Postres', price:110, cost:0.29},
+  {name:'Helado de Elote', cat:'Postres', price:75, cost:0.32},
+  {name:'Arroz con Leche', cat:'Postres', price:80, cost:0.26},
+  {name:'Agua Mineral', cat:'Bebidas', price:35, cost:0.15},
+  {name:'Café de Olla', cat:'Bebidas', price:55, cost:0.17},
+  {name:'Tamales de Rajas', cat:'Principales', price:140, cost:0.30},
+  {name:'Tostadas de Tinga', cat:'Entradas', price:120, cost:0.33},
+  {name:'Flautas de Pollo', cat:'Principales', price:145, cost:0.31},
+];
+
+const DAYS_OF_WEEK = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+const DAY_MULTIPLIER = [0.7, 0.75, 0.8, 0.85, 1.3, 1.5, 1.0];
+const HOUR_DIST = {11:0.03,12:0.07,13:0.15,14:0.18,15:0.12,16:0.04,17:0.03,18:0.04,19:0.10,20:0.13,21:0.08,22:0.03};
+
+function rand(min,max){return Math.random()*(max-min)+min;}
+function randInt(min,max){return Math.floor(rand(min,max+1));}
+
+function generateSalesData(){
+  const data = [];
+  const today = new Date();
+  for(let d=29;d>=0;d--){
+    const dt = new Date(today); dt.setDate(dt.getDate()-d);
+    const dow = (dt.getDay()+6)%7;
+    const mult = DAY_MULTIPLIER[dow];
+    const baseTickets = randInt(55,90);
+    const tickets = Math.round(baseTickets*mult);
+    const dayData = {date:dt.toISOString().slice(0,10), tickets, sales:[], revenue:0, dow};
+    for(let t=0;t<tickets;t++){
+      const dishCount = randInt(1,4);
+      const items = [];
+      let total = 0;
+      for(let i=0;i<dishCount;i++){
+        const dish = MENU[randInt(0,MENU.length-1)];
+        const qty = randInt(1,3);
+        items.push({dish, qty});
+        total += dish.price*qty;
+      }
+      dayData.sales.push({items, total});
+      dayData.revenue += total;
+    }
+    data.push(dayData);
+  }
+  return data;
+}
+
+let SALES_DATA = [];
+const LS_KEY = 'analisis-ventas-data';
+
+function loadOrGenerate(){
+  try {
+    const stored = localStorage.getItem(LS_KEY);
+    if(stored){SALES_DATA=JSON.parse(stored);return;}
+  }catch(e){}
+  SALES_DATA = generateSalesData();
+  localStorage.setItem(LS_KEY, JSON.stringify(SALES_DATA));
+}
+loadOrGenerate();
+
+// ── PERIOD ────────────────────────────────────────────────────────────────
+let activePeriod = 'month';
+function setPeriod(p){
+  activePeriod=p;
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('accent-bg','text-white','border-blue-600'));
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.add('border-slate-200','text-slate-600','bg-white'));
+  const btn=document.getElementById('btn-'+p);
+  btn.classList.add('accent-bg','text-white','border-blue-600');
+  btn.classList.remove('border-slate-200','text-slate-600','bg-white');
+  document.getElementById('custom-dates').classList.toggle('hidden', p!=='custom');
+  if(p!=='custom') refreshAll();
+}
+function applyCustom(){refreshAll();}
+setPeriod('month');
+
+function getFilteredData(){
+  const today = new Date(); today.setHours(23,59,59);
+  if(activePeriod==='today'){
+    const d=new Date(); d.setHours(0,0,0,0);
+    return SALES_DATA.filter(x=>new Date(x.date)>=d);
+  }
+  if(activePeriod==='week'){
+    const d=new Date(); d.setDate(d.getDate()-6); d.setHours(0,0,0,0);
+    return SALES_DATA.filter(x=>new Date(x.date)>=d);
+  }
+  if(activePeriod==='month') return SALES_DATA;
+  const from=document.getElementById('date-from').value;
+  const to=document.getElementById('date-to').value;
+  if(!from||!to) return SALES_DATA;
+  return SALES_DATA.filter(x=>x.date>=from&&x.date<=to);
+}
+function getPrevData(){
+  const len=getFilteredData().length;
+  const all=SALES_DATA;
+  return all.slice(Math.max(0,all.length-len*2),all.length-len);
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────────
+let charts={};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function refreshAll(){
+  const data=getFilteredData();
+  updateKPIs(data);
+  updateComparison(data);
+  renderTopDishes(data);
+  renderDaily(data);
+  renderCategory(data);
+  renderHour(data);
+  renderAvgTicket(data);
+  renderHeatmap(data);
+  renderTable(data);
+}
+
+function fmt(n){return n.toLocaleString('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:0});}
+function pct(val,ref){const p=((val-ref)/ref*100);return (p>=0?'+':'')+p.toFixed(1)+'%';}
+
+function updateKPIs(data){
+  let rev=0,txn=0;
+  const dishQty={};
+  data.forEach(d=>{
+    rev+=d.revenue; txn+=d.tickets;
+    d.sales.forEach(s=>s.items.forEach(it=>{
+      dishQty[it.dish.name]=(dishQty[it.dish.name]||0)+it.qty;
+    }));
+  });
+  const avg=txn>0?rev/txn:0;
+  const sorted=Object.entries(dishQty).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('kpi-revenue').textContent=fmt(rev);
+  document.getElementById('kpi-txn').textContent=txn.toLocaleString('es-MX');
+  document.getElementById('kpi-avg').textContent=fmt(avg);
+  document.getElementById('kpi-best').textContent=sorted[0]?sorted[0][0]:'—';
+  document.getElementById('kpi-best-qty').textContent=sorted[0]?sorted[0][1]+' uds vendidas':'';
+  document.getElementById('kpi-worst').textContent=sorted[sorted.length-1]?sorted[sorted.length-1][0]:'—';
+  document.getElementById('kpi-worst-qty').textContent=sorted[sorted.length-1]?sorted[sorted.length-1][1]+' uds vendidas':'';
+}
+
+function updateComparison(data){
+  const prev=getPrevData();
+  const sumRev=arr=>arr.reduce((a,b)=>a+b.revenue,0);
+  const sumTxn=arr=>arr.reduce((a,b)=>a+b.tickets,0);
+  const r1=sumRev(data),r0=sumRev(prev),t1=sumTxn(data),t0=sumTxn(prev);
+  const a1=t1?r1/t1:0,a0=t0?r0/t0:0;
+  const badge=(val,ref)=>{
+    if(!ref)return'';
+    const p=((val-ref)/ref*100);
+    const cls=p>=0?'badge-up':'badge-down';
+    return `<span class="${cls} px-2 py-0.5 rounded-full text-xs font-bold">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`;
+  };
+  document.getElementById('comp-rev').innerHTML=fmt(r1)+' '+badge(r1,r0);
+  document.getElementById('comp-txn').innerHTML=t1+' '+badge(t1,t0);
+  document.getElementById('comp-avg').innerHTML=fmt(a1)+' '+badge(a1,a0);
+}
+
+function getDishSales(data){
+  const m={};
+  data.forEach(d=>d.sales.forEach(s=>s.items.forEach(it=>{
+    if(!m[it.dish.name])m[it.dish.name]={qty:0,revenue:0,cost:it.dish.cost,cat:it.dish.cat,price:it.dish.price};
+    m[it.dish.name].qty+=it.qty;
+    m[it.dish.name].revenue+=it.dish.price*it.qty;
+  })));
+  return m;
+}
+
+function renderTopDishes(data){
+  destroyChart('topDishes');
+  const m=getDishSales(data);
+  const sorted=Object.entries(m).sort((a,b)=>b[1].qty-a[1].qty).slice(0,10);
+  const labels=sorted.map(x=>x[0]);
+  const vals=sorted.map(x=>x[1].qty);
+  charts.topDishes=new Chart(document.getElementById('chartTopDishes'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'Unidades vendidas',data:vals,backgroundColor:'#2563eb',borderRadius:6,borderSkipped:false}]},
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f1f5f9'}},y:{grid:{display:false}}}}
+  });
+}
+
+function renderDaily(data){
+  destroyChart('daily');
+  const labels=data.map(d=>d.date.slice(5));
+  const vals=data.map(d=>d.revenue);
+  charts.daily=new Chart(document.getElementById('chartDaily'),{
+    type:'line',
+    data:{labels,datasets:[{label:'Ventas (MXN)',data:vals,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,0.08)',fill:true,tension:0.4,pointRadius:2}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v.toLocaleString('es-MX')},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:{maxTicksLimit:10}}}}
+  });
+}
+
+function renderCategory(data){
+  destroyChart('category');
+  const cats={Principales:0,Entradas:0,Bebidas:0,Postres:0};
+  data.forEach(d=>d.sales.forEach(s=>s.items.forEach(it=>{
+    if(cats[it.dish.cat]!==undefined)cats[it.dish.cat]+=it.dish.price*it.qty;
+    else cats[it.dish.cat]=(cats[it.dish.cat]||0)+it.dish.price*it.qty;
+  })));
+  const colors=['#2563eb','#7c3aed','#059669','#d97706'];
+  charts.category=new Chart(document.getElementById('chartCategory'),{
+    type:'doughnut',
+    data:{labels:Object.keys(cats),datasets:[{data:Object.values(cats),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+    options:{responsive:true,cutout:'60%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,padding:12,font:{size:11}}}}}
+  });
+}
+
+function renderHour(data){
+  destroyChart('hour');
+  const hourTotals={};
+  Object.keys(HOUR_DIST).forEach(h=>hourTotals[h]=0);
+  data.forEach(d=>d.sales.forEach(s=>{
+    const hours=Object.keys(HOUR_DIST).map(Number);
+    const hr=hours[Math.floor(Math.random()*hours.length)];
+    hourTotals[hr]=(hourTotals[hr]||0)+s.total;
+  }));
+  const labels=Object.keys(hourTotals).map(h=>h+':00');
+  const vals=Object.values(hourTotals);
+  const maxVal=Math.max(...vals);
+  const bgColors=vals.map(v=>v===maxVal?'#2563eb':v>maxVal*0.7?'#60a5fa':v>maxVal*0.4?'#93c5fd':'#dbeafe');
+  charts.hour=new Chart(document.getElementById('chartHour'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'Ingresos',data:vals,backgroundColor:bgColors,borderRadius:6,borderSkipped:false}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k'},grid:{color:'#f1f5f9'}},x:{grid:{display:false}}}}
+  });
+}
+
+function renderAvgTicket(data){
+  destroyChart('avgTicket');
+  const labels=data.map(d=>d.date.slice(5));
+  const vals=data.map(d=>d.tickets>0?Math.round(d.revenue/d.tickets):0);
+  charts.avgTicket=new Chart(document.getElementById('chartAvgTicket'),{
+    type:'line',
+    data:{labels,datasets:[{label:'Ticket promedio',data:vals,borderColor:'#7c3aed',backgroundColor:'rgba(124,58,237,0.08)',fill:true,tension:0.4,pointRadius:2}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+v},grid:{color:'#f1f5f9'}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}
+  });
+}
+
+function renderHeatmap(data){
+  const container=document.getElementById('heatmap-container');
+  const byDow=[0,0,0,0,0,0,0];
+  const countDow=[0,0,0,0,0,0,0];
+  data.forEach(d=>{byDow[d.dow]+=d.revenue;countDow[d.dow]++;});
+  const avgs=byDow.map((v,i)=>countDow[i]?v/countDow[i]:0);
+  const maxAvg=Math.max(...avgs);
+  const days=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  let html='<div class="flex gap-2 items-center flex-wrap">';
+  avgs.forEach((v,i)=>{
+    const intensity=maxAvg>0?v/maxAvg:0;
+    const alpha=0.15+intensity*0.85;
+    const bg=`rgba(37,99,235,${alpha.toFixed(2)})`;
+    const txtColor=intensity>0.5?'white':'#1e3a8a';
+    html+=`<div class="flex flex-col items-center gap-1">
+      <div style="background:${bg};color:${txtColor};width:72px;height:64px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700">
+        <span>${days[i]}</span>
+        <span style="font-size:10px;margin-top:2px;opacity:0.85">${fmt(v)}</span>
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  container.innerHTML=html;
+}
+
+function renderTable(data){
+  const m=getDishSales(data);
+  const totalRev=Object.values(m).reduce((a,b)=>a+b.revenue,0);
+  const rows=Object.entries(m).sort((a,b)=>b[1].revenue-a[1].revenue);
+  const tbody=document.getElementById('dishes-tbody');
+  tbody.innerHTML=rows.map(([name,d])=>{
+    const pctTotal=(totalRev>0?d.revenue/totalRev*100:0).toFixed(1);
+    const costPct=(d.cost*100).toFixed(0);
+    const margin=d.revenue*(1-d.cost);
+    const costColor=d.cost<0.30?'text-green-600':d.cost<0.35?'text-amber-600':'text-red-600';
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50 transition" data-name="${name.toLowerCase()}">
+      <td class="py-3 font-medium text-slate-800">${name}</td>
+      <td class="py-3 text-slate-500">${d.cat}</td>
+      <td class="py-3 text-right font-semibold">${d.qty}</td>
+      <td class="py-3 text-right font-semibold">${fmt(d.revenue)}</td>
+      <td class="py-3 text-right text-slate-500">${pctTotal}%</td>
+      <td class="py-3 text-right font-bold ${costColor}">${costPct}%</td>
+      <td class="py-3 text-right font-semibold text-green-700">${fmt(margin)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterTable(){
+  const q=document.getElementById('table-search').value.toLowerCase();
+  document.querySelectorAll('#dishes-tbody tr').forEach(r=>{
+    r.style.display=r.dataset.name.includes(q)?'':'none';
+  });
+}
+
+// ── EXPORT / SHARE ────────────────────────────────────────────────────────
+function exportCSV(){
+  const data=getFilteredData();
+  const m=getDishSales(data);
+  const rows=[['Platillo','Categoría','Cantidad','Ingresos','Costo %','Ganancia']];
+  Object.entries(m).forEach(([n,d])=>rows.push([n,d.cat,d.qty,d.revenue.toFixed(2),(d.cost*100).toFixed(0),(d.revenue*(1-d.cost)).toFixed(2)]));
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='ventas_analisis.csv'; a.click();
+}
+
+function shareWhatsApp(){
+  const data=getFilteredData();
+  const rev=data.reduce((a,b)=>a+b.revenue,0);
+  const txn=data.reduce((a,b)=>a+b.tickets,0);
+  const avg=txn?rev/txn:0;
+  const m=getDishSales(data);
+  const best=Object.entries(m).sort((a,b)=>b[1].qty-a[1].qty)[0];
+  const msg=`🍽️ *Resumen de Ventas*\n📅 Período seleccionado\n💰 Ingresos: ${fmt(rev)}\n🧾 Transacciones: ${txn}\n📊 Ticket promedio: ${fmt(avg)}\n⭐ Mejor platillo: ${best?best[0]:'—'} (${best?best[1].qty:0} uds)\n\nPowered by Novamente Studio`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
+refreshAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TallerPro — Sistema de Órdenes de Trabajo</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        slate: { 950: '#0b1120' },
+        brand: { DEFAULT: '#ef4444', dark: '#b91c1c', light: '#fca5a5' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .fade-in { animation: fadeIn .35s ease forwards; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  .slide-in { animation: slideIn .3s ease forwards; }
+  @keyframes slideIn { from { opacity:0; transform:translateX(-12px); } to { opacity:1; transform:translateX(0); } }
+  .kanban-card { cursor: grab; transition: all .2s; }
+  .kanban-card:active { cursor: grabbing; transform: scale(1.02); }
+  .kanban-col.drag-over { background: rgba(239,68,68,.08); border-color: #ef4444; }
+  .status-badge { font-size:.7rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:.2rem .6rem; border-radius:999px; }
+  .tab-btn.active { background:#ef4444; color:#fff; }
+  .tab-btn { transition: all .2s; }
+  input, select, textarea { transition: border-color .2s, box-shadow .2s; }
+  input:focus, select:focus, textarea:focus { outline:none; box-shadow:0 0 0 2px rgba(239,68,68,.4); }
+  .print-only { display:none; }
+  @media print {
+    body { background:#fff !important; color:#000 !important; }
+    .no-print { display:none !important; }
+    .print-only { display:block !important; }
+    #print-area { display:block !important; padding:1rem; }
+    .print-card { break-inside:avoid; }
+  }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:#1e293b; }
+  ::-webkit-scrollbar-thumb { background:#475569; border-radius:3px; }
+  .modal-backdrop { backdrop-filter: blur(4px); }
+  .pulse-dot { width:8px; height:8px; border-radius:50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+  .service-check:checked + label { color:#86efac; }
+  .drag-ghost { opacity:.5; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+<!-- PRINT AREA (hidden unless printing) -->
+<div id="print-area" class="hidden"></div>
+
+<!-- TOP NAV -->
+<nav class="no-print bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-14">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-brand rounded flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+      <span class="font-bold text-lg tracking-tight">TallerPro</span>
+      <span class="hidden sm:inline text-xs text-slate-500 font-medium">Sistema de Órdenes</span>
+    </div>
+    <div class="flex items-center gap-1">
+      <button onclick="showTab('dashboard')" id="nav-dashboard" class="tab-btn active text-sm font-semibold px-3 py-1.5 rounded-md">Dashboard</button>
+      <button onclick="showTab('pipeline')" id="nav-pipeline" class="tab-btn text-sm font-semibold px-3 py-1.5 rounded-md text-slate-400 hover:text-white">Pipeline</button>
+      <button onclick="showTab('history')" id="nav-history" class="tab-btn text-sm font-semibold px-3 py-1.5 rounded-md text-slate-400 hover:text-white">Historial</button>
+      <button onclick="openNewOrderModal()" class="ml-2 flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-sm font-bold px-3 py-1.5 rounded-md transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        <span class="hidden sm:inline">Nueva OT</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- DASHBOARD TAB -->
+  <div id="tab-dashboard" class="fade-in">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold">Dashboard</h1>
+        <p class="text-slate-400 text-sm mt-0.5" id="today-label"></p>
+      </div>
+      <button onclick="openNewOrderModal()" class="flex items-center gap-2 bg-brand hover:bg-brand-dark text-white font-bold px-4 py-2 rounded-lg transition-colors text-sm">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Nueva Orden de Trabajo
+      </button>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 fade-in">
+        <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Vehículos en Taller</p>
+        <p class="text-3xl font-bold" id="stat-in-shop">0</p>
+        <p class="text-slate-500 text-xs mt-1">actualmente</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 fade-in">
+        <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Listos para Entregar</p>
+        <p class="text-3xl font-bold text-green-400" id="stat-ready">0</p>
+        <p class="text-slate-500 text-xs mt-1">esperando cliente</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 fade-in">
+        <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Ingresos Hoy</p>
+        <p class="text-3xl font-bold text-brand" id="stat-today">$0</p>
+        <p class="text-slate-500 text-xs mt-1">órdenes entregadas</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 fade-in">
+        <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Ingresos Semana</p>
+        <p class="text-3xl font-bold text-blue-400" id="stat-week">$0</p>
+        <p class="text-slate-500 text-xs mt-1">últimos 7 días</p>
+      </div>
+    </div>
+
+    <!-- Status breakdown -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <h2 class="font-bold text-base mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Vehículos por Estatus
+        </h2>
+        <div id="status-breakdown" class="space-y-3"></div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <h2 class="font-bold text-base mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Órdenes Recientes
+        </h2>
+        <div id="recent-orders" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE TAB (hidden by default) -->
+  <div id="tab-pipeline" class="hidden fade-in">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold">Pipeline de Trabajo</h1>
+        <p class="text-slate-400 text-sm mt-0.5">Arrastra las tarjetas para cambiar de estatus</p>
+      </div>
+    </div>
+    <!-- Kanban columns (horizontal scroll on mobile) -->
+    <div class="flex gap-4 overflow-x-auto pb-4" id="kanban-board">
+      <!-- Columns injected by JS -->
+    </div>
+  </div>
+
+  <!-- HISTORY TAB (hidden by default) -->
+  <div id="tab-history" class="hidden fade-in">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold">Historial de Clientes</h1>
+        <p class="text-slate-400 text-sm mt-0.5">Busca por placas o teléfono</p>
+      </div>
+    </div>
+    <div class="max-w-xl mb-6">
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="history-search" type="text" placeholder="Buscar por placas o teléfono..." oninput="searchHistory()" class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:border-brand"/>
+      </div>
+    </div>
+    <div id="history-results" class="space-y-3"></div>
+  </div>
+
+</main>
+
+<!-- =========================================================
+     MODAL: NUEVA ORDEN DE TRABAJO
+     ========================================================= -->
+<div id="modal-new-order" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8 px-4 modal-backdrop bg-black/70 overflow-y-auto">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl fade-in">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+      <h2 class="text-lg font-bold flex items-center gap-2">
+        <span class="w-6 h-6 bg-brand rounded flex items-center justify-center text-white">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        </span>
+        Nueva Orden de Trabajo
+      </h2>
+      <button onclick="closeModal('modal-new-order')" class="text-slate-400 hover:text-white transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="new-order-form" onsubmit="saveNewOrder(event)" class="p-6 space-y-6">
+      <!-- Vehicle -->
+      <div>
+        <h3 class="text-xs font-bold text-brand uppercase tracking-widest mb-3">Vehículo</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Marca *</label>
+            <input name="brand" required placeholder="Toyota" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Modelo *</label>
+            <input name="model" required placeholder="Corolla" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Año *</label>
+            <input name="year" required type="number" min="1970" max="2030" placeholder="2020" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Placas *</label>
+            <input name="plates" required placeholder="ABC-123" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand" style="text-transform:uppercase"/>
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Kilometraje</label>
+            <input name="km" type="number" placeholder="45000" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+          </div>
+        </div>
+      </div>
+      <!-- Owner -->
+      <div>
+        <h3 class="text-xs font-bold text-brand uppercase tracking-widest mb-3">Propietario</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Nombre *</label>
+            <input name="owner_name" required placeholder="Juan Pérez" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Teléfono *</label>
+            <input name="owner_phone" required placeholder="55 1234 5678" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+          </div>
+        </div>
+      </div>
+      <!-- Issue -->
+      <div>
+        <h3 class="text-xs font-bold text-brand uppercase tracking-widest mb-3">Diagnóstico</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Falla reportada por cliente *</label>
+            <textarea name="reported_issue" required rows="2" placeholder="El cliente reporta que..." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand resize-none"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Diagnóstico del taller</label>
+            <textarea name="diagnosis" rows="2" placeholder="Al revisar el vehículo se encontró..." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand resize-none"></textarea>
+          </div>
+        </div>
+      </div>
+      <!-- Services checklist -->
+      <div>
+        <h3 class="text-xs font-bold text-brand uppercase tracking-widest mb-3">Servicios</h3>
+        <div class="grid grid-cols-2 gap-2" id="services-checklist">
+          <!-- injected by JS -->
+        </div>
+        <div class="mt-3 flex gap-2">
+          <input id="custom-service-input" type="text" placeholder="Agregar servicio personalizado..." class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+          <button type="button" onclick="addCustomService()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">+ Agregar</button>
+        </div>
+      </div>
+      <!-- Parts -->
+      <div>
+        <h3 class="text-xs font-bold text-brand uppercase tracking-widest mb-3">Refacciones / Materiales</h3>
+        <div id="parts-list" class="space-y-2 mb-3">
+          <!-- parts rows injected -->
+        </div>
+        <button type="button" onclick="addPartRow()" class="flex items-center gap-1.5 text-brand text-sm font-medium hover:text-brand-light transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+          Agregar refacción
+        </button>
+      </div>
+      <!-- Estimated -->
+      <div>
+        <h3 class="text-xs font-bold text-brand uppercase tracking-widest mb-3">Estimado</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Costo mano de obra (MXN)</label>
+            <input name="labor_cost" type="number" min="0" placeholder="500" oninput="updateTotalEstimate()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1 font-medium">Fecha estimada de entrega</label>
+            <input name="estimated_date" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-brand"/>
+          </div>
+          <div class="col-span-2 bg-slate-800 rounded-lg p-3 flex items-center justify-between">
+            <span class="text-sm text-slate-400 font-medium">Total estimado (partes + mano de obra)</span>
+            <span id="total-estimate-display" class="text-xl font-bold text-green-400">$0.00</span>
+          </div>
+        </div>
+      </div>
+      <!-- Notes -->
+      <div>
+        <label class="block text-xs text-slate-400 mb-1 font-medium">Notas adicionales</label>
+        <textarea name="notes" rows="2" placeholder="Observaciones, garantías, etc." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand resize-none"></textarea>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button type="button" onclick="closeModal('modal-new-order')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">Cancelar</button>
+        <button type="submit" class="flex-1 bg-brand hover:bg-brand-dark text-white font-bold py-2.5 rounded-xl text-sm transition-colors">Crear Orden de Trabajo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- =========================================================
+     MODAL: DETALLE DE ORDEN
+     ========================================================= -->
+<div id="modal-order-detail" class="hidden fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8 px-4 modal-backdrop bg-black/70 overflow-y-auto">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl fade-in">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+      <h2 class="text-lg font-bold" id="detail-title">Orden #0000</h2>
+      <div class="flex items-center gap-2">
+        <button onclick="printOrder(currentOrderId)" class="text-slate-400 hover:text-white transition-colors p-1.5 rounded hover:bg-slate-800" title="Imprimir">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        </button>
+        <button onclick="closeModal('modal-order-detail')" class="text-slate-400 hover:text-white transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="detail-content" class="p-6 space-y-5">
+      <!-- injected by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="no-print text-center py-6 text-slate-600 text-xs mt-10 border-t border-slate-800/50">
+  Powered by <span class="text-slate-400 font-semibold">Novamente Studio</span>
+</footer>
+
+<!-- =========================================================
+     JAVASCRIPT
+     ========================================================= -->
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+const STATUSES = [
+  { id: 'received',    label: 'Recibido',      color: 'text-blue-400',   bg: 'bg-blue-900/30',   border: 'border-blue-800',   dot: 'bg-blue-400' },
+  { id: 'diagnosing',  label: 'Diagnosticando', color: 'text-yellow-400', bg: 'bg-yellow-900/30', border: 'border-yellow-800', dot: 'bg-yellow-400' },
+  { id: 'repairing',   label: 'En reparación',  color: 'text-orange-400', bg: 'bg-orange-900/30', border: 'border-orange-800', dot: 'bg-orange-400' },
+  { id: 'ready',       label: 'Listo',           color: 'text-green-400',  bg: 'bg-green-900/30',  border: 'border-green-800',  dot: 'bg-green-400' },
+  { id: 'delivered',   label: 'Entregado',       color: 'text-slate-400',  bg: 'bg-slate-800/50',  border: 'border-slate-700',  dot: 'bg-slate-400' },
+];
+
+const SERVICES_CATALOG = [
+  'Cambio de aceite','Cambio de filtros','Alineación','Balanceo',
+  'Revisión de frenos','Cambio de pastillas','Cambio de discos',
+  'Diagnóstico electrónico','Cambio de batería','Cambio de bujías',
+  'Servicio de transmisión','Cambio de amortiguadores','Cambio de embrague',
+  'Revisión de suspensión','Limpieza de inyectores','Cambio de correa de distribución',
+];
+
+let orders = [];
+let currentOrderId = null;
+let draggedId = null;
+let partCounter = 0;
+
+// ─── STORAGE ─────────────────────────────────────────────────────────────────
+function saveOrders() { localStorage.setItem('taller_orders', JSON.stringify(orders)); }
+function loadOrders() {
+  const saved = localStorage.getItem('taller_orders');
+  if (saved) { orders = JSON.parse(saved); return; }
+  // Demo data
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
+  const tomorrow  = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+  const twoDays   = new Date(today); twoDays.setDate(twoDays.getDate()+2);
+  orders = [
+    {
+      id: 'OT-001', created_at: yesterday.toISOString(), status: 'delivered',
+      brand:'Nissan', model:'Sentra', year:2019, plates:'NIS-001', km:72000,
+      owner_name:'Carlos Mendoza', owner_phone:'5512345678',
+      reported_issue:'Ruido al frenar', diagnosis:'Pastillas de freno desgastadas, discos rayados',
+      services:['Cambio de pastillas','Cambio de discos'],
+      parts:[{name:'Pastillas delanteras',qty:1,price:850},{name:'Discos delanteros x2',qty:1,price:1200}],
+      labor_cost:600, estimated_date:fmt(yesterday), notes:'Garantía 3 meses en piezas',
+      total: 2650, delivered_at: yesterday.toISOString()
+    },
+    {
+      id: 'OT-002', created_at: today.toISOString(), status: 'repairing',
+      brand:'Volkswagen', model:'Jetta', year:2021, plates:'VWJ-202', km:35000,
+      owner_name:'María García', owner_phone:'5598765432',
+      reported_issue:'Luz de motor encendida, consumo elevado', diagnosis:'Sensor de oxígeno dañado, bujías desgastadas',
+      services:['Diagnóstico electrónico','Cambio de bujías'],
+      parts:[{name:'Sensor O2',qty:1,price:750},{name:'Bujías NGK x4',qty:1,price:480}],
+      labor_cost:500, estimated_date:fmt(tomorrow), notes:'',
+      total: 1730
+    },
+    {
+      id: 'OT-003', created_at: today.toISOString(), status: 'ready',
+      brand:'Toyota', model:'Corolla', year:2018, plates:'TOY-318', km:95000,
+      owner_name:'Roberto Jiménez', owner_phone:'5534567890',
+      reported_issue:'Cambio de aceite y revisión general', diagnosis:'Se realizó cambio de aceite 5W30 sintético y revisión de 45 puntos',
+      services:['Cambio de aceite','Cambio de filtros','Alineación','Balanceo'],
+      parts:[{name:'Aceite 5W30 4L',qty:1,price:380},{name:'Filtro de aceite',qty:1,price:120},{name:'Filtro de aire',qty:1,price:180}],
+      labor_cost:400, estimated_date:fmt(today), notes:'Próximo cambio a 100,000 km',
+      total: 1080
+    },
+    {
+      id: 'OT-004', created_at: today.toISOString(), status: 'diagnosing',
+      brand:'Chevrolet', model:'Aveo', year:2016, plates:'CHV-416', km:120000,
+      owner_name:'Ana Rodríguez', owner_phone:'5567891234',
+      reported_issue:'Carro no arranca, hace clic', diagnosis:'Pendiente revisión de batería y alternador',
+      services:['Diagnóstico electrónico'],
+      parts:[], labor_cost:0, estimated_date:fmt(twoDays), notes:'',
+      total: 0
+    }
+  ];
+  saveOrders();
+}
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+function genId() { return 'OT-' + String(orders.length + 1).padStart(3,'0'); }
+function fmt$(n) { return '$' + Number(n||0).toLocaleString('es-MX', {minimumFractionDigits:2}); }
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+}
+function statusObj(id) { return STATUSES.find(s=>s.id===id) || STATUSES[0]; }
+
+function getWeekStart() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  const day = d.getDay(); const diff = d.getDate() - day + (day===0 ? -6 : 1);
+  d.setDate(diff); return d;
+}
+
+// ─── TAB NAVIGATION ──────────────────────────────────────────────────────────
+function showTab(name) {
+  ['dashboard','pipeline','history'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.add('hidden');
+    const nb = document.getElementById('nav-'+t);
+    if (nb) { nb.classList.remove('active','text-white'); nb.classList.add('text-slate-400'); }
+  });
+  const el = document.getElementById('tab-'+name);
+  if (el) { el.classList.remove('hidden'); el.classList.add('fade-in'); }
+  const nb = document.getElementById('nav-'+name);
+  if (nb) { nb.classList.add('active','text-white'); nb.classList.remove('text-slate-400'); }
+  if (name==='dashboard') renderDashboard();
+  if (name==='pipeline') renderKanban();
+  if (name==='history') renderHistory('');
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().split('T')[0];
+  const weekStart = getWeekStart();
+  document.getElementById('today-label').textContent =
+    today.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  const inShop = orders.filter(o=>o.status!=='delivered');
+  const ready  = orders.filter(o=>o.status==='ready');
+  const todayDelivered = orders.filter(o=>{
+    if (o.status!=='delivered' || !o.delivered_at) return false;
+    return o.delivered_at.startsWith(todayStr);
+  });
+  const weekDelivered = orders.filter(o=>{
+    if (o.status!=='delivered' || !o.delivered_at) return false;
+    return new Date(o.delivered_at) >= weekStart;
+  });
+
+  const revToday = todayDelivered.reduce((a,o)=>a+(o.total||0),0);
+  const revWeek  = weekDelivered.reduce((a,o)=>a+(o.total||0),0);
+
+  document.getElementById('stat-in-shop').textContent = inShop.length;
+  document.getElementById('stat-ready').textContent   = ready.length;
+  document.getElementById('stat-today').textContent   = fmt$(revToday);
+  document.getElementById('stat-week').textContent    = fmt$(revWeek);
+
+  // Status breakdown
+  const breakdown = document.getElementById('status-breakdown');
+  breakdown.innerHTML = '';
+  STATUSES.forEach(st=>{
+    const cnt = orders.filter(o=>o.status===st.id).length;
+    breakdown.innerHTML += `
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="pulse-dot ${st.dot}"></span>
+          <span class="text-sm text-slate-300">${st.label}</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="h-1.5 rounded-full bg-slate-800 w-32 overflow-hidden">
+            <div class="h-full rounded-full ${st.dot}" style="width:${orders.length?Math.round(cnt/orders.length*100):0}%"></div>
+          </div>
+          <span class="text-sm font-bold w-5 text-right">${cnt}</span>
+        </div>
+      </div>`;
+  });
+
+  // Recent orders
+  const recent = document.getElementById('recent-orders');
+  recent.innerHTML = '';
+  const sorted = [...orders].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,5);
+  sorted.forEach(o=>{
+    const st = statusObj(o.status);
+    recent.innerHTML += `
+      <button onclick="openOrderDetail('${o.id}')" class="w-full flex items-center justify-between bg-slate-800/60 hover:bg-slate-800 rounded-lg px-3 py-2.5 text-left transition-colors slide-in">
+        <div>
+          <p class="text-sm font-semibold">${o.brand} ${o.model} <span class="text-slate-500 font-normal">${o.plates}</span></p>
+          <p class="text-xs text-slate-500">${o.owner_name} · ${fmtDate(o.created_at)}</p>
+        </div>
+        <span class="status-badge ${st.bg} ${st.color} ${st.border} border ml-2 shrink-0">${st.label}</span>
+      </button>`;
+  });
+}
+
+// ─── KANBAN ───────────────────────────────────────────────────────────────────
+function renderKanban() {
+  const board = document.getElementById('kanban-board');
+  board.innerHTML = '';
+  STATUSES.forEach(st=>{
+    const colOrders = orders.filter(o=>o.status===st.id);
+    const col = document.createElement('div');
+    col.className = 'kanban-col flex-shrink-0 w-72 bg-slate-900 border border-slate-800 rounded-xl p-3 transition-all';
+    col.dataset.status = st.id;
+    col.addEventListener('dragover', onDragOver);
+    col.addEventListener('drop', e=>onDrop(e, st.id));
+    col.addEventListener('dragleave', ()=>col.classList.remove('drag-over'));
+    col.innerHTML = `
+      <div class="flex items-center justify-between mb-3 px-1">
+        <div class="flex items-center gap-2">
+          <span class="pulse-dot ${st.dot}"></span>
+          <span class="text-sm font-bold ${st.color}">${st.label}</span>
+        </div>
+        <span class="text-xs font-bold bg-slate-800 text-slate-400 rounded-full px-2 py-0.5">${colOrders.length}</span>
+      </div>
+      <div class="space-y-2" id="col-${st.id}"></div>`;
+    board.appendChild(col);
+    const container = col.querySelector(`#col-${st.id}`);
+    colOrders.forEach(o=>container.appendChild(buildKanbanCard(o)));
+  });
+}
+
+function buildKanbanCard(order) {
+  const st = statusObj(order.status);
+  const card = document.createElement('div');
+  card.className = 'kanban-card bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-lg p-3 cursor-grab select-none transition-all';
+  card.draggable = true;
+  card.dataset.id = order.id;
+  card.innerHTML = `
+    <div class="flex items-start justify-between mb-2">
+      <div>
+        <p class="text-sm font-bold">${order.brand} ${order.model}</p>
+        <p class="text-xs text-slate-400">${order.year} · <span class="font-mono font-semibold text-slate-300">${order.plates}</span></p>
+      </div>
+      <span class="text-xs text-slate-500 font-mono">${order.id}</span>
+    </div>
+    <p class="text-xs text-slate-400 mb-3 line-clamp-2">${order.reported_issue}</p>
+    <div class="flex items-center justify-between">
+      <p class="text-xs text-slate-500">${order.owner_name}</p>
+      <div class="flex items-center gap-1.5">
+        ${order.status==='ready' ? `<button onclick="sendWhatsApp('${order.id}');event.stopPropagation();" class="flex items-center gap-1 text-xs bg-green-900/50 hover:bg-green-800 text-green-400 border border-green-800 rounded px-1.5 py-0.5 font-medium transition-colors">
+          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.558 4.12 1.527 5.849L.057 23.5l5.794-1.519A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.934 0-3.748-.522-5.306-1.431l-.38-.226-3.44.902.919-3.35-.247-.397A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+          Avisar
+        </button>` : ''}
+        <button onclick="openOrderDetail('${order.id}');event.stopPropagation();" class="text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 rounded px-2 py-0.5 transition-colors">Ver</button>
+      </div>
+    </div>`;
+  card.addEventListener('dragstart', e=>{ draggedId=order.id; card.classList.add('drag-ghost'); setTimeout(()=>card.classList.add('opacity-50'),0); });
+  card.addEventListener('dragend', ()=>{ draggedId=null; card.classList.remove('drag-ghost','opacity-50'); });
+  return card;
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onDrop(e, newStatus) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!draggedId) return;
+  const order = orders.find(o=>o.id===draggedId);
+  if (!order || order.status===newStatus) return;
+  const prev = order.status;
+  order.status = newStatus;
+  if (newStatus==='delivered' && !order.delivered_at) order.delivered_at = new Date().toISOString();
+  saveOrders();
+  renderKanban();
+  if (newStatus==='ready' && prev!=='ready') {
+    setTimeout(()=>{ if(confirm(`✅ La orden ${order.id} está lista.\n¿Enviar WhatsApp a ${order.owner_name}?`)) sendWhatsApp(order.id); },200);
+  }
+}
+
+// ─── HISTORY ─────────────────────────────────────────────────────────────────
+function searchHistory() {
+  renderHistory(document.getElementById('history-search').value.trim());
+}
+function renderHistory(query) {
+  const container = document.getElementById('history-results');
+  const q = query.toLowerCase();
+  let filtered = q ? orders.filter(o=>
+    o.plates.toLowerCase().includes(q) ||
+    o.owner_phone.replace(/\D/g,'').includes(q.replace(/\D/g,'')) ||
+    o.owner_name.toLowerCase().includes(q)
+  ) : [...orders];
+  filtered.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  container.innerHTML = '';
+  if (!filtered.length) {
+    container.innerHTML = '<p class="text-slate-500 text-sm text-center py-10">No se encontraron resultados.</p>';
+    return;
+  }
+  // Group by owner (by phone)
+  const grouped = {};
+  filtered.forEach(o=>{
+    const key = o.owner_phone.replace(/\D/g,'');
+    if (!grouped[key]) grouped[key] = { name: o.owner_name, phone: o.owner_phone, orders: [] };
+    grouped[key].orders.push(o);
+  });
+  Object.values(grouped).forEach(g=>{
+    const total = g.orders.reduce((a,o)=>a+(o.total||0),0);
+    const div = document.createElement('div');
+    div.className = 'bg-slate-900 border border-slate-800 rounded-xl p-4 fade-in';
+    div.innerHTML = `
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <p class="font-bold">${g.name}</p>
+          <p class="text-sm text-slate-400">${g.phone}</p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-slate-500">${g.orders.length} orden${g.orders.length!==1?'es':''}</p>
+          <p class="text-sm font-bold text-green-400">${fmt$(total)}</p>
+        </div>
+      </div>
+      <div class="space-y-2">
+        ${g.orders.map(o=>{
+          const st = statusObj(o.status);
+          return `<button onclick="openOrderDetail('${o.id}')" class="w-full flex items-center justify-between bg-slate-800/60 hover:bg-slate-800 rounded-lg px-3 py-2 text-left transition-colors">
+            <div>
+              <p class="text-sm font-semibold">${o.brand} ${o.model} ${o.year} <span class="font-mono text-slate-400">${o.plates}</span></p>
+              <p class="text-xs text-slate-500">${fmtDate(o.created_at)} · ${o.reported_issue.slice(0,60)}${o.reported_issue.length>60?'…':''}</p>
+            </div>
+            <div class="flex items-center gap-2 ml-3 shrink-0">
+              <span class="text-sm font-bold">${fmt$(o.total)}</span>
+              <span class="status-badge ${st.bg} ${st.color} ${st.border} border">${st.label}</span>
+            </div>
+          </button>`;
+        }).join('')}
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+// ─── ORDER DETAIL MODAL ───────────────────────────────────────────────────────
+function openOrderDetail(id) {
+  const o = orders.find(x=>x.id===id);
+  if (!o) return;
+  currentOrderId = id;
+  const st = statusObj(o.status);
+  document.getElementById('detail-title').textContent = `Orden ${o.id}`;
+  const partsTotal = (o.parts||[]).reduce((a,p)=>a+((p.price||0)*(p.qty||1)),0);
+  const content = document.getElementById('detail-content');
+  content.innerHTML = `
+    <!-- Status selector -->
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="pulse-dot ${st.dot}"></span>
+        <span class="font-semibold ${st.color}">${st.label}</span>
+      </div>
+      <select onchange="changeOrderStatus('${id}', this.value)" class="bg-slate-800 border border-slate-700 text-sm text-white rounded-lg px-3 py-1.5 focus:border-brand">
+        ${STATUSES.map(s=>`<option value="${s.id}" ${s.id===o.status?'selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </div>
+    <!-- Vehicle + Owner -->
+    <div class="grid grid-cols-2 gap-4">
+      <div class="bg-slate-800/60 rounded-xl p-4">
+        <p class="text-xs font-bold text-brand uppercase tracking-widest mb-2">Vehículo</p>
+        <p class="font-bold text-lg">${o.brand} ${o.model}</p>
+        <p class="text-slate-400 text-sm">${o.year}</p>
+        <p class="font-mono font-bold text-slate-200 mt-1">${o.plates}</p>
+        ${o.km ? `<p class="text-xs text-slate-500 mt-1">${Number(o.km).toLocaleString('es-MX')} km</p>` : ''}
+      </div>
+      <div class="bg-slate-800/60 rounded-xl p-4">
+        <p class="text-xs font-bold text-brand uppercase tracking-widest mb-2">Propietario</p>
+        <p class="font-bold">${o.owner_name}</p>
+        <p class="text-slate-400 text-sm">${o.owner_phone}</p>
+        <a href="https://wa.me/52${o.owner_phone.replace(/\D/g,'')}" target="_blank" class="inline-flex items-center gap-1 mt-2 text-xs text-green-400 hover:text-green-300 font-medium transition-colors">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.558 4.12 1.527 5.849L.057 23.5l5.794-1.519A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.934 0-3.748-.522-5.306-1.431l-.38-.226-3.44.902.919-3.35-.247-.397A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+          WhatsApp
+        </a>
+      </div>
+    </div>
+    <!-- Issue & Diagnosis -->
+    <div class="space-y-3">
+      <div class="bg-slate-800/60 rounded-xl p-4">
+        <p class="text-xs font-bold text-brand uppercase tracking-widest mb-2">Falla reportada</p>
+        <p class="text-sm text-slate-200">${o.reported_issue}</p>
+      </div>
+      ${o.diagnosis ? `<div class="bg-slate-800/60 rounded-xl p-4">
+        <p class="text-xs font-bold text-brand uppercase tracking-widest mb-2">Diagnóstico</p>
+        <p class="text-sm text-slate-200">${o.diagnosis}</p>
+      </div>` : ''}
+    </div>
+    <!-- Services -->
+    ${(o.services||[]).length ? `<div>
+      <p class="text-xs font-bold text-brand uppercase tracking-widest mb-2">Servicios</p>
+      <div class="flex flex-wrap gap-2">
+        ${o.services.map(s=>`<span class="text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-full px-3 py-1">${s}</span>`).join('')}
+      </div>
+    </div>` : ''}
+    <!-- Parts -->
+    ${(o.parts||[]).length ? `<div>
+      <p class="text-xs font-bold text-brand uppercase tracking-widest mb-2">Refacciones</p>
+      <div class="bg-slate-800/60 rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-slate-700">
+            <th class="text-left px-3 py-2 text-xs text-slate-400 font-semibold">Descripción</th>
+            <th class="text-center px-3 py-2 text-xs text-slate-400 font-semibold">Cant</th>
+            <th class="text-right px-3 py-2 text-xs text-slate-400 font-semibold">Precio</th>
+          </tr></thead>
+          <tbody>
+            ${o.parts.map(p=>`<tr class="border-b border-slate-800/50">
+              <td class="px-3 py-2">${p.name}</td>
+              <td class="px-3 py-2 text-center text-slate-400">${p.qty}</td>
+              <td class="px-3 py-2 text-right font-mono">${fmt$(p.price*p.qty)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}
+    <!-- Cost summary -->
+    <div class="bg-slate-800/60 rounded-xl p-4 space-y-2">
+      <div class="flex justify-between text-sm"><span class="text-slate-400">Refacciones</span><span>${fmt$(partsTotal)}</span></div>
+      <div class="flex justify-between text-sm"><span class="text-slate-400">Mano de obra</span><span>${fmt$(o.labor_cost)}</span></div>
+      <div class="flex justify-between font-bold text-lg border-t border-slate-700 pt-2 mt-2"><span>Total</span><span class="text-green-400">${fmt$(o.total)}</span></div>
+    </div>
+    <!-- Dates -->
+    <div class="grid grid-cols-2 gap-3 text-sm text-slate-400">
+      <div><span class="font-medium text-slate-300">Ingreso: </span>${fmtDate(o.created_at)}</div>
+      <div><span class="font-medium text-slate-300">Entrega estimada: </span>${fmtDate(o.estimated_date)}</div>
+    </div>
+    ${o.notes ? `<div class="text-sm text-slate-400"><span class="font-medium text-slate-300">Notas: </span>${o.notes}</div>` : ''}
+    <!-- Actions -->
+    <div class="flex gap-2 pt-2">
+      <button onclick="printOrder('${id}')" class="flex-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        Imprimir
+      </button>
+      ${o.status==='ready' ? `<button onclick="sendWhatsApp('${id}')" class="flex-1 flex items-center justify-center gap-2 bg-green-700 hover:bg-green-600 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.126.558 4.12 1.527 5.849L.057 23.5l5.794-1.519A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.934 0-3.748-.522-5.306-1.431l-.38-.226-3.44.902.919-3.35-.247-.397A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+        Avisar por WhatsApp
+      </button>` : ''}
+      <button onclick="deleteOrder('${id}')" class="flex items-center justify-center gap-1 bg-red-900/40 hover:bg-red-900/70 text-red-400 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors border border-red-900/50">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Eliminar
+      </button>
+    </div>`;
+  openModal('modal-order-detail');
+}
+
+function changeOrderStatus(id, newStatus) {
+  const order = orders.find(o=>o.id===id);
+  if (!order) return;
+  const prev = order.status;
+  order.status = newStatus;
+  if (newStatus==='delivered' && !order.delivered_at) order.delivered_at = new Date().toISOString();
+  saveOrders();
+  openOrderDetail(id); // re-render
+  if (newStatus==='ready' && prev!=='ready') {
+    setTimeout(()=>{ if(confirm(`✅ Orden ${id} marcada como LISTA.\n¿Enviar WhatsApp a ${order.owner_name}?`)) sendWhatsApp(id); },300);
+  }
+}
+
+function deleteOrder(id) {
+  if (!confirm('¿Eliminar esta orden de trabajo? Esta acción no se puede deshacer.')) return;
+  orders = orders.filter(o=>o.id!==id);
+  saveOrders();
+  closeModal('modal-order-detail');
+  renderDashboard();
+}
+
+// ─── WHATSAPP ─────────────────────────────────────────────────────────────────
+function sendWhatsApp(id) {
+  const o = orders.find(x=>x.id===id);
+  if (!o) return;
+  const phone = '52' + o.owner_phone.replace(/\D/g,'');
+  const msg = encodeURIComponent(
+    `🔧 *TallerPro*\n\nEstimado/a *${o.owner_name}*, le informamos que su vehículo *${o.brand} ${o.model} ${o.year}* (Placas: ${o.plates}) ya está *listo para recoger*.\n\n` +
+    `📋 Orden: ${o.id}\n💰 Total: ${fmt$(o.total)}\n\nPuede pasar a recogerlo en nuestro horario de atención. ¡Gracias por su confianza! 🚗`
+  );
+  window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+}
+
+// ─── PRINT ────────────────────────────────────────────────────────────────────
+function printOrder(id) {
+  const o = orders.find(x=>x.id===id);
+  if (!o) return;
+  const partsTotal = (o.parts||[]).reduce((a,p)=>a+((p.price||0)*(p.qty||1)),0);
+  const st = statusObj(o.status);
+  const area = document.getElementById('print-area');
+  area.innerHTML = `
+    <div class="print-card" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#000;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ef4444;padding-bottom:16px;margin-bottom:16px;">
+        <div>
+          <h1 style="font-size:1.5rem;font-weight:900;margin:0;color:#1e293b;">TallerPro</h1>
+          <p style="color:#666;font-size:.85rem;margin:2px 0 0;">Orden de Trabajo</p>
+        </div>
+        <div style="text-align:right;">
+          <h2 style="font-size:1.2rem;font-weight:800;color:#ef4444;margin:0;">${o.id}</h2>
+          <p style="color:#666;font-size:.8rem;margin:2px 0 0;">${fmtDate(o.created_at)}</p>
+          <p style="font-size:.75rem;font-weight:700;color:#fff;background:#475569;border-radius:4px;padding:2px 8px;display:inline-block;margin-top:4px;">${st.label}</p>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+          <p style="font-size:.7rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Vehículo</p>
+          <p style="font-weight:800;font-size:1.05rem;margin:0;">${o.brand} ${o.model} ${o.year}</p>
+          <p style="margin:4px 0 0;font-size:.85rem;color:#475569;">Placas: <strong style="font-family:monospace;">${o.plates}</strong></p>
+          ${o.km ? `<p style="margin:2px 0 0;font-size:.8rem;color:#64748b;">${Number(o.km).toLocaleString('es-MX')} km</p>` : ''}
+        </div>
+        <div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+          <p style="font-size:.7rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Propietario</p>
+          <p style="font-weight:700;margin:0;">${o.owner_name}</p>
+          <p style="margin:4px 0 0;font-size:.85rem;color:#475569;">${o.owner_phone}</p>
+        </div>
+      </div>
+      <div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px;">
+        <p style="font-size:.7rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px;">Falla Reportada</p>
+        <p style="margin:0;font-size:.9rem;">${o.reported_issue}</p>
+      </div>
+      ${o.diagnosis ? `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px;">
+        <p style="font-size:.7rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px;">Diagnóstico</p>
+        <p style="margin:0;font-size:.9rem;">${o.diagnosis}</p>
+      </div>` : ''}
+      ${(o.services||[]).length ? `<div style="margin-bottom:12px;">
+        <p style="font-size:.7rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px;">Servicios</p>
+        <p style="margin:0;font-size:.85rem;color:#475569;">${o.services.join(' · ')}</p>
+      </div>` : ''}
+      ${(o.parts||[]).length ? `<div style="margin-bottom:12px;">
+        <p style="font-size:.7rem;font-weight:800;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px;">Refacciones</p>
+        <table style="width:100%;border-collapse:collapse;font-size:.85rem;">
+          <thead><tr style="background:#f8fafc;">
+            <th style="padding:6px 8px;text-align:left;border:1px solid #e2e8f0;">Descripción</th>
+            <th style="padding:6px 8px;text-align:center;border:1px solid #e2e8f0;">Cant.</th>
+            <th style="padding:6px 8px;text-align:right;border:1px solid #e2e8f0;">Precio Unit.</th>
+            <th style="padding:6px 8px;text-align:right;border:1px solid #e2e8f0;">Total</th>
+          </tr></thead>
+          <tbody>
+            ${o.parts.map(p=>`<tr>
+              <td style="padding:6px 8px;border:1px solid #e2e8f0;">${p.name}</td>
+              <td style="padding:6px 8px;text-align:center;border:1px solid #e2e8f0;">${p.qty}</td>
+              <td style="padding:6px 8px;text-align:right;border:1px solid #e2e8f0;font-family:monospace;">${fmt$(p.price)}</td>
+              <td style="padding:6px 8px;text-align:right;border:1px solid #e2e8f0;font-family:monospace;">${fmt$(p.price*p.qty)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+      <div style="border:2px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px;"><span style="color:#64748b;">Refacciones:</span><span style="font-family:monospace;">${fmt$(partsTotal)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:8px;"><span style="color:#64748b;">Mano de obra:</span><span style="font-family:monospace;">${fmt$(o.labor_cost)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:800;border-top:2px solid #e2e8f0;padding-top:8px;"><span>TOTAL:</span><span style="color:#16a34a;font-family:monospace;">${fmt$(o.total)}</span></div>
+      </div>
+      ${o.notes ? `<p style="font-size:.8rem;color:#64748b;margin-bottom:12px;"><strong>Notas:</strong> ${o.notes}</p>` : ''}
+      <div style="text-align:center;border-top:1px solid #e2e8f0;padding-top:12px;color:#94a3b8;font-size:.75rem;">
+        Powered by Novamente Studio · ${fmtDate(o.created_at)}
+      </div>
+    </div>`;
+  closeModal('modal-order-detail');
+  setTimeout(()=>window.print(), 150);
+}
+
+// ─── NEW ORDER FORM ───────────────────────────────────────────────────────────
+function openNewOrderModal() {
+  document.getElementById('new-order-form').reset();
+  document.getElementById('parts-list').innerHTML = '';
+  partCounter = 0;
+  // Build services checklist
+  const checklist = document.getElementById('services-checklist');
+  checklist.innerHTML = '';
+  SERVICES_CATALOG.forEach((svc,i)=>{
+    checklist.innerHTML += `
+      <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:text-white transition-colors p-1 rounded hover:bg-slate-800">
+        <input type="checkbox" name="service_${i}" data-service="${svc}" class="service-check rounded accent-red-500"/>
+        ${svc}
+      </label>`;
+  });
+  document.getElementById('total-estimate-display').textContent = '$0.00';
+  addPartRow();
+  openModal('modal-new-order');
+}
+
+let customServices = [];
+function addCustomService() {
+  const input = document.getElementById('custom-service-input');
+  const val = input.value.trim();
+  if (!val) return;
+  customServices.push(val);
+  const checklist = document.getElementById('services-checklist');
+  const idx = 'custom_' + customServices.length;
+  checklist.innerHTML += `
+    <label class="flex items-center gap-2 text-sm text-green-300 cursor-pointer hover:text-green-200 transition-colors p-1 rounded hover:bg-slate-800 col-span-2">
+      <input type="checkbox" name="service_${idx}" data-service="${val}" class="service-check rounded accent-green-500" checked/>
+      ${val} <span class="text-xs text-green-500">(personalizado)</span>
+    </label>`;
+  input.value = '';
+  updateTotalEstimate();
+}
+
+function addPartRow() {
+  partCounter++;
+  const id = 'part-' + partCounter;
+  const container = document.getElementById('parts-list');
+  const row = document.createElement('div');
+  row.id = id;
+  row.className = 'flex gap-2 items-center slide-in';
+  row.innerHTML = `
+    <input type="text" data-part="name" placeholder="Descripción" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+    <input type="number" data-part="qty" placeholder="Cant" min="1" value="1" class="w-16 bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-sm text-white focus:border-brand"/>
+    <input type="number" data-part="price" placeholder="Precio" min="0" step="0.01" oninput="updateTotalEstimate()" class="w-28 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-brand"/>
+    <button type="button" onclick="document.getElementById('${id}').remove();updateTotalEstimate();" class="text-slate-500 hover:text-red-400 transition-colors p-1">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>`;
+  container.appendChild(row);
+}
+
+function updateTotalEstimate() {
+  let partsTotal = 0;
+  document.querySelectorAll('#parts-list > div').forEach(row=>{
+    const price = parseFloat(row.querySelector('[data-part=price]')?.value||0)||0;
+    const qty   = parseInt(row.querySelector('[data-part=qty]')?.value||1)||1;
+    partsTotal += price * qty;
+  });
+  const labor = parseFloat(document.querySelector('[name=labor_cost]')?.value||0)||0;
+  document.getElementById('total-estimate-display').textContent = fmt$(partsTotal+labor);
+}
+
+function saveNewOrder(e) {
+  e.preventDefault();
+  const form = e.target;
+  const fd = new FormData(form);
+  const get = k => fd.get(k) || '';
+  // Collect checked services
+  const services = [];
+  form.querySelectorAll('input[type=checkbox]:checked[data-service]').forEach(cb=>services.push(cb.dataset.service));
+  // Collect parts
+  const parts = [];
+  document.querySelectorAll('#parts-list > div').forEach(row=>{
+    const name  = row.querySelector('[data-part=name]')?.value?.trim();
+    const qty   = parseInt(row.querySelector('[data-part=qty]')?.value)||1;
+    const price = parseFloat(row.querySelector('[data-part=price]')?.value)||0;
+    if (name) parts.push({name, qty, price});
+  });
+  const partsTotal = parts.reduce((a,p)=>a+(p.price*p.qty),0);
+  const labor = parseFloat(get('labor_cost'))||0;
+  const order = {
+    id: genId(),
+    created_at: new Date().toISOString(),
+    status: 'received',
+    brand: get('brand'),
+    model: get('model'),
+    year: parseInt(get('year')),
+    plates: get('plates').toUpperCase(),
+    km: parseInt(get('km'))||0,
+    owner_name: get('owner_name'),
+    owner_phone: get('owner_phone'),
+    reported_issue: get('reported_issue'),
+    diagnosis: get('diagnosis'),
+    services,
+    parts,
+    labor_cost: labor,
+    estimated_date: get('estimated_date'),
+    notes: get('notes'),
+    total: partsTotal + labor,
+  };
+  orders.unshift(order);
+  customServices = [];
+  saveOrders();
+  closeModal('modal-new-order');
+  renderDashboard();
+  // Flash confirmation
+  showToast(`Orden ${order.id} creada exitosamente`);
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'fixed bottom-6 right-6 z-[9999] bg-green-700 text-white text-sm font-semibold px-4 py-3 rounded-xl shadow-xl fade-in';
+  t.textContent = '✓ ' + msg;
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .5s'; setTimeout(()=>t.remove(),500); },3000);
+}
+
+// ─── MODAL HELPERS ────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); document.body.style.overflow='hidden'; }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); document.body.style.overflow=''; }
+// Close on backdrop click
+['modal-new-order','modal-order-detail'].forEach(id=>{
+  document.getElementById(id).addEventListener('click', e=>{
+    if (e.target === document.getElementById(id)) closeModal(id);
+  });
+});
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', ()=>{
+  loadOrders();
+  renderDashboard();
+  showTab('dashboard');
+});
+</script>
+</body>
+</html>

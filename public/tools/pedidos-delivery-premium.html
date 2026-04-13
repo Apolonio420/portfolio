@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pedidos Delivery Premium</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        brand: { 50:'#fff1f1', 100:'#ffe4e4', 200:'#fecaca', 500:'#ef4444', 600:'#dc2626', 700:'#b91c1c', 800:'#991b1b' },
+        gold: { 300:'#fcd34d', 400:'#fbbf24', 500:'#f59e0b' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #1a0505; }
+  .hero-bg { background: linear-gradient(135deg, #1a0505 0%, #2d0a0a 50%, #1f0808 100%); }
+  .card-pizza { background: linear-gradient(145deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03)); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(10px); }
+  .card-pizza:hover { border-color: rgba(220,38,38,0.4); box-shadow: 0 0 30px rgba(220,38,38,0.15); }
+  .btn-primary { background: linear-gradient(135deg, #dc2626, #b91c1c); box-shadow: 0 4px 20px rgba(220,38,38,0.4); }
+  .btn-primary:hover { box-shadow: 0 6px 28px rgba(220,38,38,0.6); transform: translateY(-1px); }
+  .badge-recibido { background:#1e3a5f; color:#93c5fd; }
+  .badge-preparando { background:#422006; color:#fbbf24; }
+  .badge-camino { background:#1a2e1a; color:#86efac; }
+  .badge-entregado { background:#162020; color:#5eead4; }
+  .cart-float { background: linear-gradient(135deg, #dc2626, #991b1b); box-shadow: 0 8px 32px rgba(220,38,38,0.5); }
+  .slide-in { animation: slideIn 0.3s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes slideIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+  .bounce-in { animation: bounceIn 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes bounceIn { from{opacity:0;transform:scale(0.8)} to{opacity:1;transform:scale(1)} }
+  .pulse-red { animation: pulseRed 2s infinite; }
+  @keyframes pulseRed { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0.4)} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0)} }
+  .pill { display:inline-flex; align-items:center; padding:4px 12px; border-radius:999px; font-size:11px; font-weight:600; }
+  ::-webkit-scrollbar{width:4px;height:4px} ::-webkit-scrollbar-track{background:#1a0505} ::-webkit-scrollbar-thumb{background:#dc2626;border-radius:4px}
+  @media print{.no-print{display:none!important} body{background:white!important} .card-pizza{background:white!important;border:1px solid #e5e7eb!important}}
+</style>
+</head>
+<body class="hero-bg min-h-screen text-white">
+
+<!-- HEADER -->
+<header class="sticky top-0 z-50 bg-black/60 backdrop-blur-xl border-b border-white/5 no-print">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 btn-primary rounded-xl flex items-center justify-center text-2xl shadow-lg">🍕</div>
+      <div>
+        <h1 class="font-black text-white text-base leading-tight">La Mejor Pizza</h1>
+        <p class="text-xs text-red-400 font-medium">Delivery & Pedidos Online</p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="setMode('cliente')" id="btn-cliente" class="text-xs font-bold px-4 py-2 rounded-xl transition-all btn-primary text-white">Ordenar</button>
+      <button onclick="setMode('admin')" id="btn-admin" class="text-xs font-bold px-4 py-2 rounded-xl transition-all bg-white/10 border border-white/10 text-white hover:bg-white/20">Admin</button>
+    </div>
+  </div>
+</header>
+
+<!-- MODO CLIENTE -->
+<div id="mode-cliente" class="max-w-6xl mx-auto px-4 py-6 slide-in">
+  <!-- Banner -->
+  <div class="rounded-3xl overflow-hidden mb-6 relative" style="background:linear-gradient(135deg,#dc2626,#7f1d1d)">
+    <div class="p-6 sm:p-8">
+      <p class="text-red-200 text-sm font-semibold mb-1">Entrega en 30-45 min</p>
+      <h2 class="text-3xl sm:text-4xl font-black text-white mb-2">¿Qué se te antoja<br>hoy?</h2>
+      <p class="text-red-200 text-sm">Ingredientes frescos · Horno de piedra</p>
+    </div>
+    <div class="absolute right-4 top-4 text-6xl opacity-20">🍕</div>
+  </div>
+
+  <!-- Categorias -->
+  <div class="flex gap-2 overflow-x-auto pb-3 mb-5 no-scrollbar" id="cat-tabs">
+    <button onclick="filterCat('todos')" class="cat-btn active-cat whitespace-nowrap text-xs font-bold px-4 py-2 rounded-xl btn-primary text-white">Todo</button>
+    <button onclick="filterCat('pizzas')" class="cat-btn whitespace-nowrap text-xs font-bold px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-colors">Pizzas</button>
+    <button onclick="filterCat('complementos')" class="cat-btn whitespace-nowrap text-xs font-bold px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-colors">Complementos</button>
+    <button onclick="filterCat('bebidas')" class="cat-btn whitespace-nowrap text-xs font-bold px-4 py-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-colors">Bebidas</button>
+  </div>
+
+  <div id="menu-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-24"></div>
+</div>
+
+<!-- CARRITO FLOTANTE -->
+<div id="cart-fab" class="hidden fixed bottom-6 right-4 z-40 no-print">
+  <button onclick="toggleCart()" class="cart-float rounded-2xl px-5 py-3 flex items-center gap-3 font-bold text-white pulse-red">
+    <span class="text-xl">🛒</span>
+    <span id="cart-count" class="text-sm">0 productos</span>
+    <span id="cart-total-fab" class="text-sm font-black">$0</span>
+  </button>
+</div>
+
+<!-- CARRITO PANEL -->
+<div id="cart-panel" class="hidden fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-4 no-print">
+  <div class="w-full max-w-md rounded-3xl overflow-hidden slide-in" style="background:#1f0808;border:1px solid rgba(220,38,38,0.2)">
+    <div class="p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-black text-xl text-white">Tu pedido 🛒</h3>
+        <button onclick="toggleCart()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+      </div>
+      <div id="cart-items" class="space-y-3 max-h-64 overflow-y-auto mb-4"></div>
+      <div id="cart-empty" class="text-center text-gray-500 py-8 hidden">Tu carrito está vacío</div>
+      <div class="border-t border-white/10 pt-4 mb-4">
+        <div class="flex justify-between text-lg font-black text-white mb-1">
+          <span>Total</span><span id="cart-total-panel" class="text-red-400">$0</span>
+        </div>
+        <div class="mb-3">
+          <input id="cart-nombre" type="text" placeholder="Tu nombre" class="w-full text-sm bg-white/10 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 mb-2">
+          <input id="cart-direccion" type="text" placeholder="Dirección de entrega" class="w-full text-sm bg-white/10 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500">
+        </div>
+        <button onclick="enviarPedido()" class="w-full btn-primary rounded-xl py-3 font-black text-white text-sm transition-all">Enviar pedido por WhatsApp</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODO ADMIN -->
+<div id="mode-admin" class="hidden max-w-6xl mx-auto px-4 py-6 slide-in">
+  <!-- Tabs admin -->
+  <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+    <button onclick="showAdminTab('pipeline')" id="atab-pipeline" class="text-xs font-bold px-4 py-2 rounded-xl btn-primary text-white whitespace-nowrap">Pedidos</button>
+    <button onclick="showAdminTab('ventas')" id="atab-ventas" class="text-xs font-bold px-4 py-2 rounded-xl bg-white/10 border border-white/10 text-white hover:bg-white/20 whitespace-nowrap">Ventas del día</button>
+    <button onclick="showAdminTab('menu-editor')" id="atab-menu-editor" class="text-xs font-bold px-4 py-2 rounded-xl bg-white/10 border border-white/10 text-white hover:bg-white/20 whitespace-nowrap">Editor de Menú</button>
+  </div>
+
+  <!-- Pipeline -->
+  <div id="admin-pipeline" class="slide-in">
+    <div class="grid sm:grid-cols-4 gap-3" id="pipeline-cols"></div>
+  </div>
+
+  <!-- Ventas -->
+  <div id="admin-ventas" class="hidden slide-in">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div class="card-pizza rounded-2xl p-4"><p class="text-xs text-gray-400 mb-1">Pedidos hoy</p><p id="v-pedidos" class="text-2xl font-black text-white">0</p></div>
+      <div class="card-pizza rounded-2xl p-4"><p class="text-xs text-gray-400 mb-1">Total ventas</p><p id="v-total" class="text-2xl font-black text-red-400">$0</p></div>
+      <div class="card-pizza rounded-2xl p-4"><p class="text-xs text-gray-400 mb-1">Ticket prom.</p><p id="v-ticket" class="text-2xl font-black text-yellow-400">$0</p></div>
+      <div class="card-pizza rounded-2xl p-4"><p class="text-xs text-gray-400 mb-1">Entregados</p><p id="v-entregados" class="text-2xl font-black text-green-400">0</p></div>
+    </div>
+    <div class="card-pizza rounded-2xl p-5">
+      <h3 class="font-bold text-white mb-3">Productos más pedidos</h3>
+      <div id="top-productos" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- Menu Editor -->
+  <div id="admin-menu-editor" class="hidden slide-in">
+    <div class="card-pizza rounded-2xl p-5 mb-4">
+      <h3 class="font-bold text-white mb-3">Agregar producto</h3>
+      <div class="grid sm:grid-cols-4 gap-3">
+        <input id="new-prod-nombre" type="text" placeholder="Nombre" class="text-sm bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500">
+        <input id="new-prod-precio" type="number" placeholder="Precio" class="text-sm bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500">
+        <select id="new-prod-cat" class="text-sm bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500">
+          <option value="pizzas">Pizzas</option>
+          <option value="complementos">Complementos</option>
+          <option value="bebidas">Bebidas</option>
+        </select>
+        <button onclick="agregarProducto()" class="btn-primary rounded-xl py-2 text-sm font-bold text-white">Agregar</button>
+      </div>
+    </div>
+    <div id="editor-list" class="space-y-2"></div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center py-4 text-xs text-gray-600 border-t border-white/5 mt-8 no-print">
+  Powered by <span class="text-red-500 font-semibold">Novamente Studio</span>
+</footer>
+
+<script>
+const WA_ADMIN = '5491155009999';
+let appData = JSON.parse(localStorage.getItem('delivery_data') || 'null');
+const defaultMenu = [
+  {id:1,nombre:'Margherita',desc:'Tomate, mozzarella, albahaca',precio:185,cat:'pizzas',emoji:'🍕',disponible:true},
+  {id:2,nombre:'Pepperoni',desc:'Doble pepperoni, queso extra',precio:220,cat:'pizzas',emoji:'🍕',disponible:true},
+  {id:3,nombre:'Hawaiana',desc:'Jamón, piña, mozzarella',precio:200,cat:'pizzas',emoji:'🍕',disponible:true},
+  {id:4,nombre:'4 Quesos',desc:'Mozzarella, gouda, brie, parmesano',precio:245,cat:'pizzas',emoji:'🍕',disponible:true},
+  {id:5,nombre:'BBQ Chicken',desc:'Pollo, salsa BBQ, cebolla morada',precio:230,cat:'pizzas',emoji:'🍕',disponible:true},
+  {id:6,nombre:'Vegetariana',desc:'Pimiento, champiñón, aceituna, espinaca',precio:195,cat:'pizzas',emoji:'🍕',disponible:true},
+  {id:7,nombre:'Mexicana',desc:'Jalapeño, chorizo, chile, queso',precio:225,cat:'pizzas',emoji:'🌶️',disponible:true},
+  {id:8,nombre:'Prosciutto',desc:'Jamón serrano, arúgula, parmesano',precio:260,cat:'pizzas',emoji:'🍕',disponible:true},
+  {id:9,nombre:'Diavola',desc:'Salami piccante, chiles rojos',precio:235,cat:'pizzas',emoji:'🔥',disponible:true},
+  {id:10,nombre:'Trufa Negra',desc:'Crema de trufa, champiñones, parmesano',precio:290,cat:'pizzas',emoji:'⭐',disponible:true},
+  {id:11,nombre:'Clásica',desc:'Salsa roja, queso, orégano',precio:170,cat:'pizzas',emoji:'🍕',disponible:true},
+  {id:12,nombre:'Combo Familiar',desc:'2 pizzas grandes a elegir',precio:399,cat:'pizzas',emoji:'👨‍👩‍👧‍👦',disponible:true},
+  {id:13,nombre:'Alitas',desc:'8 piezas con salsa a elegir',precio:145,cat:'complementos',emoji:'🍗',disponible:true},
+  {id:14,nombre:'Pan de Ajo',desc:'Baguette con mantequilla y ajo',precio:75,cat:'complementos',emoji:'🥖',disponible:true},
+  {id:15,nombre:'Ensalada César',desc:'Lechuga romana, croutons, parmesano',precio:95,cat:'complementos',emoji:'🥗',disponible:true},
+  {id:16,nombre:'Coca-Cola 600ml',desc:'Refresco frío',precio:40,cat:'bebidas',emoji:'🥤',disponible:true},
+  {id:17,nombre:'Agua Natural',desc:'Botella 500ml',precio:25,cat:'bebidas',emoji:'💧',disponible:true},
+  {id:18,nombre:'Jugo de Naranja',desc:'Natural, 500ml',precio:55,cat:'bebidas',emoji:'🍊',disponible:true},
+];
+if (!appData) {
+  appData = { menu: defaultMenu, pedidos: [], nextId: 1, nextPedidoId: 100 };
+  // Demo orders
+  const estados = ['recibido','preparando','en_camino','entregado'];
+  const demos = [
+    {id:100,nombre:'Carlos M.',dir:'Av. Insurgentes 234',items:[{nombre:'Pepperoni',precio:220,qty:2},{nombre:'Coca-Cola 600ml',precio:40,qty:2}],total:520,estado:'preparando',hora:Date.now()-600000},
+    {id:101,nombre:'Ana R.',dir:'Calle Reforma 89',items:[{nombre:'Margherita',precio:185,qty:1},{nombre:'Alitas',precio:145,qty:1}],total:330,estado:'en_camino',hora:Date.now()-1200000},
+    {id:102,nombre:'Pedro L.',dir:'Colonia Roma 12',items:[{nombre:'4 Quesos',precio:245,qty:1}],total:245,estado:'recibido',hora:Date.now()-120000},
+    {id:103,nombre:'Sofía G.',dir:'Polanco 45',items:[{nombre:'BBQ Chicken',precio:230,qty:1},{nombre:'Pan de Ajo',precio:75,qty:2}],total:380,estado:'entregado',hora:Date.now()-3600000},
+  ];
+  appData.pedidos = demos;
+  appData.nextPedidoId = 104;
+  saveAppData();
+}
+function saveAppData() { localStorage.setItem('delivery_data', JSON.stringify(appData)); }
+
+let cart = [];
+let currentCat = 'todos';
+let currentMode = 'cliente';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-cliente').classList.toggle('hidden', mode !== 'cliente');
+  document.getElementById('mode-admin').classList.toggle('hidden', mode !== 'admin');
+  if (mode === 'cliente') renderMenu();
+  if (mode === 'admin') { showAdminTab('pipeline'); renderPipeline(); }
+}
+
+function filterCat(cat) {
+  currentCat = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => {
+    b.className = b.className.replace('btn-primary text-white','bg-white/10 text-white hover:bg-white/20 transition-colors');
+  });
+  event.target.className = event.target.className.replace('bg-white/10 text-white hover:bg-white/20 transition-colors','btn-primary text-white');
+  renderMenu();
+}
+
+function renderMenu() {
+  const items = currentCat === 'todos' ? appData.menu : appData.menu.filter(p => p.cat === currentCat);
+  const avail = items.filter(p => p.disponible);
+  document.getElementById('menu-grid').innerHTML = avail.map(p => {
+    const inCart = cart.find(c => c.id === p.id);
+    return `<div class="card-pizza rounded-2xl p-4 transition-all duration-300 cursor-pointer" onclick="addToCart(${p.id})">
+      <div class="text-4xl mb-3 text-center">${p.emoji}</div>
+      <h4 class="font-bold text-white text-sm mb-1">${p.nombre}</h4>
+      <p class="text-xs text-gray-400 mb-3 leading-relaxed">${p.desc}</p>
+      <div class="flex items-center justify-between">
+        <span class="text-red-400 font-black text-sm">$${p.precio}</span>
+        <button class="w-8 h-8 rounded-xl flex items-center justify-center transition-all ${inCart ? 'btn-primary text-white text-lg' : 'bg-white/10 text-gray-300 hover:bg-red-600/20 hover:text-red-400'} font-bold">
+          ${inCart ? inCart.qty : '+'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addToCart(id) {
+  const prod = appData.menu.find(p => p.id === id);
+  const existing = cart.find(c => c.id === id);
+  if (existing) existing.qty++;
+  else cart.push({...prod, qty: 1});
+  updateCartUI();
+  renderMenu();
+}
+
+function updateCartUI() {
+  const total = cart.reduce((s,c) => s + c.precio*c.qty, 0);
+  const count = cart.reduce((s,c) => s + c.qty, 0);
+  document.getElementById('cart-count').textContent = count + (count===1?' producto':' productos');
+  document.getElementById('cart-total-fab').textContent = '$' + total;
+  document.getElementById('cart-total-panel').textContent = '$' + total;
+  document.getElementById('cart-fab').classList.toggle('hidden', cart.length === 0);
+  renderCartItems();
+}
+
+function renderCartItems() {
+  const el = document.getElementById('cart-items');
+  const empty = document.getElementById('cart-empty');
+  if (cart.length === 0) { el.innerHTML=''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  el.innerHTML = cart.map(item => `
+    <div class="flex items-center justify-between bg-white/5 rounded-xl p-3">
+      <div class="flex-1">
+        <p class="text-sm font-semibold text-white">${item.emoji} ${item.nombre}</p>
+        <p class="text-xs text-gray-400">$${item.precio} c/u</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="changeQty(${item.id},-1)" class="w-6 h-6 bg-red-800/50 rounded-lg text-red-300 font-bold text-sm hover:bg-red-700">-</button>
+        <span class="text-white font-bold text-sm w-4 text-center">${item.qty}</span>
+        <button onclick="changeQty(${item.id},1)" class="w-6 h-6 bg-red-800/50 rounded-lg text-red-300 font-bold text-sm hover:bg-red-700">+</button>
+        <span class="text-yellow-400 font-bold text-sm ml-1">$${item.precio*item.qty}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function changeQty(id, delta) {
+  const idx = cart.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  cart[idx].qty += delta;
+  if (cart[idx].qty <= 0) cart.splice(idx, 1);
+  updateCartUI();
+  renderMenu();
+}
+
+function toggleCart() { document.getElementById('cart-panel').classList.toggle('hidden'); }
+
+function enviarPedido() {
+  if (cart.length === 0) { alert('Agrega productos al carrito'); return; }
+  const nombre = document.getElementById('cart-nombre').value.trim() || 'Cliente';
+  const dir = document.getElementById('cart-direccion').value.trim() || 'Sin dirección';
+  const total = cart.reduce((s,c) => s + c.precio*c.qty, 0);
+  const lines = cart.map(c => `• ${c.qty}x ${c.nombre} - $${c.precio*c.qty}`).join('\n');
+  const msg = `🍕 *NUEVO PEDIDO*\n\n*Cliente:* ${nombre}\n*Dirección:* ${dir}\n\n*Productos:*\n${lines}\n\n*TOTAL: $${total}*\n\nFecha: ${new Date().toLocaleString('es-MX')}`;
+
+  const pedido = {
+    id: appData.nextPedidoId++,
+    nombre, dir,
+    items: cart.map(c => ({nombre: c.nombre, precio: c.precio, qty: c.qty})),
+    total, estado: 'recibido', hora: Date.now()
+  };
+  appData.pedidos.unshift(pedido);
+  saveAppData();
+
+  window.open('https://wa.me/' + WA_ADMIN + '?text=' + encodeURIComponent(msg), '_blank');
+  cart = [];
+  updateCartUI();
+  document.getElementById('cart-panel').classList.add('hidden');
+  document.getElementById('cart-nombre').value = '';
+  document.getElementById('cart-direccion').value = '';
+  alert('¡Pedido enviado! Te contactaremos pronto.');
+}
+
+// ADMIN FUNCTIONS
+function showAdminTab(tab) {
+  ['pipeline','ventas','menu-editor'].forEach(t => {
+    const el = document.getElementById('admin-'+t);
+    const btn = document.getElementById('atab-'+t);
+    el.classList.add('hidden');
+    btn.className = 'text-xs font-bold px-4 py-2 rounded-xl bg-white/10 border border-white/10 text-white hover:bg-white/20 whitespace-nowrap';
+  });
+  document.getElementById('admin-'+tab).classList.remove('hidden');
+  document.getElementById('atab-'+tab).className = 'text-xs font-bold px-4 py-2 rounded-xl btn-primary text-white whitespace-nowrap';
+  if (tab === 'pipeline') renderPipeline();
+  if (tab === 'ventas') renderVentas();
+  if (tab === 'menu-editor') renderMenuEditor();
+}
+
+const ESTADOS = ['recibido','preparando','en_camino','entregado'];
+const ESTADO_LABELS = {recibido:'Recibido', preparando:'Preparando', en_camino:'En camino', entregado:'Entregado'};
+const ESTADO_NEXT = {recibido:'preparando', preparando:'en_camino', en_camino:'entregado'};
+const ESTADO_BADGE = {recibido:'badge-recibido', preparando:'badge-preparando', en_camino:'badge-camino', entregado:'badge-entregado'};
+
+function renderPipeline() {
+  const cols = ESTADOS.map(estado => {
+    const orders = appData.pedidos.filter(p => p.estado === estado);
+    return `<div class="card-pizza rounded-2xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="font-bold text-white text-sm">${ESTADO_LABELS[estado]}</h4>
+        <span class="pill ${ESTADO_BADGE[estado]}">${orders.length}</span>
+      </div>
+      <div class="space-y-2 min-h-16">
+        ${orders.map(o => {
+          const mins = Math.floor((Date.now() - o.hora) / 60000);
+          const next = ESTADO_NEXT[estado];
+          return `<div class="bg-black/30 rounded-xl p-3 border border-white/5">
+            <div class="flex justify-between items-start mb-1">
+              <p class="text-sm font-bold text-white">#${o.id} · ${o.nombre}</p>
+              <span class="text-xs ${mins > 30 ? 'text-red-400' : 'text-gray-400'} font-semibold">${mins}min</span>
+            </div>
+            <p class="text-xs text-gray-400 mb-2">${o.items.map(i => i.qty+'x '+i.nombre).join(', ')}</p>
+            <div class="flex items-center justify-between">
+              <span class="text-yellow-400 font-black text-sm">$${o.total}</span>
+              <div class="flex gap-1">
+                ${next ? `<button onclick="avanzarPedido(${o.id})" class="text-xs bg-green-700/50 text-green-300 px-2 py-1 rounded-lg hover:bg-green-600/50 transition-colors font-semibold">${ESTADO_LABELS[next]} →</button>` : '<span class="text-xs text-green-400 font-semibold">✓ Listo</span>'}
+              </div>
+            </div>
+          </div>`;
+        }).join('') || '<p class="text-xs text-gray-600 text-center py-3">Sin pedidos</p>'}
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('pipeline-cols').innerHTML = cols;
+}
+
+function avanzarPedido(id) {
+  const p = appData.pedidos.find(x => x.id === id);
+  if (p && ESTADO_NEXT[p.estado]) { p.estado = ESTADO_NEXT[p.estado]; saveAppData(); renderPipeline(); }
+}
+
+function renderVentas() {
+  const today = new Date().toDateString();
+  const todayOrders = appData.pedidos.filter(p => new Date(p.hora).toDateString() === today);
+  const total = todayOrders.reduce((s,p) => s + p.total, 0);
+  const entregados = todayOrders.filter(p => p.estado === 'entregado').length;
+  document.getElementById('v-pedidos').textContent = todayOrders.length;
+  document.getElementById('v-total').textContent = '$' + total;
+  document.getElementById('v-ticket').textContent = '$' + (todayOrders.length ? Math.round(total/todayOrders.length) : 0);
+  document.getElementById('v-entregados').textContent = entregados;
+
+  const prodCount = {};
+  todayOrders.forEach(o => o.items.forEach(i => { prodCount[i.nombre] = (prodCount[i.nombre]||0) + i.qty; }));
+  const sorted = Object.entries(prodCount).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const maxQty = sorted[0]?.[1] || 1;
+  document.getElementById('top-productos').innerHTML = sorted.map(([nombre,qty]) => `
+    <div class="flex items-center gap-3">
+      <p class="text-sm text-white w-40 truncate">${nombre}</p>
+      <div class="flex-1 bg-white/5 rounded-full h-2 overflow-hidden">
+        <div class="h-full bg-gradient-to-r from-red-600 to-red-400 rounded-full" style="width:${(qty/maxQty*100)}%"></div>
+      </div>
+      <span class="text-xs text-red-400 font-bold w-6">${qty}</span>
+    </div>
+  `).join('') || '<p class="text-xs text-gray-500">Sin ventas hoy</p>';
+}
+
+function renderMenuEditor() {
+  document.getElementById('editor-list').innerHTML = appData.menu.map(p => `
+    <div class="card-pizza rounded-xl p-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">${p.emoji}</span>
+        <div>
+          <p class="text-sm font-semibold text-white">${p.nombre}</p>
+          <p class="text-xs text-gray-400">$${p.precio} · ${p.cat}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleDisponible(${p.id})" class="text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${p.disponible ? 'bg-green-700/40 text-green-300 hover:bg-red-700/40 hover:text-red-300' : 'bg-red-700/40 text-red-300 hover:bg-green-700/40 hover:text-green-300'}">${p.disponible ? 'Disponible' : 'Agotado'}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleDisponible(id) {
+  const p = appData.menu.find(x => x.id === id);
+  if (p) { p.disponible = !p.disponible; saveAppData(); renderMenuEditor(); renderMenu(); }
+}
+
+function agregarProducto() {
+  const nombre = document.getElementById('new-prod-nombre').value.trim();
+  const precio = parseFloat(document.getElementById('new-prod-precio').value);
+  const cat = document.getElementById('new-prod-cat').value;
+  if (!nombre || !precio) { alert('Completa nombre y precio'); return; }
+  const emojis = {pizzas:'🍕',complementos:'🍗',bebidas:'🥤'};
+  appData.menu.push({id: Date.now(), nombre, desc: '', precio, cat, emoji: emojis[cat], disponible: true});
+  saveAppData();
+  document.getElementById('new-prod-nombre').value = '';
+  document.getElementById('new-prod-precio').value = '';
+  renderMenuEditor();
+}
+
+// Init
+renderMenu();
+</script>
+</body>
+</html>

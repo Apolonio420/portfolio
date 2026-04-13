@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Membresías Gym</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #0f172a; color: #f1f5f9; }
+  .card { background: #1e293b; border: 1px solid #1e3a5f30; border-radius: 20px; }
+  .card-inner { background: #253447; border: 1px solid #334155; border-radius: 14px; }
+  .glass-dark { background: rgba(30,41,59,0.9); backdrop-filter: blur(12px); }
+  .fade-in { animation: fadeIn 0.3s ease forwards; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .pulse-green { animation: pulseGreen 2s ease-in-out infinite; }
+  @keyframes pulseGreen { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0.4)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,0)} }
+  .btn-primary { background: #22c55e; color: #0f172a; border-radius: 12px; padding: 10px 20px; font-weight: 800; font-size: 13px; transition: all 0.2s; border: none; cursor: pointer; }
+  .btn-primary:hover { background: #16a34a; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(34,197,94,0.4); color:#fff; }
+  .btn-ghost { background: #1e293b; color: #94a3b8; border: 1px solid #334155; border-radius: 12px; padding: 10px 20px; font-weight: 600; font-size: 13px; transition: all 0.2s; cursor: pointer; }
+  .btn-ghost:hover { background: #253447; color: #f1f5f9; }
+  .btn-wa { background: #25d366; color: #fff; border-radius: 12px; padding: 8px 16px; font-weight: 700; font-size: 12px; transition: all 0.2s; border: none; cursor: pointer; display:inline-flex; align-items:center; gap:6px; }
+  .btn-wa:hover { background: #1da851; transform: translateY(-1px); }
+  .input-field { background: #0f172a; border: 1.5px solid #334155; border-radius: 10px; padding: 10px 14px; color: #f1f5f9; font-size: 14px; width: 100%; outline: none; transition: border 0.2s; }
+  .input-field:focus { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.15); }
+  .input-field::placeholder { color: #475569; }
+  select.input-field option { background: #1e293b; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .status-activo { color: #22c55e; background: rgba(34,197,94,0.12); border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+  .status-venciendo { color: #f59e0b; background: rgba(245,158,11,0.12); border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+  .status-vencido { color: #ef4444; background: rgba(239,68,68,0.12); border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+  .member-row:hover { background: #253447; transition: background 0.15s; }
+  .plan-M { color: #60a5fa; }
+  .plan-T { color: #a78bfa; }
+  .plan-A { color: #fbbf24; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; color: #000 !important; }
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="glass-dark border-b border-slate-700/50 sticky top-0 z-50 no-print">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-green-500 flex items-center justify-center pulse-green">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      </div>
+      <div>
+        <h1 class="font-black text-white text-base leading-tight">Membresías Gym</h1>
+        <p class="text-xs text-slate-400">Control de miembros y pagos</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="sendBatchWhatsApp()" class="btn-wa no-print">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.555 4.122 1.528 5.853L0 24l6.326-1.499A11.933 11.933 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.034-1.388l-.36-.214-3.754.889.935-3.654-.235-.374A9.793 9.793 0 012.182 12C2.182 6.575 6.575 2.182 12 2.182S21.818 6.575 21.818 12 17.425 21.818 12 21.818z"/></svg>
+        Recordatorios
+      </button>
+      <button onclick="openAddMember()" class="btn-primary flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        Nuevo miembro
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- Quick Check-in -->
+  <div class="card p-5 mb-6 border border-green-500/20 no-print">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-8 h-8 rounded-xl bg-green-500/20 flex items-center justify-center">
+        <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <p class="font-bold text-green-400 text-sm">Check-in Rápido</p>
+    </div>
+    <div class="flex gap-3">
+      <input id="checkinSearch" type="text" placeholder="Nombre o teléfono del miembro..." class="input-field flex-1" onkeydown="if(event.key==='Enter')doCheckin()">
+      <button onclick="doCheckin()" class="btn-primary px-6">Registrar</button>
+    </div>
+    <div id="checkinResult" class="mt-3"></div>
+  </div>
+
+  <!-- Stats Grid -->
+  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+    <div class="card p-4 col-span-1">
+      <p class="text-xs text-slate-400 mb-1">Activos</p>
+      <p id="statActivos" class="text-3xl font-black text-green-400">0</p>
+    </div>
+    <div class="card p-4 col-span-1">
+      <p class="text-xs text-slate-400 mb-1">Por Vencer</p>
+      <p id="statVenciendo" class="text-3xl font-black text-yellow-400">0</p>
+      <p class="text-xs text-slate-500">esta semana</p>
+    </div>
+    <div class="card p-4 col-span-1">
+      <p class="text-xs text-slate-400 mb-1">Vencidos</p>
+      <p id="statVencidos" class="text-3xl font-black text-red-400">0</p>
+    </div>
+    <div class="card p-4 col-span-1">
+      <p class="text-xs text-slate-400 mb-1">Ingresos Mes</p>
+      <p id="statRevenue" class="text-2xl font-black text-green-400">$0</p>
+    </div>
+    <div class="card p-4 col-span-2 lg:col-span-1">
+      <p class="text-xs text-slate-400 mb-1">Check-ins Hoy</p>
+      <p id="statCheckins" class="text-3xl font-black text-blue-400">0</p>
+    </div>
+  </div>
+
+  <!-- Chart + Members -->
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
+    <!-- Donut Chart -->
+    <div class="card p-5 flex flex-col items-center justify-center">
+      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Distribución de Planes</p>
+      <div class="w-40 h-40">
+        <canvas id="planChart"></canvas>
+      </div>
+      <div id="chartLegend" class="mt-4 space-y-1 w-full"></div>
+    </div>
+    <!-- Expiring soon -->
+    <div class="card p-5 lg:col-span-3">
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Por Vencer Esta Semana</p>
+        <button onclick="sendBatchWhatsApp()" class="btn-wa text-xs py-1 px-3">WA Masivo</button>
+      </div>
+      <div id="expiringList" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- Members Table -->
+  <div class="card overflow-hidden">
+    <div class="p-4 border-b border-slate-700 flex flex-col md:flex-row gap-3 no-print">
+      <div class="relative flex-1">
+        <svg class="absolute left-3 top-3 w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
+        <input id="searchInput" type="text" placeholder="Buscar nombre, teléfono..." class="input-field pl-9" oninput="renderMembers()">
+      </div>
+      <select id="filterPlan" class="input-field md:w-40" onchange="renderMembers()">
+        <option value="">Todos los planes</option>
+        <option value="Mensual">Mensual</option>
+        <option value="Trimestral">Trimestral</option>
+        <option value="Anual">Anual</option>
+      </select>
+      <select id="filterStatus" class="input-field md:w-36" onchange="renderMembers()">
+        <option value="">Todos</option>
+        <option value="Activo">Activos</option>
+        <option value="Por vencer">Por vencer</option>
+        <option value="Vencido">Vencidos</option>
+      </select>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-700 text-slate-500 text-xs uppercase tracking-wide">
+            <th class="text-left px-4 py-3">Miembro</th>
+            <th class="text-left px-4 py-3 hidden md:table-cell">Plan</th>
+            <th class="text-left px-4 py-3 hidden lg:table-cell">Vencimiento</th>
+            <th class="text-left px-4 py-3">Estado</th>
+            <th class="text-left px-4 py-3 hidden lg:table-cell">Último pago</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody id="membersTableBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyState" class="hidden text-center py-16 text-slate-500">
+      <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <p class="font-medium">Sin miembros</p>
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="text-center py-6 text-xs text-slate-600 mt-8">
+  Powered by <span class="font-semibold text-green-500">Novamente Studio</span> · Membresías Gym v1.0
+</footer>
+
+<!-- Add/Edit Member Modal -->
+<div id="modalMember" class="modal-overlay" onclick="if(event.target===this)closeModal('modalMember')">
+  <div class="w-full max-w-lg mx-4 rounded-3xl overflow-hidden fade-in" style="background:#1e293b;border:1px solid #334155;max-height:92vh;overflow-y:auto;">
+    <div class="p-5 flex items-center justify-between border-b border-slate-700">
+      <h2 id="memberModalTitle" class="font-black text-white text-lg">Nuevo Miembro</h2>
+      <button onclick="closeModal('modalMember')" class="text-slate-400 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="mEditId">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="col-span-2">
+          <label class="block text-xs text-slate-400 mb-1">Nombre completo *</label>
+          <input id="mName" class="input-field" placeholder="Juan García Pérez">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Teléfono *</label>
+          <input id="mPhone" class="input-field" placeholder="55 1234 5678">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Plan *</label>
+          <select id="mPlan" class="input-field" onchange="updatePlanPrice()">
+            <option value="Mensual">Mensual — $500</option>
+            <option value="Trimestral">Trimestral — $1,300</option>
+            <option value="Anual">Anual — $4,500</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Fecha inicio</label>
+          <input id="mStart" type="date" class="input-field">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Fecha fin (calculado)</label>
+          <input id="mEnd" type="date" class="input-field" readonly style="opacity:0.7">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Monto pagado ($)</label>
+          <input id="mAmount" type="number" class="input-field">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Método de pago</label>
+          <select id="mMethod" class="input-field">
+            <option>Efectivo</option>
+            <option>Transferencia</option>
+            <option>Tarjeta</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex gap-3">
+      <button onclick="closeModal('modalMember')" class="btn-ghost flex-1 py-3">Cancelar</button>
+      <button onclick="saveMember()" class="btn-primary flex-1 py-3">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment History Modal -->
+<div id="modalHistory" class="modal-overlay" onclick="if(event.target===this)closeModal('modalHistory')">
+  <div class="w-full max-w-md mx-4 rounded-3xl overflow-hidden fade-in" style="background:#1e293b;border:1px solid #334155;">
+    <div class="p-5 flex items-center justify-between border-b border-slate-700">
+      <h2 id="historyTitle" class="font-black text-white text-lg">Historial</h2>
+      <button onclick="closeModal('modalHistory')" class="text-slate-400 hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="historyContent" class="p-5 max-h-96 overflow-y-auto space-y-3"></div>
+    <div class="px-5 pb-5">
+      <button onclick="closeModal('modalHistory')" class="btn-ghost w-full py-3">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let members = [];
+let payments = [];
+let checkins = [];
+let editingId = null;
+let planChart = null;
+
+const PLANS = { Mensual: { price: 500, days: 30 }, Trimestral: { price: 1300, days: 90 }, Anual: { price: 4500, days: 365 } };
+const PLAN_COLORS = { Mensual: '#60a5fa', Trimestral: '#a78bfa', Anual: '#fbbf24' };
+
+function today() { return new Date().toISOString().slice(0,10); }
+function addDays(date, days) {
+  const d = new Date(date + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
+function diffDays(a, b) {
+  return Math.ceil((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
+}
+function fmtDate(d) { return new Date(d + 'T12:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }); }
+function fmtMXN(n) { return '$' + Number(n).toLocaleString('es-MX'); }
+
+function memberStatus(m) {
+  const t = today();
+  const daysLeft = diffDays(t, m.endDate);
+  if (daysLeft < 0) return 'Vencido';
+  if (daysLeft <= 7) return 'Por vencer';
+  return 'Activo';
+}
+
+const DEMO_MEMBERS = [
+  { id:1, name:'Carlos Hernández', phone:'5512345678', plan:'Mensual', startDate:'2026-03-15', endDate:'2026-04-14', lastPay:'2026-03-15' },
+  { id:2, name:'María López García', phone:'5587654321', plan:'Trimestral', startDate:'2026-02-01', endDate:'2026-05-01', lastPay:'2026-02-01' },
+  { id:3, name:'Roberto Sánchez', phone:'5523456789', plan:'Anual', startDate:'2026-01-10', endDate:'2027-01-10', lastPay:'2026-01-10' },
+  { id:4, name:'Ana Martínez Cruz', phone:'5534567890', plan:'Mensual', startDate:'2026-04-01', endDate:'2026-04-30', lastPay:'2026-04-01' },
+  { id:5, name:'Luis Ramírez Torres', phone:'5545678901', plan:'Mensual', startDate:'2026-04-05', endDate:'2026-04-13', lastPay:'2026-04-05' },
+  { id:6, name:'Patricia Gómez Ruiz', phone:'5556789012', plan:'Trimestral', startDate:'2026-01-15', endDate:'2026-04-15', lastPay:'2026-01-15' },
+  { id:7, name:'Jorge Vargas Méndez', phone:'5567890123', plan:'Anual', startDate:'2025-12-01', endDate:'2026-12-01', lastPay:'2025-12-01' },
+  { id:8, name:'Sofía Castro Pérez', phone:'5578901234', plan:'Mensual', startDate:'2026-03-01', endDate:'2026-03-31', lastPay:'2026-03-01' },
+  { id:9, name:'Diego Torres Reyes', phone:'5589012345', plan:'Mensual', startDate:'2026-04-10', endDate:'2026-05-09', lastPay:'2026-04-10' },
+  { id:10, name:'Valentina Ríos Luna', phone:'5590123456', plan:'Trimestral', startDate:'2026-03-20', endDate:'2026-06-18', lastPay:'2026-03-20' },
+  { id:11, name:'Miguel Ángel Fuentes', phone:'5501234567', plan:'Mensual', startDate:'2026-04-08', endDate:'2026-04-14', lastPay:'2026-04-08' },
+  { id:12, name:'Claudia Navarro Vega', phone:'5512348765', plan:'Anual', startDate:'2026-02-14', endDate:'2027-02-14', lastPay:'2026-02-14' },
+  { id:13, name:'Sergio Morales Peña', phone:'5523457654', plan:'Mensual', startDate:'2026-02-10', endDate:'2026-03-10', lastPay:'2026-02-10' },
+  { id:14, name:'Laura Jiménez Salinas', phone:'5534566543', plan:'Trimestral', startDate:'2026-04-01', endDate:'2026-06-30', lastPay:'2026-04-01' },
+  { id:15, name:'Andrés Díaz Campos', phone:'5545675432', plan:'Mensual', startDate:'2026-04-12', endDate:'2026-05-11', lastPay:'2026-04-12' },
+];
+
+const DEMO_PAYMENTS = DEMO_MEMBERS.map(m => ({
+  id: m.id * 100, memberId: m.id, date: m.lastPay,
+  plan: m.plan, amount: PLANS[m.plan].price, method: ['Efectivo','Transferencia','Tarjeta'][m.id % 3]
+}));
+
+const DEMO_CHECKINS = [
+  { id:1, memberId:3, memberName:'Roberto Sánchez', date: today() },
+  { id:2, memberId:4, memberName:'Ana Martínez Cruz', date: today() },
+  { id:3, memberId:9, memberName:'Diego Torres Reyes', date: today() },
+  { id:4, memberId:15, memberName:'Andrés Díaz Campos', date: today() },
+];
+
+function save() {
+  localStorage.setItem('gym_members', JSON.stringify(members));
+  localStorage.setItem('gym_payments', JSON.stringify(payments));
+  localStorage.setItem('gym_checkins', JSON.stringify(checkins));
+}
+function load() {
+  members = JSON.parse(localStorage.getItem('gym_members') || 'null') || [...DEMO_MEMBERS];
+  payments = JSON.parse(localStorage.getItem('gym_payments') || 'null') || [...DEMO_PAYMENTS];
+  checkins = JSON.parse(localStorage.getItem('gym_checkins') || 'null') || [...DEMO_CHECKINS];
+}
+
+function updateStats() {
+  const t = today();
+  const weekEnd = addDays(t, 7);
+  const activos = members.filter(m => memberStatus(m) === 'Activo').length;
+  const venciendo = members.filter(m => memberStatus(m) === 'Por vencer').length;
+  const vencidos = members.filter(m => memberStatus(m) === 'Vencido').length;
+  const monthStart = t.slice(0,7) + '-01';
+  const revenue = payments.filter(p => p.date >= monthStart).reduce((s,p) => s + p.amount, 0);
+  const todayCheckins = checkins.filter(c => c.date === t).length;
+  document.getElementById('statActivos').textContent = activos;
+  document.getElementById('statVenciendo').textContent = venciendo;
+  document.getElementById('statVencidos').textContent = vencidos;
+  document.getElementById('statRevenue').textContent = fmtMXN(revenue);
+  document.getElementById('statCheckins').textContent = todayCheckins;
+}
+
+function updateChart() {
+  const counts = { Mensual: 0, Trimestral: 0, Anual: 0 };
+  members.forEach(m => { if (memberStatus(m) !== 'Vencido') counts[m.plan]++; });
+  const labels = Object.keys(counts);
+  const data = Object.values(counts);
+  const colors = labels.map(l => PLAN_COLORS[l]);
+  if (planChart) { planChart.destroy(); planChart = null; }
+  const ctx = document.getElementById('planChart').getContext('2d');
+  planChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }] },
+    options: { responsive: true, maintainAspectRatio: true, cutout: '70%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} miembros` } } } }
+  });
+  document.getElementById('chartLegend').innerHTML = labels.map((l,i) => `
+    <div class="flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background:${colors[i]}"></span><span class="text-slate-300">${l}</span></div>
+      <span class="font-bold text-slate-200">${data[i]}</span>
+    </div>
+  `).join('');
+}
+
+function updateExpiringList() {
+  const t = today();
+  const weekEnd = addDays(t, 7);
+  const expiring = members.filter(m => {
+    const st = memberStatus(m);
+    return st === 'Por vencer' || st === 'Activo' && m.endDate <= weekEnd;
+  }).sort((a,b) => a.endDate.localeCompare(b.endDate)).slice(0,5);
+  const list = document.getElementById('expiringList');
+  if (expiring.length === 0) {
+    list.innerHTML = '<p class="text-slate-500 text-sm">Ningún miembro vence esta semana</p>';
+    return;
+  }
+  list.innerHTML = expiring.map(m => {
+    const daysLeft = diffDays(t, m.endDate);
+    return `<div class="card-inner p-3 flex items-center justify-between gap-3">
+      <div class="flex-1 min-w-0">
+        <p class="font-bold text-white text-sm truncate">${m.name}</p>
+        <p class="text-xs text-slate-400">Vence ${fmtDate(m.endDate)} · ${daysLeft >= 0 ? daysLeft + ' día(s)' : 'Vencido'}</p>
+      </div>
+      <a href="${waRenewalLink(m)}" target="_blank" class="btn-wa py-1.5 px-3 text-xs flex-shrink-0">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.555 4.122 1.528 5.853L0 24l6.326-1.499A11.933 11.933 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.034-1.388l-.36-.214-3.754.889.935-3.654-.235-.374A9.793 9.793 0 012.182 12C2.182 6.575 6.575 2.182 12 2.182S21.818 6.575 21.818 12 17.425 21.818 12 21.818z"/></svg>
+        Avisar
+      </a>
+    </div>`;
+  }).join('');
+}
+
+function waRenewalLink(m) {
+  const msg = `Hola ${m.name.split(' ')[0]}, te recordamos que tu membresía ${m.plan} en el gym vence el ${fmtDate(m.endDate)}. ¡Renueva ahora y sigue entrenando sin interrupciones! 💪`;
+  return `https://wa.me/52${m.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`;
+}
+
+function sendBatchWhatsApp() {
+  const t = today();
+  const weekEnd = addDays(t, 7);
+  const expiring = members.filter(m => {
+    const st = memberStatus(m);
+    return st === 'Por vencer' || (st === 'Activo' && m.endDate <= weekEnd) || st === 'Vencido';
+  });
+  if (expiring.length === 0) { alert('No hay miembros por vencer o vencidos esta semana.'); return; }
+  const names = expiring.map(m => `• ${m.name} (${m.plan}, vence ${fmtDate(m.endDate)})`).join('\n');
+  if (!confirm(`Se abrirán ${expiring.length} conversaciones de WhatsApp para:\n\n${names}\n\n¿Continuar?`)) return;
+  expiring.forEach((m, i) => {
+    setTimeout(() => window.open(waRenewalLink(m), '_blank'), i * 800);
+  });
+}
+
+function renderMembers() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  const plan = document.getElementById('filterPlan').value;
+  const st = document.getElementById('filterStatus').value;
+  let filtered = members.filter(m => {
+    const matchQ = !q || m.name.toLowerCase().includes(q) || m.phone.includes(q);
+    const matchP = !plan || m.plan === plan;
+    const matchS = !st || memberStatus(m) === st;
+    return matchQ && matchP && matchS;
+  });
+  const tbody = document.getElementById('membersTableBody');
+  const empty = document.getElementById('emptyState');
+  if (filtered.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  const t = today();
+  tbody.innerHTML = filtered.map(m => {
+    const st = memberStatus(m);
+    const stClass = st === 'Activo' ? 'status-activo' : st === 'Por vencer' ? 'status-venciendo' : 'status-vencido';
+    const daysLeft = diffDays(t, m.endDate);
+    const lastPayment = payments.filter(p => p.memberId === m.id).sort((a,b) => b.date.localeCompare(a.date))[0];
+    const planClass = 'plan-' + m.plan[0];
+    return `<tr class="member-row border-t border-slate-700/50 cursor-pointer" onclick="viewHistory(${m.id})">
+      <td class="px-4 py-3">
+        <p class="font-bold text-white text-sm">${m.name}</p>
+        <p class="text-xs text-slate-400">${m.phone}</p>
+      </td>
+      <td class="px-4 py-3 hidden md:table-cell">
+        <span class="text-sm font-bold ${planClass}">${m.plan}</span>
+        <p class="text-xs text-slate-500">${fmtMXN(PLANS[m.plan].price)}</p>
+      </td>
+      <td class="px-4 py-3 hidden lg:table-cell">
+        <p class="text-sm text-slate-300">${fmtDate(m.endDate)}</p>
+        <p class="text-xs ${daysLeft < 0 ? 'text-red-400' : daysLeft <= 7 ? 'text-yellow-400' : 'text-slate-500'}">${daysLeft < 0 ? Math.abs(daysLeft) + ' días vencido' : daysLeft + ' días restantes'}</p>
+      </td>
+      <td class="px-4 py-3"><span class="${stClass}">${st}</span></td>
+      <td class="px-4 py-3 hidden lg:table-cell text-xs text-slate-400">${lastPayment ? fmtDate(lastPayment.date) : 'N/D'}</td>
+      <td class="px-4 py-3" onclick="event.stopPropagation()">
+        <div class="flex gap-1 justify-end">
+          <a href="${waRenewalLink(m)}" target="_blank" class="btn-wa py-1 px-2 text-xs">WA</a>
+          <button onclick="openEditMember(${m.id})" class="btn-ghost py-1 px-2 text-xs">Editar</button>
+          <button onclick="renewMember(${m.id})" class="btn-primary py-1 px-2 text-xs">Renovar</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  updateStats();
+  updateChart();
+  updateExpiringList();
+}
+
+function viewHistory(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  const memberPayments = payments.filter(p => p.memberId === id).sort((a,b) => b.date.localeCompare(a.date));
+  const memberCheckins = checkins.filter(c => c.memberId === id).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
+  document.getElementById('historyTitle').textContent = m.name;
+  document.getElementById('historyContent').innerHTML = `
+    <div class="space-y-4">
+      <div>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Pagos (${memberPayments.length})</p>
+        ${memberPayments.length ? memberPayments.map(p => `
+          <div class="card-inner p-3 flex justify-between items-center">
+            <div>
+              <p class="text-sm text-white font-medium">${p.plan}</p>
+              <p class="text-xs text-slate-400">${fmtDate(p.date)} · ${p.method}</p>
+            </div>
+            <p class="font-black text-green-400">${fmtMXN(p.amount)}</p>
+          </div>
+        `).join('') : '<p class="text-slate-500 text-sm">Sin pagos registrados</p>'}
+      </div>
+      <div>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Check-ins recientes</p>
+        ${memberCheckins.length ? memberCheckins.map(c => `
+          <div class="flex items-center gap-2 py-1.5 border-b border-slate-700/50">
+            <svg class="w-3.5 h-3.5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"/></svg>
+            <p class="text-xs text-slate-300">${fmtDate(c.date)}</p>
+          </div>
+        `).join('') : '<p class="text-slate-500 text-sm">Sin check-ins</p>'}
+      </div>
+    </div>
+  `;
+  document.getElementById('modalHistory').classList.add('open');
+}
+
+function doCheckin() {
+  const q = document.getElementById('checkinSearch').value.toLowerCase().trim();
+  if (!q) return;
+  const m = members.find(x => x.name.toLowerCase().includes(q) || x.phone.includes(q));
+  const result = document.getElementById('checkinResult');
+  if (!m) {
+    result.innerHTML = '<div class="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">Miembro no encontrado. Verifica el nombre o teléfono.</div>';
+    return;
+  }
+  const st = memberStatus(m);
+  if (st === 'Vencido') {
+    result.innerHTML = `<div class="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold">
+      Acceso DENEGADO — ${m.name} tiene membresía vencida.
+      <a href="${waRenewalLink(m)}" target="_blank" class="underline ml-1">Recordarle por WhatsApp</a>
+    </div>`;
+    return;
+  }
+  // Register check-in
+  checkins.push({ id: Date.now(), memberId: m.id, memberName: m.name, date: today() });
+  save();
+  document.getElementById('checkinSearch').value = '';
+  const plan = PLANS[m.plan];
+  const daysLeft = diffDays(today(), m.endDate);
+  result.innerHTML = `<div class="p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-bold fade-in">
+    ✓ Check-in registrado — ${m.name} · Plan ${m.plan} · ${daysLeft} días restantes
+  </div>`;
+  updateStats();
+  setTimeout(() => { result.innerHTML = ''; }, 4000);
+}
+
+function openAddMember() {
+  editingId = null;
+  document.getElementById('memberModalTitle').textContent = 'Nuevo Miembro';
+  ['mName','mPhone','mEditId'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('mPlan').value = 'Mensual';
+  document.getElementById('mStart').value = today();
+  document.getElementById('mAmount').value = PLANS.Mensual.price;
+  document.getElementById('mMethod').value = 'Efectivo';
+  updatePlanPrice();
+  document.getElementById('modalMember').classList.add('open');
+}
+
+function openEditMember(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  editingId = id;
+  document.getElementById('memberModalTitle').textContent = 'Editar Miembro';
+  document.getElementById('mEditId').value = id;
+  document.getElementById('mName').value = m.name;
+  document.getElementById('mPhone').value = m.phone;
+  document.getElementById('mPlan').value = m.plan;
+  document.getElementById('mStart').value = m.startDate;
+  document.getElementById('mEnd').value = m.endDate;
+  document.getElementById('mAmount').value = PLANS[m.plan].price;
+  document.getElementById('mMethod').value = 'Efectivo';
+  document.getElementById('modalMember').classList.add('open');
+}
+
+function renewMember(id) {
+  const m = members.find(x => x.id === id);
+  if (!m) return;
+  openEditMember(id);
+  document.getElementById('mStart').value = today();
+  updatePlanPrice();
+  document.getElementById('memberModalTitle').textContent = 'Renovar — ' + m.name.split(' ')[0];
+}
+
+function updatePlanPrice() {
+  const plan = document.getElementById('mPlan').value;
+  const start = document.getElementById('mStart').value || today();
+  const end = addDays(start, PLANS[plan].days);
+  document.getElementById('mEnd').value = end;
+  document.getElementById('mAmount').value = PLANS[plan].price;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('mStart').addEventListener('change', updatePlanPrice);
+  document.getElementById('mPlan').addEventListener('change', updatePlanPrice);
+});
+
+function saveMember() {
+  const name = document.getElementById('mName').value.trim();
+  const phone = document.getElementById('mPhone').value.trim();
+  if (!name || !phone) { alert('Nombre y teléfono son requeridos'); return; }
+  const plan = document.getElementById('mPlan').value;
+  const start = document.getElementById('mStart').value || today();
+  const end = document.getElementById('mEnd').value || addDays(start, PLANS[plan].days);
+  const amount = parseFloat(document.getElementById('mAmount').value) || PLANS[plan].price;
+  const method = document.getElementById('mMethod').value;
+  if (editingId) {
+    const idx = members.findIndex(x => x.id === editingId);
+    members[idx] = { ...members[idx], name, phone, plan, startDate: start, endDate: end, lastPay: today() };
+  } else {
+    const id = Date.now();
+    members.push({ id, name, phone, plan, startDate: start, endDate: end, lastPay: today() });
+    payments.push({ id: Date.now()+1, memberId: id, date: today(), plan, amount, method });
+  }
+  // Add payment on renew/edit too
+  if (editingId) {
+    payments.push({ id: Date.now()+2, memberId: editingId, date: today(), plan, amount, method });
+  }
+  save();
+  closeModal('modalMember');
+  renderMembers();
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function init() {
+  load();
+  renderMembers();
+  updatePlanPrice();
+}
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lista de Espera — Novamente Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  body { background: #0f0a00; color: #f1f5f9; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #1a1000; }
+  ::-webkit-scrollbar-thumb { background: #5c3d0a; border-radius: 3px; }
+
+  .amber-btn { background: #d97706; color: white; transition: background .2s; }
+  .amber-btn:hover { background: #b45309; }
+  .btn-ghost { background: transparent; border: 1px solid #3d2d0a; color: #94a3b8; transition: all .2s; }
+  .btn-ghost:hover { border-color: #d97706; color: #d97706; }
+
+  .modal-overlay { background: rgba(0,0,0,.75); backdrop-filter: blur(4px); }
+
+  .waitlist-item { transition: all .2s ease; }
+  .waitlist-item:hover { border-color: rgba(217,119,6,.3); }
+
+  .wait-normal  { color: #94a3b8; }
+  .wait-medium  { color: #f59e0b; }
+  .wait-long    { color: #dc2626; animation: blink 1.5s infinite; }
+  @keyframes blink { 0%,100%{ opacity:1; } 50%{ opacity:.5; } }
+
+  .position-badge {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    color: white;
+    font-weight: 800;
+  }
+
+  .outcome-seated { color: #4ade80; }
+  .outcome-cancelled { color: #f87171; }
+  .outcome-noshow { color: #94a3b8; }
+
+  .chart-container { position: relative; height: 140px; }
+
+  @media print {
+    body { background: white; color: black; }
+    header, .add-btn, .modal-overlay, .chart-wrapper { display: none !important; }
+    .waitlist-item { border: 1px solid #ccc; page-break-inside: avoid; }
+    .position-badge { background: #333 !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="border-b border-amber-900/40 bg-black/50 sticky top-0 z-30 backdrop-blur-md">
+  <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-amber-600 flex items-center justify-center text-base">⏳</div>
+      <div>
+        <h1 class="font-bold text-white text-sm leading-none">Lista de Espera</h1>
+        <p class="text-xs text-slate-400 leading-none mt-0.5">Gestión digital de fila · WhatsApp integrado</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="sound-btn" onclick="toggleSound()" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors text-lg" title="Alertas de espera larga">🔔</button>
+      <button onclick="openAddModal()" class="amber-btn add-btn text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5">
+        <span class="text-base leading-none">+</span> Agregar a Fila
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Stats Bar -->
+<div class="border-b border-amber-900/20 bg-black/30">
+  <div class="max-w-screen-xl mx-auto px-4 py-2 flex items-center gap-5 overflow-x-auto">
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+      <span class="text-slate-400">Esperando:</span>
+      <span id="stat-waiting" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-green-500"></span>
+      <span class="text-slate-400">Sentados hoy:</span>
+      <span id="stat-seated" class="font-bold text-white">0</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+      <span class="text-slate-400">Espera prom:</span>
+      <span id="stat-avg" class="font-bold text-white">—</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-red-500"></span>
+      <span class="text-slate-400">No-show:</span>
+      <span id="stat-noshow" class="font-bold text-white">0%</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-xs whitespace-nowrap">
+      <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+      <span class="text-slate-400">Rotación prom:</span>
+      <span class="text-white font-bold">45 min</span>
+    </div>
+    <div class="ml-auto text-xs text-slate-500" id="clock"></div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="max-w-screen-xl mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+  <!-- Waitlist Queue (left 2/3) -->
+  <div class="lg:col-span-2 space-y-4">
+
+    <div class="bg-neutral-900/40 border border-amber-900/20 rounded-2xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+        <h2 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+          <span class="text-amber-400">👥</span> Fila Actual
+        </h2>
+        <span id="queue-count" class="text-xs text-slate-400">0 grupos esperando</span>
+      </div>
+      <div id="waitlist-queue" class="divide-y divide-white/5"></div>
+      <div id="queue-empty" class="py-12 text-center text-slate-600 text-sm hidden">
+        <div class="text-4xl mb-2">🎉</div>
+        Sin espera · Atendiendo sin fila
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="bg-neutral-900/40 border border-amber-900/20 rounded-2xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+        <h2 class="font-semibold text-sm text-slate-200 flex items-center gap-2">
+          <span>📋</span> Historial de Hoy
+        </h2>
+        <span id="history-count" class="text-xs text-slate-400">0 registros</span>
+      </div>
+      <div id="history-list" class="divide-y divide-white/5 max-h-64 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="space-y-4">
+
+    <!-- Chart -->
+    <div class="chart-wrapper bg-neutral-900/40 border border-amber-900/20 rounded-2xl p-4">
+      <h3 class="font-semibold text-sm text-slate-200 mb-3 flex items-center gap-2">
+        <span>📊</span> Entradas por Hora
+      </h3>
+      <div class="chart-container">
+        <canvas id="peak-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Config -->
+    <div class="bg-neutral-900/40 border border-amber-900/20 rounded-2xl p-4">
+      <h3 class="font-semibold text-sm text-slate-200 mb-3 flex items-center gap-2">
+        <span>⚙️</span> Configuración
+      </h3>
+      <div class="space-y-2">
+        <div>
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Rotación prom. (minutos)</label>
+          <div class="flex items-center gap-2">
+            <input id="cfg-turnover" type="range" min="15" max="120" value="45" oninput="updateTurnover(this.value)" class="flex-1 accent-amber-500">
+            <span id="cfg-turnover-val" class="text-xs text-amber-400 font-bold w-12 text-right">45 min</span>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Alerta espera larga (min)</label>
+          <div class="flex items-center gap-2">
+            <input id="cfg-alert" type="range" min="10" max="60" value="30" oninput="updateAlert(this.value)" class="flex-1 accent-amber-500">
+            <span id="cfg-alert-val" class="text-xs text-amber-400 font-bold w-12 text-right">30 min</span>
+          </div>
+        </div>
+        <div class="pt-1">
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Nombre del restaurante</label>
+          <input id="cfg-restaurant" type="text" placeholder="Mi Restaurante" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none">
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick WA Template -->
+    <div class="bg-neutral-900/40 border border-amber-900/20 rounded-2xl p-4">
+      <h3 class="font-semibold text-sm text-slate-200 mb-2 flex items-center gap-2">
+        <span>📲</span> Mensaje WhatsApp
+      </h3>
+      <textarea id="wa-template" rows="4" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-300 focus:border-amber-500 focus:outline-none resize-none">¡Hola {nombre}! Su mesa para {personas} personas está lista en {restaurante}. ¡Los esperamos! 🍽️</textarea>
+      <p class="text-xs text-slate-600 mt-1">Variables: {nombre}, {personas}, {restaurante}</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div id="modal-add" class="fixed inset-0 z-50 hidden modal-overlay flex items-center justify-center p-4">
+  <div class="bg-neutral-900 border border-amber-800/40 rounded-2xl w-full max-w-sm shadow-2xl">
+    <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+      <h2 class="font-bold text-white">Agregar a la Fila</h2>
+      <button onclick="closeModal('modal-add')" class="text-slate-400 hover:text-white w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-lg">✕</button>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      <div>
+        <label class="text-xs text-slate-400 font-medium mb-1 block">Nombre *</label>
+        <input id="add-name" type="text" placeholder="Nombre del cliente" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Personas *</label>
+          <input id="add-persons" type="number" min="1" max="20" value="2" class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 font-medium mb-1 block">Teléfono (WA)</label>
+          <input id="add-phone" type="tel" placeholder="+52..." class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs text-slate-400 font-medium mb-1 block">Notas especiales</label>
+        <input id="add-notes" type="text" placeholder="Cumpleaños, silla de ruedas, preferencias..." class="w-full bg-neutral-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none">
+      </div>
+    </div>
+    <div class="px-5 py-4 border-t border-white/10 flex gap-2 justify-end">
+      <button onclick="closeModal('modal-add')" class="btn-ghost text-xs font-semibold px-4 py-2 rounded-lg">Cancelar</button>
+      <button onclick="submitAdd()" class="amber-btn text-xs font-semibold px-4 py-2 rounded-lg">Agregar a Fila</button>
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="border-t border-amber-900/20 py-4 text-center mt-4">
+  <p class="text-xs text-slate-600">Powered by <span class="text-slate-500 font-medium">Novamente Studio</span> · <span id="footer-year"></span></p>
+</footer>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'lista_espera_v2';
+let state = {
+  queue: [],
+  history: [],
+  config: { turnover: 45, alertMinutes: 30, restaurant: 'El Buen Sabor' },
+  soundEnabled: true,
+};
+let peakData = new Array(15).fill(0); // hours 9–23
+let chart = null;
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+function loadState() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) {
+    try { state = { ...state, ...JSON.parse(raw) }; } catch(e) {}
+  } else {
+    seedDemoData();
+  }
+  document.getElementById('cfg-turnover').value = state.config.turnover;
+  document.getElementById('cfg-turnover-val').textContent = `${state.config.turnover} min`;
+  document.getElementById('cfg-alert').value = state.config.alertMinutes;
+  document.getElementById('cfg-alert-val').textContent = `${state.config.alertMinutes} min`;
+  document.getElementById('cfg-restaurant').value = state.config.restaurant;
+  document.getElementById('cfg-restaurant').addEventListener('change', e => {
+    state.config.restaurant = e.target.value;
+    saveState();
+  });
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function seedDemoData() {
+  const now = Date.now();
+  const min = 60000;
+  state.queue = [
+    { id:1, name:'Familia Soto', persons:4, phone:'+525512345678', notes:'', addedAt: now - 35*min, position:1 },
+    { id:2, name:'Sr. Benítez', persons:2, phone:'+525598765432', notes:'Silla de ruedas', addedAt: now - 28*min, position:2 },
+    { id:3, name:'Mesa Camacho', persons:6, phone:'+525511112222', notes:'Cumpleaños — traer menú sorpresa', addedAt: now - 20*min, position:3 },
+    { id:4, name:'Sra. Fuentes', persons:2, phone:'+525533334444', notes:'', addedAt: now - 14*min, position:4 },
+    { id:5, name:'Grupo Medina', persons:8, phone:'+525555556666', notes:'Evento de empresa', addedAt: now - 8*min, position:5 },
+    { id:6, name:'Familia Herrera', persons:3, phone:'+525577778888', notes:'Niño pequeño, necesitan silla', addedAt: now - 4*min, position:6 },
+  ];
+  state.history = [
+    { id:100, name:'Mesa García', persons:4, phone:'+525599990000', notes:'', addedAt: now - 2*60*min, outcome:'seated', waitMinutes: 42 },
+    { id:101, name:'Sr. Pérez', persons:2, phone:null, notes:'', addedAt: now - 1.5*60*min, outcome:'seated', waitMinutes: 38 },
+    { id:102, name:'Familia Torres', persons:5, phone:'+525511223344', notes:'', addedAt: now - 90*min, outcome:'cancelled', waitMinutes: 15 },
+    { id:103, name:'Sra. Ruiz', persons:2, phone:'+525544556677', notes:'', addedAt: now - 75*min, outcome:'seated', waitMinutes: 51 },
+    { id:104, name:'Grupo Morales', persons:6, phone:'+525566778899', notes:'', addedAt: now - 60*min, outcome:'noshow', waitMinutes: 45 },
+    { id:105, name:'Mesa Jiménez', persons:3, phone:'+525588990011', notes:'', addedAt: now - 50*min, outcome:'seated', waitMinutes: 44 },
+    { id:106, name:'Sr. Delgado', persons:2, phone:'+525500112233', notes:'', addedAt: now - 40*min, outcome:'seated', waitMinutes: 37 },
+    { id:107, name:'Familia Vega', persons:4, phone:'+525522334455', notes:'', addedAt: now - 30*min, outcome:'seated', waitMinutes: 29 },
+    { id:108, name:'Mesa Ríos', persons:2, phone:null, notes:'', addedAt: now - 25*min, outcome:'noshow', waitMinutes: 25 },
+    { id:109, name:'Sra. Cruz', persons:2, phone:'+525533445566', notes:'', addedAt: now - 20*min, outcome:'seated', waitMinutes: 20 },
+    { id:110, name:'Grupo Nava', persons:7, phone:'+525544556677', notes:'', addedAt: now - 15*min, outcome:'seated', waitMinutes: 14 },
+    { id:111, name:'Mesa Castillo', persons:3, phone:'+525555667788', notes:'', addedAt: now - 10*min, outcome:'cancelled', waitMinutes: 8 },
+  ];
+  peakData = [0,0,1,3,5,8,6,4,7,9,5,3,2,1,0];
+  saveState();
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function formatWait(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m/60)}h ${m%60}min`;
+}
+
+function waitClass(ms) {
+  const m = ms / 60000;
+  if (m >= state.config.alertMinutes) return 'wait-long';
+  if (m >= state.config.alertMinutes * 0.6) return 'wait-medium';
+  return 'wait-normal';
+}
+
+function estimatedWait(position) {
+  const t = state.config.turnover;
+  return Math.max(5, Math.round(t * (position / 3)));
+}
+
+function buildWALink(entry) {
+  if (!entry.phone) return null;
+  const template = document.getElementById('wa-template').value;
+  const msg = template
+    .replace('{nombre}', entry.name)
+    .replace('{personas}', entry.persons)
+    .replace('{restaurante}', state.config.restaurant);
+  const phone = entry.phone.replace(/\D/g,'');
+  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+}
+
+function renderQueue() {
+  const container = document.getElementById('waitlist-queue');
+  const empty = document.getElementById('queue-empty');
+  const count = document.getElementById('queue-count');
+
+  if (!state.queue.length) {
+    container.innerHTML = '';
+    empty.classList.remove('hidden');
+    count.textContent = 'Sin espera';
+    return;
+  }
+  empty.classList.add('hidden');
+  count.textContent = `${state.queue.length} grupo${state.queue.length!==1?'s':''} esperando`;
+
+  const now = Date.now();
+  container.innerHTML = state.queue.map((entry, idx) => {
+    const elapsed = now - entry.addedAt;
+    const wClass = waitClass(elapsed);
+    const estRem = Math.max(0, estimatedWait(idx+1) - Math.floor(elapsed/60000));
+    const waLink = buildWALink(entry);
+    const isLong = elapsed/60000 >= state.config.alertMinutes;
+
+    return `
+      <div class="waitlist-item px-4 py-3 border border-transparent hover:bg-white/5 transition-colors ${isLong ? 'bg-red-950/20' : ''}">
+        <div class="flex items-start gap-3">
+          <div class="position-badge rounded-xl text-sm w-9 h-9 flex-shrink-0 flex items-center justify-center mt-0.5">${idx+1}</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-semibold text-sm text-white truncate">${entry.name}</span>
+              <span class="text-xs ${wClass} font-mono font-bold flex-shrink-0" data-timer="${entry.id}">⏱ ${formatWait(elapsed)}</span>
+            </div>
+            <div class="flex items-center gap-3 mt-0.5">
+              <span class="text-xs text-slate-400">👤 ${entry.persons} personas</span>
+              ${entry.phone ? `<span class="text-xs text-slate-500">📱 ${entry.phone}</span>` : ''}
+              ${estRem > 0 ? `<span class="text-xs text-amber-600">~${estRem} min restantes</span>` : '<span class="text-xs text-green-500 font-medium">¡Casi listo!</span>'}
+            </div>
+            ${entry.notes ? `<p class="text-xs text-amber-400/70 mt-0.5 truncate">📝 ${entry.notes}</p>` : ''}
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 mt-2 ml-12">
+          <button onclick="assignTable(${entry.id})" class="amber-btn text-xs font-semibold px-2.5 py-1 rounded-lg">🪑 Asignar Mesa</button>
+          ${waLink ? `<a href="${waLink}" target="_blank" class="bg-green-700 hover:bg-green-600 text-white text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">📲 Notificar</a>` : ''}
+          <button onclick="cancelEntry(${entry.id})" class="bg-neutral-700 hover:bg-neutral-600 text-slate-300 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors">✕ Cancelar</button>
+          <button onclick="markNoShow(${entry.id})" class="bg-neutral-800 hover:bg-neutral-700 text-slate-500 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors">No show</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  const count = document.getElementById('history-count');
+  count.textContent = `${state.history.length} registros`;
+
+  if (!state.history.length) {
+    list.innerHTML = '<div class="py-6 text-center text-slate-600 text-sm">Sin historial hoy</div>';
+    return;
+  }
+
+  const icons = { seated:'✅', cancelled:'❌', noshow:'👻' };
+  const labels = { seated:'Sentado', cancelled:'Cancelado', noshow:'No show' };
+
+  list.innerHTML = state.history.slice().reverse().map(entry => `
+    <div class="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-white/5 transition-colors">
+      <div class="flex items-center gap-2.5">
+        <span class="text-base">${icons[entry.outcome]}</span>
+        <div>
+          <span class="text-xs font-medium text-slate-200">${entry.name}</span>
+          <span class="text-xs text-slate-500 ml-1">${entry.persons}p</span>
+          ${entry.notes ? `<span class="text-xs text-amber-500/70 ml-1 truncate">· ${entry.notes}</span>` : ''}
+        </div>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <span class="text-xs outcome-${entry.outcome} font-medium">${labels[entry.outcome]}</span>
+        <p class="text-xs text-slate-600">${entry.waitMinutes} min espera</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderStats() {
+  document.getElementById('stat-waiting').textContent = state.queue.length;
+  const seated = state.history.filter(h=>h.outcome==='seated');
+  document.getElementById('stat-seated').textContent = seated.length;
+
+  if (seated.length) {
+    const avg = seated.reduce((a,h)=>a+h.waitMinutes, 0) / seated.length;
+    document.getElementById('stat-avg').textContent = `${Math.round(avg)} min`;
+  }
+
+  const total = state.history.length;
+  const noshows = state.history.filter(h=>h.outcome==='noshow').length;
+  document.getElementById('stat-noshow').textContent = total ? `${Math.round((noshows/total)*100)}%` : '0%';
+}
+
+function render() {
+  renderQueue();
+  renderHistory();
+  renderStats();
+}
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
+function assignTable(id) {
+  const idx = state.queue.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  const entry = state.queue[idx];
+  const waitMinutes = Math.round((Date.now() - entry.addedAt) / 60000);
+  state.history.push({ ...entry, outcome: 'seated', waitMinutes });
+  state.queue.splice(idx, 1);
+  state.queue.forEach((e,i) => e.position = i+1);
+  saveState();
+  render();
+}
+
+function cancelEntry(id) {
+  const idx = state.queue.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  const entry = state.queue[idx];
+  const waitMinutes = Math.round((Date.now() - entry.addedAt) / 60000);
+  state.history.push({ ...entry, outcome: 'cancelled', waitMinutes });
+  state.queue.splice(idx, 1);
+  state.queue.forEach((e,i) => e.position = i+1);
+  saveState();
+  render();
+}
+
+function markNoShow(id) {
+  const idx = state.queue.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  const entry = state.queue[idx];
+  const waitMinutes = Math.round((Date.now() - entry.addedAt) / 60000);
+  state.history.push({ ...entry, outcome: 'noshow', waitMinutes });
+  state.queue.splice(idx, 1);
+  state.queue.forEach((e,i) => e.position = i+1);
+  saveState();
+  render();
+}
+
+function openAddModal() {
+  document.getElementById('add-name').value = '';
+  document.getElementById('add-persons').value = '2';
+  document.getElementById('add-phone').value = '';
+  document.getElementById('add-notes').value = '';
+  document.getElementById('modal-add').classList.remove('hidden');
+  setTimeout(() => document.getElementById('add-name').focus(), 100);
+}
+
+function submitAdd() {
+  const name = document.getElementById('add-name').value.trim();
+  const persons = parseInt(document.getElementById('add-persons').value) || 2;
+  const phone = document.getElementById('add-phone').value.trim();
+  const notes = document.getElementById('add-notes').value.trim();
+
+  if (!name) { document.getElementById('add-name').focus(); return; }
+
+  const entry = {
+    id: Date.now(),
+    name, persons, phone, notes,
+    addedAt: Date.now(),
+    position: state.queue.length + 1
+  };
+  state.queue.push(entry);
+
+  // Update peak data
+  const hour = new Date().getHours();
+  if (hour >= 9) peakData[hour - 9] = (peakData[hour - 9] || 0) + 1;
+
+  saveState();
+  render();
+  updateChart();
+  closeModal('modal-add');
+  if (state.soundEnabled) playChime();
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+function updateTurnover(val) {
+  state.config.turnover = parseInt(val);
+  document.getElementById('cfg-turnover-val').textContent = `${val} min`;
+  saveState();
+}
+
+function updateAlert(val) {
+  state.config.alertMinutes = parseInt(val);
+  document.getElementById('cfg-alert-val').textContent = `${val} min`;
+  saveState();
+}
+
+function toggleSound() {
+  state.soundEnabled = !state.soundEnabled;
+  document.getElementById('sound-btn').textContent = state.soundEnabled ? '🔔' : '🔕';
+  saveState();
+}
+
+// ─── Timers update ────────────────────────────────────────────────────────────
+function updateTimers() {
+  const now = Date.now();
+  state.queue.forEach(entry => {
+    const el = document.querySelector(`[data-timer="${entry.id}"]`);
+    if (!el) return;
+    const elapsed = now - entry.addedAt;
+    el.textContent = `⏱ ${formatWait(elapsed)}`;
+    el.className = `text-xs ${waitClass(elapsed)} font-mono font-bold flex-shrink-0`;
+  });
+
+  // Alert for long waiters
+  if (state.soundEnabled) {
+    const longWaiter = state.queue.find(e => (now - e.addedAt) / 60000 >= state.config.alertMinutes);
+    if (longWaiter) {
+      const alertEl = document.title;
+      document.title = alertEl.startsWith('⚠️') ? document.title : `⚠️ ${document.title}`;
+    } else {
+      document.title = document.title.replace('⚠️ ', '');
+    }
+  }
+}
+
+// ─── Chart ────────────────────────────────────────────────────────────────────
+function initChart() {
+  const ctx = document.getElementById('peak-chart').getContext('2d');
+  const labels = Array.from({length:15}, (_,i) => `${9+i}h`);
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: peakData,
+        backgroundColor: 'rgba(217,119,6,.6)',
+        borderColor: '#d97706',
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#64748b', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,.05)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function updateChart() {
+  if (!chart) return;
+  chart.data.datasets[0].data = peakData;
+  chart.update();
+}
+
+function playChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [523, 659, 784].forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.2, ctx.currentTime + i * 0.12);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.3);
+      o.start(ctx.currentTime + i * 0.12);
+      o.stop(ctx.currentTime + i * 0.12 + 0.3);
+    });
+  } catch(e) {}
+}
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+loadState();
+render();
+initChart();
+updateClock();
+setInterval(updateTimers, 5000);
+setInterval(updateClock, 1000);
+
+document.getElementById('modal-add').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal('modal-add');
+});
+
+// Enter key on add form
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('modal-add').classList.contains('hidden')) {
+    submitAdd();
+  }
+});
+</script>
+</body>
+</html>

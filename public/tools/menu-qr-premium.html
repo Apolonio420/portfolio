@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú Digital | La Parrilla de Don Carlos</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: {
+            colors: { primary: '#dc2626', 'primary-dark': '#b91c1c', 'primary-light': '#fef2f2', secondary: '#0f172a', accent: '#f59e0b' },
+            fontFamily: { sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'] }
+        }}}
+    </script>
+    <style>
+        * { scroll-behavior: smooth; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
+        .cat-tab { scroll-snap-align: start; }
+        .cat-tabs { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+        .cat-tab.active { background: var(--tw-colors-primary, #dc2626); color: white; }
+        .menu-item-card { transition: all 0.2s; }
+        .menu-item-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
+        .sold-out { opacity: 0.5; }
+        .sold-out::after { content: 'AGOTADO'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg); background: #dc2626; color: white; padding: 4px 16px; border-radius: 4px; font-weight: 800; font-size: 14px; letter-spacing: 2px; }
+        @media print { .no-print{display:none!important} #qr-print-page{display:block!important} }
+        #qr-print-page { display:none; text-align:center; padding:60px 20px; }
+        .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+        .tag-vegetariano { background: #dcfce7; color: #166534; }
+        .tag-picante { background: #fef2f2; color: #991b1b; }
+        .tag-nuevo { background: #fef3c7; color: #92400e; }
+        .tag-popular { background: #ede9fe; color: #5b21b6; }
+        .tag-singluten { background: #e0f2fe; color: #075985; }
+    </style>
+</head>
+<body class="font-sans bg-white text-secondary min-h-screen">
+
+<!-- ═══ MENU VIEW (Public, mobile-first) ═══ -->
+<div id="view-menu">
+    <!-- Header -->
+    <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b">
+        <div class="max-w-lg mx-auto px-4 py-3 flex justify-between items-center">
+            <div>
+                <h1 class="text-lg font-bold" id="menu-biz-name">La Parrilla de Don Carlos</h1>
+                <p class="text-xs text-gray-400" id="menu-biz-sub">Restaurante de Cortes Premium</p>
+            </div>
+            <button onclick="toggleAdmin()" class="text-xs text-gray-400 hover:text-gray-600 p-2">Admin</button>
+        </div>
+        <!-- Category tabs -->
+        <div class="cat-tabs flex gap-2 px-4 pb-3 overflow-x-auto" id="cat-tabs"></div>
+    </div>
+
+    <!-- Menu items -->
+    <div class="max-w-lg mx-auto px-4 py-4" id="menu-items"></div>
+
+    <!-- Order via WhatsApp FAB -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t p-3 z-40" id="order-bar" style="display:none">
+        <div class="max-w-lg mx-auto flex justify-between items-center">
+            <div>
+                <span class="font-bold" id="cart-count">0</span> items · <span class="font-bold text-primary" id="cart-total">$0</span>
+            </div>
+            <button onclick="sendOrderWA()" class="bg-[#25D366] text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-[#20b858]">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                Pedir por WhatsApp
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="max-w-lg mx-auto px-4 py-6 text-center text-xs text-gray-400 border-t mt-4">
+        <p id="menu-footer-info"></p>
+        <a href="https://novamentestudio.com" class="hover:text-gray-600 mt-1 block">Menú digital by Novamente Studio</a>
+    </div>
+</div>
+
+<!-- ═══ ADMIN VIEW ═══ -->
+<div id="view-admin" class="hidden max-w-4xl mx-auto px-4 py-6">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-xl font-bold">Editor de Menú</h2>
+        <div class="flex gap-2">
+            <button onclick="showQR()" class="bg-secondary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-800">Generar QR</button>
+            <button onclick="showView('menu')" class="border px-4 py-2 rounded-xl text-sm font-semibold hover:bg-gray-50">Ver menú</button>
+        </div>
+    </div>
+
+    <!-- Admin tabs -->
+    <div class="flex gap-4 border-b mb-4">
+        <button onclick="showEditorTab('items')" class="pb-2 text-sm tab-active" data-etab="items">Platillos</button>
+        <button onclick="showEditorTab('categories')" class="pb-2 text-sm text-gray-500" data-etab="categories">Categorías</button>
+        <button onclick="showEditorTab('settings')" class="pb-2 text-sm text-gray-500" data-etab="settings">Configuración</button>
+    </div>
+
+    <!-- Items editor -->
+    <div id="editor-items" class="fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <select id="ed-cat-filter" onchange="renderEditor()" class="border rounded-xl px-3 py-2 text-sm">
+                <option value="">Todas las categorías</option>
+            </select>
+            <button onclick="addItem()" class="bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary-dark">+ Agregar platillo</button>
+        </div>
+        <div id="ed-items-list"></div>
+    </div>
+
+    <!-- Categories editor -->
+    <div id="editor-categories" class="hidden fade-in">
+        <div id="ed-cats-list"></div>
+        <button onclick="addCategory()" class="mt-3 text-primary text-sm font-semibold hover:underline">+ Agregar categoría</button>
+    </div>
+
+    <!-- Settings -->
+    <div id="editor-settings" class="hidden fade-in">
+        <div class="bg-white rounded-2xl border p-6 space-y-4 max-w-md">
+            <div><label class="text-sm font-semibold">Nombre del restaurante</label><input type="text" id="ed-name" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+            <div><label class="text-sm font-semibold">Subtítulo</label><input type="text" id="ed-sub" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+            <div><label class="text-sm font-semibold">WhatsApp (con código país)</label><input type="text" id="ed-phone" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+            <div><label class="text-sm font-semibold">Dirección</label><input type="text" id="ed-addr" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+            <div><label class="text-sm font-semibold">Horarios</label><input type="text" id="ed-hours" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+            <div><label class="text-sm font-semibold">Moneda</label><select id="ed-currency" class="w-full border rounded-xl px-4 py-2 mt-1"><option value="$">$ (MXN)</option><option value="US$">US$ (USD)</option><option value="€">€ (EUR)</option></select></div>
+            <button onclick="saveEditorSettings()" class="bg-primary text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-primary-dark w-full">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- QR Modal -->
+<div id="modal-qr" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-8 max-w-sm w-full text-center fade-in">
+        <h3 class="text-xl font-bold mb-4">Tu código QR</h3>
+        <div id="qr-container" class="flex justify-center mb-4"></div>
+        <p class="text-sm text-gray-500 mb-4">Escanea para ver el menú</p>
+        <button onclick="printQR()" class="bg-secondary text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-gray-800 w-full mb-2">Imprimir QR (A4)</button>
+        <button onclick="document.getElementById('modal-qr').classList.add('hidden')" class="text-gray-500 text-sm hover:underline">Cerrar</button>
+    </div>
+</div>
+
+<!-- Item edit modal -->
+<div id="modal-item" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 max-w-md w-full fade-in max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-bold mb-4" id="item-modal-title">Agregar platillo</h3>
+        <div class="space-y-3">
+            <input type="text" id="it-name" placeholder="Nombre del platillo" class="w-full border rounded-xl px-4 py-2 outline-none">
+            <textarea id="it-desc" placeholder="Descripción (opcional)" rows="2" class="w-full border rounded-xl px-4 py-2 outline-none"></textarea>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="text-xs font-semibold">Precio</label><input type="number" id="it-price" placeholder="0" class="w-full border rounded-xl px-4 py-2 mt-1 outline-none"></div>
+                <div><label class="text-xs font-semibold">Categoría</label><select id="it-cat" class="w-full border rounded-xl px-4 py-2 mt-1"></select></div>
+            </div>
+            <input type="text" id="it-img" placeholder="URL de imagen (opcional)" class="w-full border rounded-xl px-4 py-2 outline-none">
+            <div>
+                <label class="text-xs font-semibold mb-1 block">Tags</label>
+                <div class="flex gap-2 flex-wrap" id="it-tags"></div>
+            </div>
+            <label class="flex items-center gap-2"><input type="checkbox" id="it-soldout"><span class="text-sm">Marcar como agotado</span></label>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button onclick="closeItemModal()" class="flex-1 border rounded-xl py-2.5 font-semibold hover:bg-gray-50">Cancelar</button>
+            <button onclick="saveItem()" class="flex-1 bg-primary text-white rounded-xl py-2.5 font-semibold hover:bg-primary-dark">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Print QR page -->
+<div id="qr-print-page">
+    <div style="max-width:400px;margin:0 auto">
+        <h1 style="font-size:32px;font-weight:800;margin-bottom:8px" id="print-biz-name"></h1>
+        <p style="font-size:18px;color:#666;margin-bottom:30px" id="print-biz-sub"></p>
+        <div id="print-qr"></div>
+        <p style="font-size:20px;font-weight:600;margin-top:20px">Escanea para ver nuestro menú</p>
+        <p style="font-size:14px;color:#999;margin-top:8px">Menú digital by Novamente Studio</p>
+    </div>
+</div>
+
+<script>
+// ═══ DATA ═══
+const DEF_DATA = {
+    config: { name: "La Parrilla de Don Carlos", subtitle: "Restaurante de Cortes Premium", phone: "5215512345678", address: "Av. Insurgentes Sur 1234, Col. Del Valle, CDMX", hours: "Lun-Sáb 13:00-23:00, Dom 13:00-18:00", currency: "$" },
+    categories: [
+        { id: 1, name: "Entradas", emoji: "🥗", order: 1 },
+        { id: 2, name: "Cortes de Carne", emoji: "🥩", order: 2 },
+        { id: 3, name: "Mariscos", emoji: "🦐", order: 3 },
+        { id: 4, name: "Pastas", emoji: "🍝", order: 4 },
+        { id: 5, name: "Postres", emoji: "🍰", order: 5 },
+        { id: 6, name: "Bebidas", emoji: "🍹", order: 6 },
+    ],
+    items: [
+        { id:1, name:"Guacamole con totopos", desc:"Aguacate fresco, jitomate, cilantro, chile serrano y limón. Acompañado de totopos artesanales.", price:145, cat:1, img:"https://images.unsplash.com/photo-1600891964599-f61ba0e24092?w=400&q=80", tags:["vegetariano"], soldOut:false },
+        { id:2, name:"Esquites gratinados", desc:"Elote desgranado con mayonesa, queso, chile y limón. Gratinados al horno.", price:125, cat:1, img:"https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=400&q=80", tags:["vegetariano","popular"], soldOut:false },
+        { id:3, name:"Ceviche de pescado", desc:"Pescado del día marinado en limón con cebolla morada, pepino, aguacate y chile habanero.", price:195, cat:1, img:"https://images.unsplash.com/photo-1535399831218-d5bd36d1a6b3?w=400&q=80", tags:["nuevo"], soldOut:false },
+        { id:4, name:"Rib Eye (400g)", desc:"Corte premium de res importado, a la parrilla con leña de mezquite. Acompañado de papa al horno y ensalada.", price:590, cat:2, img:"https://images.unsplash.com/photo-1544025162-d76694265947?w=400&q=80", tags:["popular"], soldOut:false },
+        { id:5, name:"New York (350g)", desc:"Corte de res con marmoleado perfecto. A la parrilla, acompañado de verduras asadas.", price:520, cat:2, img:"https://images.unsplash.com/photo-1558030006-450675393462?w=400&q=80", tags:[], soldOut:false },
+        { id:6, name:"T-Bone (500g)", desc:"El clásico corte doble: filete y contra filete en un solo hueso. Para los verdaderos amantes de la carne.", price:650, cat:2, img:"https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=400&q=80", tags:[], soldOut:false },
+        { id:7, name:"Arrachera (300g)", desc:"Arrachera marinada en especias y cítricos, a las brasas. Con guacamole, frijoles y tortillas.", price:380, cat:2, img:"https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=400&q=80", tags:["popular"], soldOut:false },
+        { id:8, name:"Camarones al mojo de ajo", desc:"Camarones jumbo salteados en mantequilla, ajo y guajillo. Con arroz blanco.", price:345, cat:3, img:"https://images.unsplash.com/photo-1565680018093-ebb6106f6e09?w=400&q=80", tags:[], soldOut:false },
+        { id:9, name:"Pulpo a la parrilla", desc:"Tentáculos de pulpo a las brasas con chimichurri, papa aplastada y verduras asadas.", price:420, cat:3, img:"https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=400&q=80", tags:["nuevo"], soldOut:false },
+        { id:10, name:"Aguachile verde", desc:"Camarones crudos en salsa de chile serrano, pepino, cebolla morada, aguacate y tostadas.", price:265, cat:3, img:"https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=400&q=80", tags:["picante"], soldOut:false },
+        { id:11, name:"Fettuccine Alfredo", desc:"Pasta fresca con salsa cremosa de parmesano, mantequilla y pimienta negra.", price:235, cat:4, img:"https://images.unsplash.com/photo-1645112411341-6c4fd023714a?w=400&q=80", tags:["vegetariano"], soldOut:false },
+        { id:12, name:"Spaghetti a la boloñesa", desc:"Pasta con salsa de carne de res y cerdo, jitomate San Marzano, vino tinto y hierbas.", price:245, cat:4, img:"https://images.unsplash.com/photo-1551892374-ecf8754cf8b0?w=400&q=80", tags:[], soldOut:false },
+        { id:13, name:"Pastel de chocolate", desc:"Pastel de chocolate belga con centro líquido, helado de vainilla y fresas.", price:155, cat:5, img:"https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=400&q=80", tags:["popular"], soldOut:false },
+        { id:14, name:"Flan napolitano", desc:"Flan casero de huevo con caramelo, receta de la abuela.", price:95, cat:5, img:"https://images.unsplash.com/photo-1570145820259-b5b80c5c8bd6?w=400&q=80", tags:[], soldOut:false },
+        { id:15, name:"Churros con chocolate", desc:"Churros rellenos de cajeta con salsa de chocolate oscuro.", price:125, cat:5, img:"https://images.unsplash.com/photo-1624371414361-e670246e0d81?w=400&q=80", tags:["nuevo"], soldOut:false },
+        { id:16, name:"Margarita clásica", desc:"Tequila reposado, Cointreau, limón fresco. En las rocas o frozen.", price:165, cat:6, img:"https://images.unsplash.com/photo-1556855810-ac404aa91e85?w=400&q=80", tags:["popular"], soldOut:false },
+        { id:17, name:"Agua de horchata", desc:"Agua fresca de arroz con canela y vainilla. Hecha en casa.", price:55, cat:6, img:"", tags:["singluten"], soldOut:false },
+        { id:18, name:"Cerveza artesanal", desc:"Selección de cervezas artesanales mexicanas. Pregunta por las disponibles.", price:95, cat:6, img:"", tags:[], soldOut:false },
+        { id:19, name:"Mezcal de Oaxaca", desc:"Mezcal artesanal con sal de gusano y naranja. 2 oz.", price:185, cat:6, img:"", tags:[], soldOut:false },
+        { id:20, name:"Café americano", desc:"Café de Chiapas de grano. Caliente o frío.", price:55, cat:6, img:"", tags:[], soldOut:false },
+    ]
+};
+
+let data = JSON.parse(localStorage.getItem('menu_data')) || JSON.parse(JSON.stringify(DEF_DATA));
+let cart = [];
+let editingItem = null;
+let isAdmin = false;
+
+function saveData() { localStorage.setItem('menu_data', JSON.stringify(data)); }
+
+// ═══ MENU VIEW (PUBLIC) ═══
+function renderMenu() {
+    const cfg = data.config;
+    document.getElementById('menu-biz-name').textContent = cfg.name;
+    document.getElementById('menu-biz-sub').textContent = cfg.subtitle;
+    document.getElementById('menu-footer-info').textContent = `${cfg.address} · ${cfg.hours} · ${cfg.phone}`;
+
+    // Category tabs
+    const cats = data.categories.sort((a,b) => a.order - b.order);
+    document.getElementById('cat-tabs').innerHTML = cats.map(c =>
+        `<button class="cat-tab px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap border transition-all ${cart.length===0?'':''}${c.id===activeCat?'active bg-primary text-white border-primary':'bg-white hover:border-primary'}" onclick="scrollToCat(${c.id})">${c.emoji} ${c.name}</button>`
+    ).join('');
+
+    // Items grouped by category
+    const currency = cfg.currency;
+    let html = '';
+    cats.forEach(cat => {
+        const items = data.items.filter(i => i.cat === cat.id).sort((a,b) => a.soldOut - b.soldOut);
+        if (!items.length) return;
+        html += `<div id="cat-${cat.id}" class="mb-6">
+            <h3 class="text-lg font-bold mb-3 sticky top-[88px] bg-white/95 backdrop-blur-sm py-2 z-10">${cat.emoji} ${cat.name}</h3>
+            <div class="space-y-3">`;
+        items.forEach(item => {
+            const tagHtml = item.tags.map(t => `<span class="tag tag-${t}">${t}</span>`).join(' ');
+            const inCart = cart.find(c => c.id === item.id);
+            html += `<div class="menu-item-card bg-white rounded-xl border p-3 flex gap-3 relative ${item.soldOut?'sold-out':''}">
+                ${item.img ? `<img src="${item.img}" alt="${item.name}" class="w-24 h-24 rounded-lg object-cover flex-shrink-0" loading="lazy">` : ''}
+                <div class="flex-1 min-w-0">
+                    <div class="flex justify-between items-start">
+                        <h4 class="font-bold text-sm">${item.name}</h4>
+                        <span class="font-bold text-primary text-sm whitespace-nowrap ml-2">${currency}${item.price}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-0.5 line-clamp-2">${item.desc}</p>
+                    <div class="flex justify-between items-center mt-2">
+                        <div class="flex gap-1">${tagHtml}</div>
+                        ${!item.soldOut ? `
+                        <div class="flex items-center gap-2">
+                            ${inCart ? `
+                                <button onclick="updateCart(${item.id},-1)" class="w-7 h-7 rounded-full border text-sm font-bold hover:bg-gray-100">-</button>
+                                <span class="text-sm font-bold w-5 text-center">${inCart.qty}</span>
+                                <button onclick="updateCart(${item.id},1)" class="w-7 h-7 rounded-full bg-primary text-white text-sm font-bold hover:bg-primary-dark">+</button>
+                            ` : `
+                                <button onclick="updateCart(${item.id},1)" class="text-xs bg-primary text-white px-3 py-1 rounded-full font-semibold hover:bg-primary-dark">Agregar</button>
+                            `}
+                        </div>` : ''}
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += '</div></div>';
+    });
+    document.getElementById('menu-items').innerHTML = html;
+    updateCartBar();
+}
+
+let activeCat = null;
+function scrollToCat(catId) {
+    activeCat = catId;
+    document.getElementById(`cat-${catId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    renderMenu();
+}
+
+function updateCart(itemId, delta) {
+    const existing = cart.find(c => c.id === itemId);
+    if (existing) {
+        existing.qty += delta;
+        if (existing.qty <= 0) cart = cart.filter(c => c.id !== itemId);
+    } else {
+        cart.push({ id: itemId, qty: 1 });
+    }
+    renderMenu();
+}
+
+function updateCartBar() {
+    const bar = document.getElementById('order-bar');
+    const total = cart.reduce((s,c) => { const item = data.items.find(i=>i.id===c.id); return s + (item?.price||0) * c.qty; }, 0);
+    const count = cart.reduce((s,c) => s + c.qty, 0);
+    if (count > 0) {
+        bar.style.display = 'block';
+        document.getElementById('cart-count').textContent = count;
+        document.getElementById('cart-total').textContent = `${data.config.currency}${total}`;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function sendOrderWA() {
+    const lines = cart.map(c => {
+        const item = data.items.find(i=>i.id===c.id);
+        return `${c.qty}x ${item.name} - ${data.config.currency}${item.price * c.qty}`;
+    });
+    const total = cart.reduce((s,c) => { const item = data.items.find(i=>i.id===c.id); return s + (item?.price||0) * c.qty; }, 0);
+    const msg = encodeURIComponent(`Hola, quiero hacer un pedido:\n\n${lines.join('\n')}\n\nTotal: ${data.config.currency}${total}\n\nGracias!`);
+    window.open(`https://wa.me/${data.config.phone}?text=${msg}`, '_blank');
+}
+
+// ═══ ADMIN ═══
+function toggleAdmin() {
+    if (!isAdmin) { if (prompt('Contraseña:') !== 'admin') return; isAdmin = true; }
+    showView('admin');
+    renderEditor();
+}
+
+function showView(v) {
+    document.getElementById('view-menu').classList.toggle('hidden', v!=='menu');
+    document.getElementById('view-admin').classList.toggle('hidden', v!=='admin');
+    if (v==='menu') renderMenu();
+}
+
+function showEditorTab(tab) {
+    ['items','categories','settings'].forEach(t => {
+        const el = document.getElementById('editor-'+t); if(el) el.classList.toggle('hidden', t!==tab);
+        const btn = document.querySelector(`[data-etab="${t}"]`); if(btn) { btn.classList.toggle('tab-active', t===tab); btn.classList.toggle('text-gray-500', t!==tab); }
+    });
+    if (tab==='items') renderEditor();
+    if (tab==='categories') renderCatEditor();
+    if (tab==='settings') loadEditorSettings();
+}
+
+function renderEditor() {
+    const filter = document.getElementById('ed-cat-filter').value;
+    document.getElementById('ed-cat-filter').innerHTML = '<option value="">Todas</option>' + data.categories.map(c => `<option value="${c.id}" ${filter==c.id?'selected':''}>${c.emoji} ${c.name}</option>`).join('');
+
+    let items = data.items;
+    if (filter) items = items.filter(i => i.cat == filter);
+
+    document.getElementById('ed-items-list').innerHTML = items.map(item => {
+        const cat = data.categories.find(c=>c.id===item.cat);
+        return `<div class="bg-white border rounded-xl p-3 mb-2 flex items-center gap-3 ${item.soldOut?'opacity-50':''}">
+            ${item.img ? `<img src="${item.img}" class="w-12 h-12 rounded-lg object-cover">` : '<div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xl">${cat?.emoji||"🍽"}</div>'}
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-sm">${item.name} ${item.soldOut?'<span class="text-red-500 text-xs">(AGOTADO)</span>':''}</div>
+                <div class="text-xs text-gray-500">${cat?.name||'?'} · ${data.config.currency}${item.price}</div>
+            </div>
+            <div class="flex gap-1">
+                <button onclick="toggleSoldOut(${item.id})" class="text-xs ${item.soldOut?'bg-green-100 text-green-700':'bg-red-100 text-red-700'} px-2 py-1 rounded">${item.soldOut?'Disponible':'Agotado'}</button>
+                <button onclick="editItem(${item.id})" class="text-xs bg-gray-100 px-2 py-1 rounded hover:bg-gray-200">Editar</button>
+                <button onclick="deleteItem(${item.id})" class="text-xs text-red-400 px-2 py-1 rounded hover:bg-red-50">X</button>
+            </div>
+        </div>`;
+    }).join('') || '<div class="text-center py-8 text-gray-400">No hay platillos</div>';
+}
+
+function toggleSoldOut(id) { const i = data.items.find(x=>x.id===id); if(i) { i.soldOut=!i.soldOut; saveData(); renderEditor(); } }
+function deleteItem(id) { if(!confirm('¿Eliminar?')) return; data.items = data.items.filter(i=>i.id!==id); saveData(); renderEditor(); }
+
+function addItem() { editingItem = null; openItemModal(); }
+function editItem(id) { editingItem = data.items.find(i=>i.id===id); openItemModal(); }
+
+const ALL_TAGS = ['vegetariano','picante','nuevo','popular','singluten'];
+let selectedTags = [];
+
+function openItemModal() {
+    const m = document.getElementById('modal-item');
+    document.getElementById('item-modal-title').textContent = editingItem ? 'Editar platillo' : 'Agregar platillo';
+    document.getElementById('it-name').value = editingItem?.name || '';
+    document.getElementById('it-desc').value = editingItem?.desc || '';
+    document.getElementById('it-price').value = editingItem?.price || '';
+    document.getElementById('it-img').value = editingItem?.img || '';
+    document.getElementById('it-soldout').checked = editingItem?.soldOut || false;
+    selectedTags = editingItem?.tags ? [...editingItem.tags] : [];
+
+    document.getElementById('it-cat').innerHTML = data.categories.map(c => `<option value="${c.id}" ${editingItem?.cat===c.id?'selected':''}>${c.emoji} ${c.name}</option>`).join('');
+    renderTagSelector();
+    m.classList.remove('hidden');
+}
+
+function renderTagSelector() {
+    document.getElementById('it-tags').innerHTML = ALL_TAGS.map(t => `<button type="button" onclick="toggleTag('${t}')" class="tag tag-${t} cursor-pointer ${selectedTags.includes(t)?'ring-2 ring-primary':''}">${t}</button>`).join('');
+}
+
+function toggleTag(t) { if(selectedTags.includes(t)) selectedTags=selectedTags.filter(x=>x!==t); else selectedTags.push(t); renderTagSelector(); }
+function closeItemModal() { document.getElementById('modal-item').classList.add('hidden'); }
+
+function saveItem() {
+    const name = document.getElementById('it-name').value.trim();
+    if (!name) { alert('Nombre requerido'); return; }
+    const itemData = {
+        name, desc: document.getElementById('it-desc').value.trim(),
+        price: parseFloat(document.getElementById('it-price').value) || 0,
+        cat: parseInt(document.getElementById('it-cat').value),
+        img: document.getElementById('it-img').value.trim(),
+        tags: selectedTags, soldOut: document.getElementById('it-soldout').checked
+    };
+    if (editingItem) { Object.assign(editingItem, itemData); }
+    else { data.items.push({ id: Date.now(), ...itemData }); }
+    saveData(); closeItemModal(); renderEditor();
+}
+
+function renderCatEditor() {
+    document.getElementById('ed-cats-list').innerHTML = data.categories.sort((a,b)=>a.order-b.order).map(c => `
+        <div class="bg-white border rounded-xl p-3 mb-2 flex items-center gap-3">
+            <span class="text-2xl">${c.emoji}</span>
+            <input type="text" value="${c.name}" onchange="updateCatName(${c.id},this.value)" class="flex-1 border rounded-lg px-3 py-1 text-sm outline-none">
+            <input type="text" value="${c.emoji}" onchange="updateCatEmoji(${c.id},this.value)" class="w-12 border rounded-lg px-2 py-1 text-center outline-none">
+            <div class="flex gap-1">
+                <button onclick="moveCat(${c.id},-1)" class="text-xs bg-gray-100 px-2 py-1 rounded">↑</button>
+                <button onclick="moveCat(${c.id},1)" class="text-xs bg-gray-100 px-2 py-1 rounded">↓</button>
+                <button onclick="deleteCat(${c.id})" class="text-xs text-red-400 px-2 py-1 rounded">X</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateCatName(id,name) { const c=data.categories.find(x=>x.id===id); if(c){c.name=name;saveData();} }
+function updateCatEmoji(id,emoji) { const c=data.categories.find(x=>x.id===id); if(c){c.emoji=emoji;saveData();} }
+function moveCat(id,dir) { const c=data.categories.find(x=>x.id===id); if(c){c.order+=dir*1.5;data.categories.sort((a,b)=>a.order-b.order);data.categories.forEach((c,i)=>c.order=i+1);saveData();renderCatEditor();} }
+function deleteCat(id) { if(!confirm('¿Eliminar categoría y sus platillos?')) return; data.categories=data.categories.filter(c=>c.id!==id); data.items=data.items.filter(i=>i.cat!==id); saveData(); renderCatEditor(); }
+function addCategory() { const name=prompt('Nombre:'); if(!name) return; const emoji=prompt('Emoji:','🍽')||'🍽'; data.categories.push({id:Date.now(),name,emoji,order:data.categories.length+1}); saveData(); renderCatEditor(); }
+
+function loadEditorSettings() {
+    document.getElementById('ed-name').value = data.config.name;
+    document.getElementById('ed-sub').value = data.config.subtitle;
+    document.getElementById('ed-phone').value = data.config.phone;
+    document.getElementById('ed-addr').value = data.config.address;
+    document.getElementById('ed-hours').value = data.config.hours;
+    document.getElementById('ed-currency').value = data.config.currency;
+}
+
+function saveEditorSettings() {
+    data.config.name = document.getElementById('ed-name').value;
+    data.config.subtitle = document.getElementById('ed-sub').value;
+    data.config.phone = document.getElementById('ed-phone').value;
+    data.config.address = document.getElementById('ed-addr').value;
+    data.config.hours = document.getElementById('ed-hours').value;
+    data.config.currency = document.getElementById('ed-currency').value;
+    saveData(); alert('Guardado');
+}
+
+// ═══ QR ═══
+function showQR() {
+    const url = window.location.href.split('?')[0];
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+
+    document.getElementById('qr-container').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 4 });
+    document.getElementById('print-qr').innerHTML = qr.createSvgTag({ cellSize: 10, margin: 4 });
+    document.getElementById('print-biz-name').textContent = data.config.name;
+    document.getElementById('print-biz-sub').textContent = data.config.subtitle;
+    document.getElementById('modal-qr').classList.remove('hidden');
+}
+
+function printQR() { window.print(); }
+
+// ═══ INIT ═══
+renderMenu();
+document.getElementById('bk-date')?.setAttribute('min', new Date().toISOString().split('T')[0]);
+</script>
+</body>
+</html>

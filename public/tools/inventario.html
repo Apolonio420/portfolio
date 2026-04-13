@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InventarioPro — Gestión de Inventario</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  :root { --green: #16a34a; }
+  .fade-in { animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  .slide-in { animation: slideIn 0.25s ease; }
+  @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+  .badge-pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.6;} }
+  .modal-backdrop { backdrop-filter: blur(4px); }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #16a34a; outline-offset: 1px; }
+  .tab-active { border-bottom: 3px solid #16a34a; color: #16a34a; font-weight: 700; }
+  .status-ok { background:#dcfce7; color:#15803d; }
+  .status-low { background:#fef9c3; color:#a16207; }
+  .status-out { background:#fee2e2; color:#dc2626; }
+  .card-hover { transition: all 0.18s; }
+  .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.10); }
+  .btn-green { background:#16a34a; color:#fff; transition:background 0.15s; }
+  .btn-green:hover { background:#15803d; }
+  .btn-outline { border:2px solid #16a34a; color:#16a34a; transition:all 0.15s; }
+  .btn-outline:hover { background:#16a34a; color:#fff; }
+  .btn-red { background:#dc2626; color:#fff; transition:background 0.15s; }
+  .btn-red:hover { background:#b91c1c; }
+  .btn-slate { background:#334155; color:#fff; transition:background 0.15s; }
+  .btn-slate:hover { background:#1e293b; }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:#f1f5f9; }
+  ::-webkit-scrollbar-thumb { background:#94a3b8; border-radius:99px; }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:#fff !important; }
+    .print-section { display:block !important; }
+  }
+  .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size:200% 100%; animation: shimmer 1.5s infinite; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .tooltip { position:relative; }
+  .tooltip:hover::after { content:attr(data-tip); position:absolute; bottom:110%; left:50%; transform:translateX(-50%); background:#1e293b; color:#fff; padding:4px 8px; border-radius:6px; font-size:11px; white-space:nowrap; z-index:100; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-40 no-print shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-green-600 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/></svg>
+      </div>
+      <div>
+        <h1 class="text-base font-800 text-slate-800 leading-none" style="font-weight:800">InventarioPro</h1>
+        <p class="text-xs text-slate-400 mt-0.5" id="storeName">Mi Tienda</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="openAlerts()" class="relative p-2 rounded-xl hover:bg-slate-100 transition-colors no-print" id="alertBtn">
+        <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span id="alertBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center badge-pulse hidden">0</span>
+      </button>
+      <button onclick="openSettings()" class="p-2 rounded-xl hover:bg-slate-100 transition-colors no-print">
+        <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- NAV TABS -->
+<nav class="bg-white border-b border-slate-200 no-print sticky top-[61px] z-30">
+  <div class="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
+    <button onclick="showTab('productos')" class="tab-btn px-4 py-3 text-sm font-600 text-slate-500 hover:text-slate-800 whitespace-nowrap transition-colors" style="font-weight:600" id="tab-productos">Productos</button>
+    <button onclick="showTab('movimientos')" class="tab-btn px-4 py-3 text-sm font-600 text-slate-500 hover:text-slate-800 whitespace-nowrap transition-colors" style="font-weight:600" id="tab-movimientos">Movimientos</button>
+    <button onclick="showTab('reportes')" class="tab-btn px-4 py-3 text-sm font-600 text-slate-500 hover:text-slate-800 whitespace-nowrap transition-colors" style="font-weight:600" id="tab-reportes">Reportes</button>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- ===== TAB: PRODUCTOS ===== -->
+  <div id="view-productos" class="fade-in">
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 card-hover">
+        <p class="text-xs text-slate-500 font-600" style="font-weight:600">Total Productos</p>
+        <p class="text-2xl font-800 text-slate-800 mt-1" style="font-weight:800" id="statTotal">0</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 card-hover">
+        <p class="text-xs text-slate-500 font-600" style="font-weight:600">Stock OK</p>
+        <p class="text-2xl font-800 text-green-600 mt-1" style="font-weight:800" id="statOk">0</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 card-hover">
+        <p class="text-xs text-slate-500 font-600" style="font-weight:600">Stock Bajo</p>
+        <p class="text-2xl font-800 text-yellow-600 mt-1" style="font-weight:800" id="statLow">0</p>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 card-hover">
+        <p class="text-xs text-slate-500 font-600" style="font-weight:600">Sin Stock</p>
+        <p class="text-2xl font-800 text-red-600 mt-1" style="font-weight:800" id="statOut">0</p>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 no-print">
+      <div class="flex flex-col md:flex-row gap-3">
+        <div class="flex-1 relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" id="searchInput" placeholder="Buscar por nombre o SKU..." onkeyup="renderProducts()" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 focus:bg-white transition-colors">
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <select id="filterCat" onchange="renderProducts()" class="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 cursor-pointer">
+            <option value="">Todas las categorías</option>
+          </select>
+          <select id="filterStatus" onchange="renderProducts()" class="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 cursor-pointer">
+            <option value="">Todos los estados</option>
+            <option value="ok">Stock OK</option>
+            <option value="low">Stock Bajo</option>
+            <option value="out">Sin Stock</option>
+          </select>
+          <select id="sortBy" onchange="renderProducts()" class="px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50 cursor-pointer">
+            <option value="name">Nombre A-Z</option>
+            <option value="nameDesc">Nombre Z-A</option>
+            <option value="stock">Stock (↑)</option>
+            <option value="stockDesc">Stock (↓)</option>
+            <option value="price">Precio (↑)</option>
+            <option value="priceDesc">Precio (↓)</option>
+          </select>
+          <div class="flex gap-1 bg-slate-100 rounded-xl p-1">
+            <button onclick="setView('grid')" id="viewGrid" class="p-2 rounded-lg text-slate-600 hover:bg-white transition-all">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z"/></svg>
+            </button>
+            <button onclick="setView('list')" id="viewList" class="p-2 rounded-lg text-slate-600 hover:bg-white transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+          </div>
+          <button onclick="openProductForm()" class="btn-green px-4 py-2.5 rounded-xl text-sm font-600 flex items-center gap-1.5" style="font-weight:600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Nuevo
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Products Grid/List -->
+    <div id="productsContainer"></div>
+  </div>
+
+  <!-- ===== TAB: MOVIMIENTOS ===== -->
+  <div id="view-movimientos" class="hidden fade-in">
+    <div class="flex flex-col md:flex-row gap-4 mb-6">
+      <!-- Quick Entry -->
+      <div class="flex-1 bg-white rounded-2xl border border-slate-200 p-5">
+        <h3 class="font-700 text-slate-800 mb-4 flex items-center gap-2" style="font-weight:700">
+          <span class="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center">
+            <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 12V8m0 0l4 4m-4-4l-4 4"/></svg>
+          </span>
+          Registrar Movimiento
+        </h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Producto</label>
+            <select id="movProduct" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50">
+              <option value="">— Seleccionar producto —</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Tipo</label>
+              <select id="movType" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50">
+                <optgroup label="Entrada">
+                  <option value="compra">Compra</option>
+                  <option value="devolucion_entrada">Devolución (entrada)</option>
+                  <option value="ajuste_entrada">Ajuste (+)</option>
+                </optgroup>
+                <optgroup label="Salida">
+                  <option value="venta">Venta</option>
+                  <option value="perdida">Pérdida/Merma</option>
+                  <option value="ajuste_salida">Ajuste (-)</option>
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Cantidad</label>
+              <input type="number" id="movQty" min="1" value="1" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Notas (opcional)</label>
+            <input type="text" id="movNote" placeholder="Ej: Proveedor XYZ, folio 123" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50">
+          </div>
+          <button onclick="registerMovement()" class="btn-green w-full py-3 rounded-xl font-600 text-sm" style="font-weight:600">Registrar Movimiento</button>
+        </div>
+      </div>
+
+      <!-- Movement Stats -->
+      <div class="md:w-64 space-y-3">
+        <div class="bg-green-50 rounded-2xl p-4 border border-green-200">
+          <p class="text-xs text-green-700 font-600" style="font-weight:600">Entradas hoy</p>
+          <p class="text-2xl font-800 text-green-700 mt-1" style="font-weight:800" id="statEntradas">0</p>
+        </div>
+        <div class="bg-red-50 rounded-2xl p-4 border border-red-200">
+          <p class="text-xs text-red-700 font-600" style="font-weight:600">Salidas hoy</p>
+          <p class="text-2xl font-800 text-red-700 mt-1" style="font-weight:800" id="statSalidas">0</p>
+        </div>
+        <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+          <p class="text-xs text-slate-600 font-600" style="font-weight:600">Total movimientos</p>
+          <p class="text-2xl font-800 text-slate-800 mt-1" style="font-weight:800" id="statMovTotal">0</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Movement History -->
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-700 text-slate-800" style="font-weight:700">Historial de Movimientos</h3>
+        <div class="flex gap-2">
+          <select id="movFilterType" onchange="renderMovements()" class="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50">
+            <option value="">Todos</option>
+            <option value="entrada">Solo entradas</option>
+            <option value="salida">Solo salidas</option>
+          </select>
+          <button onclick="clearMovements()" class="px-3 py-2 rounded-xl border border-red-200 text-xs text-red-600 hover:bg-red-50 transition-colors">Limpiar</button>
+        </div>
+      </div>
+      <div id="movementsContainer" class="divide-y divide-slate-100 max-h-96 overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: REPORTES ===== -->
+  <div id="view-reportes" class="hidden fade-in">
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 card-hover">
+        <p class="text-xs text-slate-500 font-600 mb-2" style="font-weight:600">Valor del Inventario</p>
+        <p class="text-3xl font-800 text-green-600" style="font-weight:800" id="reportValor">$0</p>
+        <p class="text-xs text-slate-400 mt-1">(cantidad × costo)</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 card-hover">
+        <p class="text-xs text-slate-500 font-600 mb-2" style="font-weight:600">Valor a Precio Venta</p>
+        <p class="text-3xl font-800 text-slate-800" style="font-weight:800" id="reportValorVenta">$0</p>
+        <p class="text-xs text-slate-400 mt-1">(cantidad × precio)</p>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 card-hover">
+        <p class="text-xs text-slate-500 font-600 mb-2" style="font-weight:600">Margen Potencial</p>
+        <p class="text-3xl font-800 text-blue-600" style="font-weight:800" id="reportMargen">$0</p>
+        <p class="text-xs text-slate-400 mt-1">(venta − costo)</p>
+      </div>
+    </div>
+
+    <!-- Report Actions -->
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <h3 class="font-700 text-slate-800 mb-3" style="font-weight:700">Reporte Stock Bajo</h3>
+        <p class="text-sm text-slate-500 mb-4">Productos por debajo del stock mínimo configurado.</p>
+        <div class="flex gap-2">
+          <button onclick="printLowStock()" class="btn-outline px-4 py-2.5 rounded-xl text-sm font-600 flex items-center gap-2" style="font-weight:600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            Imprimir
+          </button>
+          <button onclick="sendLowStockWhatsApp()" class="px-4 py-2.5 rounded-xl text-sm font-600 flex items-center gap-2 border-2 border-green-500 text-green-600 hover:bg-green-50 transition-colors" style="font-weight:600">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.005 0C5.374 0 0 5.373 0 12c0 2.117.554 4.103 1.523 5.827L.057 23.928l6.255-1.641A11.941 11.941 0 0012.005 24C18.629 24 24 18.626 24 12c0-6.628-5.371-12-11.995-12zM12 21.818c-1.849 0-3.57-.501-5.051-1.371l-.362-.214-3.752.984 1.002-3.658-.235-.374A9.787 9.787 0 012.182 12c0-5.418 4.4-9.818 9.818-9.818 5.417 0 9.818 4.4 9.818 9.818S17.417 21.818 12 21.818z"/></svg>
+            WhatsApp
+          </button>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-5">
+        <h3 class="font-700 text-slate-800 mb-3" style="font-weight:700">Exportar Datos</h3>
+        <p class="text-sm text-slate-500 mb-4">Descarga el inventario completo en formato CSV.</p>
+        <div class="flex gap-2">
+          <button onclick="exportCSV()" class="btn-slate px-4 py-2.5 rounded-xl text-sm font-600 flex items-center gap-2" style="font-weight:600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Exportar CSV
+          </button>
+          <button onclick="exportMovementsCSV()" class="px-4 py-2.5 rounded-xl text-sm font-600 flex items-center gap-2 border-2 border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors" style="font-weight:600">
+            Movimientos CSV
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category breakdown -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+      <h3 class="font-700 text-slate-800 mb-4" style="font-weight:700">Resumen por Categoría</h3>
+      <div id="categoryReport" class="space-y-3"></div>
+    </div>
+
+    <!-- Low stock table -->
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden" id="lowStockSection">
+      <div class="p-4 border-b border-slate-100 bg-yellow-50">
+        <h3 class="font-700 text-yellow-800 flex items-center gap-2" style="font-weight:700">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          Productos con Stock Bajo o Sin Stock
+        </h3>
+      </div>
+      <div id="lowStockContainer" class="divide-y divide-slate-100"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="mt-12 py-6 border-t border-slate-200 bg-white no-print">
+  <p class="text-center text-xs text-slate-400">Powered by <span class="font-700 text-green-600" style="font-weight:700">Novamente Studio</span></p>
+</footer>
+
+<!-- ===== MODAL: PRODUCT FORM ===== -->
+<div id="productModal" class="fixed inset-0 z-50 hidden modal-backdrop">
+  <div class="absolute inset-0 bg-black/40" onclick="closeProductForm()"></div>
+  <div class="absolute inset-x-4 top-4 bottom-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col slide-in">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+      <h2 class="font-700 text-slate-800 text-lg" style="font-weight:700" id="formTitle">Nuevo Producto</h2>
+      <button onclick="closeProductForm()" class="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+        <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="overflow-y-auto flex-1 p-5">
+      <input type="hidden" id="editId">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Nombre del Producto *</label>
+          <input type="text" id="fName" placeholder="Ej: Croquetas Premium Adulto 15kg" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+        </div>
+        <div>
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">SKU / Código *</label>
+          <input type="text" id="fSku" placeholder="Ej: ALI-001" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+        </div>
+        <div>
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Categoría</label>
+          <div class="flex gap-2">
+            <select id="fCategory" class="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50">
+              <option value="">— Seleccionar —</option>
+            </select>
+            <button onclick="addNewCategory()" class="px-3 py-2.5 rounded-xl border border-slate-200 text-sm hover:bg-slate-50 text-slate-600 whitespace-nowrap" title="Nueva categoría">+ Nueva</button>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Precio de Venta (MXN) *</label>
+          <input type="number" id="fPrice" min="0" step="0.01" placeholder="0.00" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+        </div>
+        <div>
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Costo (MXN)</label>
+          <input type="number" id="fCost" min="0" step="0.01" placeholder="0.00" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+        </div>
+        <div>
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Stock Actual *</label>
+          <input type="number" id="fStock" min="0" value="0" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+        </div>
+        <div>
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Stock Mínimo (alerta)</label>
+          <input type="number" id="fMinStock" min="0" value="5" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+        </div>
+        <div class="md:col-span-2">
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">URL de Foto (opcional)</label>
+          <input type="url" id="fPhoto" placeholder="https://..." class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+        </div>
+        <div class="md:col-span-2">
+          <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Descripción (opcional)</label>
+          <textarea id="fDesc" rows="2" placeholder="Descripción breve del producto..." class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm resize-none"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="p-5 border-t border-slate-100 flex gap-3 bg-slate-50">
+      <button onclick="closeProductForm()" class="flex-1 py-3 rounded-xl border-2 border-slate-200 text-slate-600 text-sm font-600 hover:bg-slate-100 transition-colors" style="font-weight:600">Cancelar</button>
+      <button onclick="saveProduct()" class="flex-1 btn-green py-3 rounded-xl text-sm font-600" style="font-weight:600">Guardar Producto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: PRODUCT DETAIL ===== -->
+<div id="detailModal" class="fixed inset-0 z-50 hidden modal-backdrop">
+  <div class="absolute inset-0 bg-black/40" onclick="closeDetail()"></div>
+  <div class="absolute inset-x-4 top-4 bottom-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col slide-in">
+    <div id="detailContent" class="flex flex-col h-full"></div>
+  </div>
+</div>
+
+<!-- ===== MODAL: ALERTS ===== -->
+<div id="alertsModal" class="fixed inset-0 z-50 hidden modal-backdrop">
+  <div class="absolute inset-0 bg-black/40" onclick="closeAlerts()"></div>
+  <div class="absolute inset-x-4 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden slide-in">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-red-50">
+      <h2 class="font-700 text-red-800 flex items-center gap-2" style="font-weight:700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        Alertas de Stock
+      </h2>
+      <button onclick="closeAlerts()" class="p-2 rounded-xl hover:bg-red-100 transition-colors">
+        <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="alertsContent" class="p-4 max-h-80 overflow-y-auto space-y-2"></div>
+    <div class="p-4 border-t border-slate-100 flex gap-2">
+      <button onclick="sendLowStockWhatsApp(); closeAlerts();" class="flex-1 py-2.5 rounded-xl border-2 border-green-500 text-green-600 text-sm font-600 hover:bg-green-50 transition-colors flex items-center justify-center gap-2" style="font-weight:600">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.005 0C5.374 0 0 5.373 0 12c0 2.117.554 4.103 1.523 5.827L.057 23.928l6.255-1.641A11.941 11.941 0 0012.005 24C18.629 24 24 18.626 24 12c0-6.628-5.371-12-11.995-12zM12 21.818c-1.849 0-3.57-.501-5.051-1.371l-.362-.214-3.752.984 1.002-3.658-.235-.374A9.787 9.787 0 012.182 12c0-5.418 4.4-9.818 9.818-9.818 5.417 0 9.818 4.4 9.818 9.818S17.417 21.818 12 21.818z"/></svg>
+        Enviar por WhatsApp
+      </button>
+      <button onclick="closeAlerts()" class="flex-1 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 text-sm font-600 hover:bg-slate-50 transition-colors" style="font-weight:600">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: SETTINGS ===== -->
+<div id="settingsModal" class="fixed inset-0 z-50 hidden modal-backdrop">
+  <div class="absolute inset-0 bg-black/40" onclick="closeSettings()"></div>
+  <div class="absolute inset-x-4 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden slide-in">
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+      <h2 class="font-700 text-slate-800" style="font-weight:700">Configuración</h2>
+      <button onclick="closeSettings()" class="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div>
+        <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Nombre de la Tienda</label>
+        <input type="text" id="settingStore" placeholder="Mi Tienda" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+      </div>
+      <div>
+        <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">WhatsApp para Alertas</label>
+        <div class="flex gap-2">
+          <span class="flex items-center px-3 py-2.5 bg-slate-100 rounded-xl text-sm text-slate-500">+52</span>
+          <input type="tel" id="settingWA" placeholder="5512345678" class="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-600 text-slate-600 mb-1 block" style="font-weight:600">Moneda</label>
+        <select id="settingCurrency" class="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-slate-50">
+          <option value="MXN">MXN — Peso Mexicano</option>
+          <option value="USD">USD — Dólar</option>
+          <option value="COP">COP — Peso Colombiano</option>
+          <option value="ARS">ARS — Peso Argentino</option>
+        </select>
+      </div>
+      <hr class="border-slate-200">
+      <div>
+        <p class="text-xs font-600 text-slate-600 mb-2" style="font-weight:600">Zona de Peligro</p>
+        <button onclick="resetData()" class="w-full py-2.5 rounded-xl border-2 border-red-200 text-red-600 text-sm font-600 hover:bg-red-50 transition-colors" style="font-weight:600">Borrar todos los datos</button>
+      </div>
+    </div>
+    <div class="p-5 border-t border-slate-100">
+      <button onclick="saveSettings()" class="btn-green w-full py-3 rounded-xl text-sm font-600" style="font-weight:600">Guardar Configuración</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 hidden">
+  <div class="bg-slate-800 text-white px-5 py-3 rounded-2xl shadow-xl text-sm font-600 flex items-center gap-2" style="font-weight:600" id="toastMsg">
+    <svg class="w-4 h-4 text-green-400 flex-shrink-0" id="toastIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+    <span id="toastText"></span>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let currentView = 'grid';
+let currentTab = 'productos';
+let settings = { store: 'Pet Shop Demo', wa: '5212345678', currency: 'MXN' };
+
+const DEMO_PRODUCTS = [
+  { id:'p1', name:'Croquetas Premium Adulto 15kg', sku:'ALI-001', category:'Alimentos', price:589, cost:420, stock:8, minStock:5, desc:'Alimento balanceado para perro adulto, rico en proteína de pollo.', photo:'https://placehold.co/400x300/dcfce7/15803d?text=Croquetas' },
+  { id:'p2', name:'Alimento Húmedo Gato Atún 400g', sku:'ALI-002', category:'Alimentos', price:45, cost:28, stock:3, minStock:10, desc:'Comida húmeda para gatos adultos, sabor atún.', photo:'https://placehold.co/400x300/dcfce7/15803d?text=Alimento+Gato' },
+  { id:'p3', name:'Snacks Masticables Dental Perro', sku:'ALI-003', category:'Alimentos', price:120, cost:75, stock:15, minStock:8, desc:'Premios dentales que ayudan a reducir el sarro.', photo:'https://placehold.co/400x300/dcfce7/15803d?text=Snacks' },
+  { id:'p4', name:'Comida Cachorro Pollo y Arroz 4kg', sku:'ALI-004', category:'Alimentos', price:210, cost:145, stock:12, minStock:6, desc:'Fórmula especial para cachorros hasta 12 meses.', photo:'https://placehold.co/400x300/dcfce7/15803d?text=Cachorro' },
+  { id:'p5', name:'Vitaminas y Minerales Perro 60tab', sku:'ALI-005', category:'Alimentos', price:185, cost:110, stock:0, minStock:4, desc:'Suplemento vitamínico completo para perros.', photo:'https://placehold.co/400x300/dcfce7/15803d?text=Vitaminas' },
+  { id:'p6', name:'Correa Retráctil 5m Mediana', sku:'ACC-001', category:'Accesorios', price:280, cost:160, stock:7, minStock:5, desc:'Correa retráctil con freno ergonómico, hasta 25kg.', photo:'https://placehold.co/400x300/dbeafe/1d4ed8?text=Correa' },
+  { id:'p7', name:'Collar Antiparasitario 8 Meses', sku:'ACC-002', category:'Accesorios', price:350, cost:210, stock:2, minStock:5, desc:'Collar con acción repelente contra pulgas y garrapatas.', photo:'https://placehold.co/400x300/dbeafe/1d4ed8?text=Collar' },
+  { id:'p8', name:'Cama Ortopédica Talla L', sku:'ACC-003', category:'Accesorios', price:650, cost:380, stock:4, minStock:3, desc:'Cama con memoria de espuma para perros grandes.', photo:'https://placehold.co/400x300/dbeafe/1d4ed8?text=Cama' },
+  { id:'p9', name:'Transportadora Aérea Talla M', sku:'ACC-004', category:'Accesorios', price:890, cost:540, stock:2, minStock:2, desc:'Transportadora certificada para vuelos, malla ventilada.', photo:'https://placehold.co/400x300/dbeafe/1d4ed8?text=Transportadora' },
+  { id:'p10', name:'Bebedero Automático 2 Litros', sku:'ACC-005', category:'Accesorios', price:320, cost:195, stock:9, minStock:4, desc:'Bebedero con filtro de carbón activo para agua limpia.', photo:'https://placehold.co/400x300/dbeafe/1d4ed8?text=Bebedero' },
+  { id:'p11', name:'Shampoo Perro Piel Sensible 500ml', sku:'HIG-001', category:'Higiene', price:145, cost:85, stock:11, minStock:6, desc:'Shampoo hipoalergénico con aloe vera y avena.', photo:'https://placehold.co/400x300/fce7f3/be185d?text=Shampoo' },
+  { id:'p12', name:'Cortauñas Profesional Acero', sku:'HIG-002', category:'Higiene', price:89, cost:45, stock:6, minStock:3, desc:'Cortauñas de acero inoxidable con protector de seguridad.', photo:'https://placehold.co/400x300/fce7f3/be185d?text=Cortauñas' },
+  { id:'p13', name:'Toallitas Húmedas Perro x50', sku:'HIG-003', category:'Higiene', price:65, cost:38, stock:0, minStock:10, desc:'Toallitas sin alcohol para limpieza rápida entre baños.', photo:'https://placehold.co/400x300/fce7f3/be185d?text=Toallitas' },
+  { id:'p14', name:'Peine Antiestático Gato', sku:'HIG-004', category:'Higiene', price:75, cost:42, stock:8, minStock:5, desc:'Peine con púas de acero para eliminación de pelo muerto.', photo:'https://placehold.co/400x300/fce7f3/be185d?text=Peine' },
+  { id:'p15', name:'Perfume Neutro Mascotas 100ml', sku:'HIG-005', category:'Higiene', price:110, cost:65, stock:4, minStock:5, desc:'Colonia suave de larga duración para perros y gatos.', photo:'https://placehold.co/400x300/fce7f3/be185d?text=Perfume' },
+  { id:'p16', name:'Pelota de Goma Rellena M', sku:'JUG-001', category:'Juguetes', price:85, cost:45, stock:18, minStock:8, desc:'Pelota de hule duro resistente a mordidas fuertes.', photo:'https://placehold.co/400x300/fef9c3/a16207?text=Pelota' },
+  { id:'p17', name:'Ratón de Peluche con Sonido', sku:'JUG-002', category:'Juguetes', price:55, cost:28, stock:22, minStock:10, desc:'Juguete con chip de sonido activado por movimiento para gatos.', photo:'https://placehold.co/400x300/fef9c3/a16207?text=Ratón' },
+  { id:'p18', name:'Cuerda de Nudo Algodón L', sku:'JUG-003', category:'Juguetes', price:70, cost:35, stock:14, minStock:6, desc:'Juguete de jalar en algodón natural, lavable.', photo:'https://placehold.co/400x300/fef9c3/a16207?text=Cuerda' },
+  { id:'p19', name:'Kong Clásico Rojo Talla XL', sku:'JUG-004', category:'Juguetes', price:195, cost:115, stock:3, minStock:4, desc:'Juguete rellenable KONG para perros grandes, caucho ultra-resistente.', photo:'https://placehold.co/400x300/fef9c3/a16207?text=Kong' },
+  { id:'p20', name:'Tunel Interactivo para Gatos', sku:'JUG-005', category:'Juguetes', price:160, cost:90, stock:5, minStock:3, desc:'Túnel plegable con pelota colgante y ventanas de malla.', photo:'https://placehold.co/400x300/fef9c3/a16207?text=Tunel' }
+];
+
+// ============================================================
+// STORAGE
+// ============================================================
+function load(key, def) { try { return JSON.parse(localStorage.getItem(key)) || def; } catch { return def; } }
+function save(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+let products = load('inv_products', null);
+let movements = load('inv_movements', []);
+let categories = load('inv_categories', ['Alimentos','Accesorios','Higiene','Juguetes']);
+
+if (!products) {
+  products = DEMO_PRODUCTS;
+  save('inv_products', products);
+  save('inv_categories', categories);
+}
+
+settings = load('inv_settings', { store:'Pet Shop Demo', wa:'5212345678', currency:'MXN' });
+document.getElementById('storeName').textContent = settings.store;
+
+// ============================================================
+// UTILS
+// ============================================================
+function fmt(n) {
+  const c = settings.currency || 'MXN';
+  return new Intl.NumberFormat('es-MX', { style:'currency', currency:c, minimumFractionDigits:2 }).format(n||0);
+}
+function fmtDate(ts) {
+  return new Date(ts).toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function uid() { return 'p' + Date.now() + Math.random().toString(36).slice(2,6); }
+function getStatus(p) {
+  if (p.stock === 0) return 'out';
+  if (p.stock <= p.minStock) return 'low';
+  return 'ok';
+}
+function statusBadge(p) {
+  const s = getStatus(p);
+  if (s === 'ok') return '<span class="status-ok text-xs font-600 px-2 py-0.5 rounded-full" style="font-weight:600">OK</span>';
+  if (s === 'low') return '<span class="status-low text-xs font-600 px-2 py-0.5 rounded-full" style="font-weight:600">Bajo</span>';
+  return '<span class="status-out text-xs font-600 px-2 py-0.5 rounded-full" style="font-weight:600">Sin Stock</span>';
+}
+function toast(msg, ok=true) {
+  const el = document.getElementById('toast');
+  document.getElementById('toastText').textContent = msg;
+  const icon = document.getElementById('toastIcon');
+  icon.innerHTML = ok
+    ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>'
+    : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>';
+  icon.className = ok ? 'w-4 h-4 text-green-400 flex-shrink-0' : 'w-4 h-4 text-red-400 flex-shrink-0';
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 2800);
+}
+
+// ============================================================
+// TABS
+// ============================================================
+function showTab(tab) {
+  currentTab = tab;
+  ['productos','movimientos','reportes'].forEach(t => {
+    document.getElementById('view-' + t).classList.add('hidden');
+    document.getElementById('tab-' + t).classList.remove('tab-active');
+  });
+  document.getElementById('view-' + tab).classList.remove('hidden');
+  document.getElementById('tab-' + tab).classList.add('tab-active');
+  if (tab === 'productos') renderProducts();
+  if (tab === 'movimientos') { populateMovProduct(); renderMovements(); updateMovStats(); }
+  if (tab === 'reportes') renderReports();
+}
+showTab('productos');
+
+// ============================================================
+// VIEW TOGGLE
+// ============================================================
+function setView(v) {
+  currentView = v;
+  document.getElementById('viewGrid').classList.toggle('bg-white', v==='grid');
+  document.getElementById('viewGrid').classList.toggle('shadow-sm', v==='grid');
+  document.getElementById('viewList').classList.toggle('bg-white', v==='list');
+  document.getElementById('viewList').classList.toggle('shadow-sm', v==='list');
+  renderProducts();
+}
+setView('grid');
+
+// ============================================================
+// PRODUCTS RENDER
+// ============================================================
+function getFilteredProducts() {
+  const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  const cat = document.getElementById('filterCat').value;
+  const status = document.getElementById('filterStatus').value;
+  const sort = document.getElementById('sortBy').value;
+
+  let list = products.filter(p => {
+    if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
+    if (cat && p.category !== cat) return false;
+    if (status && getStatus(p) !== status) return false;
+    return true;
+  });
+
+  list.sort((a,b) => {
+    if (sort==='name') return a.name.localeCompare(b.name);
+    if (sort==='nameDesc') return b.name.localeCompare(a.name);
+    if (sort==='stock') return a.stock - b.stock;
+    if (sort==='stockDesc') return b.stock - a.stock;
+    if (sort==='price') return a.price - b.price;
+    if (sort==='priceDesc') return b.price - a.price;
+    return 0;
+  });
+  return list;
+}
+
+function renderProducts() {
+  updateCategoryFilter();
+  updateStats();
+  updateAlertBadge();
+
+  const list = getFilteredProducts();
+  const container = document.getElementById('productsContainer');
+
+  if (list.length === 0) {
+    container.innerHTML = `<div class="text-center py-16 text-slate-400">
+      <svg class="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+      <p class="font-600" style="font-weight:600">No se encontraron productos</p>
+      <p class="text-sm mt-1">Ajusta los filtros o agrega un nuevo producto</p>
+    </div>`;
+    return;
+  }
+
+  if (currentView === 'grid') {
+    container.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      ${list.map(p => renderProductCard(p)).join('')}
+    </div>`;
+  } else {
+    container.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="grid grid-cols-12 gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200 text-xs font-600 text-slate-500" style="font-weight:600">
+        <div class="col-span-4">Producto</div>
+        <div class="col-span-2">SKU</div>
+        <div class="col-span-2">Stock</div>
+        <div class="col-span-2 text-right">Precio</div>
+        <div class="col-span-2 text-right">Acciones</div>
+      </div>
+      ${list.map(p => renderProductRow(p)).join('')}
+    </div>`;
+  }
+}
+
+function renderProductCard(p) {
+  const s = getStatus(p);
+  const border = s==='out' ? 'border-red-200' : s==='low' ? 'border-yellow-200' : 'border-slate-200';
+  const stockColor = s==='out' ? 'text-red-600' : s==='low' ? 'text-yellow-600' : 'text-green-600';
+  return `<div class="bg-white rounded-2xl border ${border} overflow-hidden card-hover cursor-pointer fade-in" onclick="openDetail('${p.id}')">
+    ${p.photo ? `<div class="aspect-video bg-slate-100 overflow-hidden"><img src="${p.photo}" alt="${p.name}" class="w-full h-full object-cover" onerror="this.style.display='none'"></div>` : `<div class="aspect-video bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center"><svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/></svg></div>`}
+    <div class="p-4">
+      <div class="flex items-start justify-between gap-2 mb-1">
+        <p class="text-sm font-700 text-slate-800 leading-tight line-clamp-2" style="font-weight:700">${p.name}</p>
+        ${statusBadge(p)}
+      </div>
+      <p class="text-xs text-slate-400 mb-3">${p.sku} · ${p.category}</p>
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs text-slate-500">Stock</p>
+          <p class="text-lg font-800 ${stockColor}" style="font-weight:800">${p.stock}</p>
+          <p class="text-xs text-slate-400">min: ${p.minStock}</p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-slate-500">Precio</p>
+          <p class="text-sm font-700 text-slate-800" style="font-weight:700">${fmt(p.price)}</p>
+          <p class="text-xs text-slate-400">costo: ${fmt(p.cost)}</p>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderProductRow(p) {
+  const s = getStatus(p);
+  const stockColor = s==='out' ? 'text-red-600 font-700' : s==='low' ? 'text-yellow-600 font-700' : 'text-slate-800';
+  const bg = s==='out' ? 'bg-red-50' : s==='low' ? 'bg-yellow-50' : '';
+  return `<div class="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-slate-50 transition-colors ${bg} items-center border-b border-slate-100 last:border-0">
+    <div class="col-span-4">
+      <p class="text-sm font-600 text-slate-800 truncate" style="font-weight:600">${p.name}</p>
+      <p class="text-xs text-slate-400">${p.category}</p>
+    </div>
+    <div class="col-span-2 text-xs text-slate-500 font-mono">${p.sku}</div>
+    <div class="col-span-2 flex items-center gap-1.5">${statusBadge(p)}<span class="text-sm ${stockColor}">${p.stock}</span></div>
+    <div class="col-span-2 text-right text-sm font-600 text-slate-800" style="font-weight:600">${fmt(p.price)}</div>
+    <div class="col-span-2 flex justify-end gap-1">
+      <button onclick="event.stopPropagation(); openDetail('${p.id}')" class="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-500" title="Ver detalle">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+      </button>
+      <button onclick="event.stopPropagation(); openProductForm('${p.id}')" class="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-500" title="Editar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      </button>
+      <button onclick="event.stopPropagation(); deleteProduct('${p.id}')" class="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-slate-400 hover:text-red-500" title="Eliminar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function updateStats() {
+  const ok = products.filter(p => getStatus(p) === 'ok').length;
+  const low = products.filter(p => getStatus(p) === 'low').length;
+  const out = products.filter(p => getStatus(p) === 'out').length;
+  document.getElementById('statTotal').textContent = products.length;
+  document.getElementById('statOk').textContent = ok;
+  document.getElementById('statLow').textContent = low;
+  document.getElementById('statOut').textContent = out;
+}
+
+function updateAlertBadge() {
+  const alerts = products.filter(p => getStatus(p) !== 'ok');
+  const badge = document.getElementById('alertBadge');
+  if (alerts.length > 0) {
+    badge.textContent = alerts.length > 9 ? '9+' : alerts.length;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function updateCategoryFilter() {
+  const sel = document.getElementById('filterCat');
+  const val = sel.value;
+  sel.innerHTML = '<option value="">Todas las categorías</option>';
+  categories.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    if (c === val) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+// ============================================================
+// PRODUCT FORM
+// ============================================================
+function openProductForm(id=null) {
+  document.getElementById('editId').value = id || '';
+  document.getElementById('formTitle').textContent = id ? 'Editar Producto' : 'Nuevo Producto';
+
+  const catSel = document.getElementById('fCategory');
+  catSel.innerHTML = '<option value="">— Seleccionar —</option>';
+  categories.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c; o.textContent = c;
+    catSel.appendChild(o);
+  });
+
+  if (id) {
+    const p = products.find(x => x.id === id);
+    if (p) {
+      document.getElementById('fName').value = p.name;
+      document.getElementById('fSku').value = p.sku;
+      document.getElementById('fCategory').value = p.category;
+      document.getElementById('fPrice').value = p.price;
+      document.getElementById('fCost').value = p.cost;
+      document.getElementById('fStock').value = p.stock;
+      document.getElementById('fMinStock').value = p.minStock;
+      document.getElementById('fPhoto').value = p.photo || '';
+      document.getElementById('fDesc').value = p.desc || '';
+    }
+  } else {
+    document.getElementById('fName').value = '';
+    document.getElementById('fSku').value = '';
+    document.getElementById('fCategory').value = '';
+    document.getElementById('fPrice').value = '';
+    document.getElementById('fCost').value = '';
+    document.getElementById('fStock').value = 0;
+    document.getElementById('fMinStock').value = 5;
+    document.getElementById('fPhoto').value = '';
+    document.getElementById('fDesc').value = '';
+  }
+  document.getElementById('productModal').classList.remove('hidden');
+}
+
+function closeProductForm() {
+  document.getElementById('productModal').classList.add('hidden');
+}
+
+function addNewCategory() {
+  const name = prompt('Nombre de la nueva categoría:');
+  if (!name || !name.trim()) return;
+  const n = name.trim();
+  if (!categories.includes(n)) {
+    categories.push(n);
+    save('inv_categories', categories);
+  }
+  const catSel = document.getElementById('fCategory');
+  const o = document.createElement('option');
+  o.value = n; o.textContent = n; o.selected = true;
+  catSel.appendChild(o);
+}
+
+function saveProduct() {
+  const name = document.getElementById('fName').value.trim();
+  const sku = document.getElementById('fSku').value.trim();
+  if (!name || !sku) { toast('Nombre y SKU son obligatorios', false); return; }
+  const price = parseFloat(document.getElementById('fPrice').value) || 0;
+  if (price <= 0) { toast('El precio debe ser mayor a 0', false); return; }
+
+  const id = document.getElementById('editId').value;
+  const cat = document.getElementById('fCategory').value;
+  if (cat && !categories.includes(cat)) { categories.push(cat); save('inv_categories', categories); }
+
+  const data = {
+    name, sku,
+    category: cat || 'Sin categoría',
+    price, cost: parseFloat(document.getElementById('fCost').value) || 0,
+    stock: parseInt(document.getElementById('fStock').value) || 0,
+    minStock: parseInt(document.getElementById('fMinStock').value) || 0,
+    photo: document.getElementById('fPhoto').value.trim(),
+    desc: document.getElementById('fDesc').value.trim()
+  };
+
+  if (id) {
+    const idx = products.findIndex(p => p.id === id);
+    if (idx !== -1) products[idx] = { ...products[idx], ...data };
+    toast('Producto actualizado');
+  } else {
+    const dupSku = products.find(p => p.sku.toLowerCase() === sku.toLowerCase());
+    if (dupSku) { toast('Ya existe un producto con ese SKU', false); return; }
+    products.push({ id: uid(), ...data });
+    toast('Producto agregado');
+  }
+
+  save('inv_products', products);
+  closeProductForm();
+  renderProducts();
+  updateAlertBadge();
+}
+
+function deleteProduct(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`¿Eliminar "${p.name}"? Esta acción no se puede deshacer.`)) return;
+  products = products.filter(x => x.id !== id);
+  save('inv_products', products);
+  renderProducts();
+  toast('Producto eliminado');
+}
+
+// ============================================================
+// PRODUCT DETAIL
+// ============================================================
+function openDetail(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const s = getStatus(p);
+  const margin = p.price - p.cost;
+  const marginPct = p.cost > 0 ? ((margin/p.cost)*100).toFixed(1) : '—';
+  const stockBar = Math.min(100, p.minStock > 0 ? (p.stock/Math.max(p.minStock*2,1))*100 : (p.stock > 0 ? 100 : 0));
+  const barColor = s==='out' ? 'bg-red-500' : s==='low' ? 'bg-yellow-500' : 'bg-green-500';
+  const movs = movements.filter(m => m.productId === id).slice(-5).reverse();
+
+  document.getElementById('detailContent').innerHTML = `
+    <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+      <div>
+        <h2 class="font-700 text-slate-800 leading-tight" style="font-weight:700">${p.name}</h2>
+        <p class="text-xs text-slate-400 mt-0.5">${p.sku} · ${p.category}</p>
+      </div>
+      <button onclick="closeDetail()" class="p-2 rounded-xl hover:bg-slate-200 transition-colors">
+        <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="overflow-y-auto flex-1 p-5 space-y-5">
+      ${p.photo ? `<img src="${p.photo}" alt="${p.name}" class="w-full rounded-xl aspect-video object-cover bg-slate-100" onerror="this.remove()">` : ''}
+      ${p.desc ? `<p class="text-sm text-slate-600">${p.desc}</p>` : ''}
+
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-slate-50 rounded-xl p-3 text-center">
+          <p class="text-xs text-slate-500 mb-1">Precio</p>
+          <p class="font-700 text-slate-800" style="font-weight:700">${fmt(p.price)}</p>
+        </div>
+        <div class="bg-slate-50 rounded-xl p-3 text-center">
+          <p class="text-xs text-slate-500 mb-1">Costo</p>
+          <p class="font-700 text-slate-800" style="font-weight:700">${fmt(p.cost)}</p>
+        </div>
+        <div class="bg-green-50 rounded-xl p-3 text-center">
+          <p class="text-xs text-green-600 mb-1">Margen</p>
+          <p class="font-700 text-green-700" style="font-weight:700">${marginPct}%</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-600 text-slate-700" style="font-weight:600">Stock actual: <strong>${p.stock}</strong></span>
+          ${statusBadge(p)}
+        </div>
+        <div class="h-2.5 bg-slate-200 rounded-full overflow-hidden">
+          <div class="${barColor} h-full rounded-full transition-all" style="width:${stockBar}%"></div>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">Mínimo configurado: ${p.minStock} unidades</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-blue-50 rounded-xl p-3">
+          <p class="text-xs text-blue-600 mb-1">Valor en inventario</p>
+          <p class="font-700 text-blue-800" style="font-weight:700">${fmt(p.stock * p.cost)}</p>
+        </div>
+        <div class="bg-purple-50 rounded-xl p-3">
+          <p class="text-xs text-purple-600 mb-1">Valor venta potencial</p>
+          <p class="font-700 text-purple-800" style="font-weight:700">${fmt(p.stock * p.price)}</p>
+        </div>
+      </div>
+
+      ${movs.length > 0 ? `<div>
+        <p class="text-xs font-600 text-slate-500 mb-2" style="font-weight:600">Últimos movimientos</p>
+        <div class="space-y-1.5">
+          ${movs.map(m => {
+            const isEntry = ['compra','devolucion_entrada','ajuste_entrada'].includes(m.type);
+            return `<div class="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-2">
+              <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full ${isEntry ? 'bg-green-500' : 'bg-red-500'}"></span>
+                <span class="text-slate-600">${movTypeLabel(m.type)}</span>
+                ${m.note ? `<span class="text-slate-400">· ${m.note}</span>` : ''}
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="${isEntry ? 'text-green-600' : 'text-red-600'} font-600" style="font-weight:600">${isEntry ? '+' : '-'}${m.qty}</span>
+                <span class="text-slate-400">${fmtDate(m.ts)}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
+    </div>
+    <div class="p-4 border-t border-slate-100 flex gap-2 bg-slate-50">
+      <button onclick="closeDetail(); openProductForm('${p.id}')" class="flex-1 btn-green py-3 rounded-xl text-sm font-600" style="font-weight:600">Editar</button>
+      <button onclick="closeDetail(); showTab('movimientos'); setTimeout(()=>{ document.getElementById('movProduct').value='${p.id}'; }, 100);" class="flex-1 btn-outline py-3 rounded-xl text-sm font-600" style="font-weight:600">Movimiento</button>
+    </div>
+  `;
+  document.getElementById('detailModal').classList.remove('hidden');
+}
+
+function closeDetail() { document.getElementById('detailModal').classList.add('hidden'); }
+
+// ============================================================
+// MOVEMENTS
+// ============================================================
+function movTypeLabel(t) {
+  const map = { compra:'Compra', devolucion_entrada:'Dev. Entrada', ajuste_entrada:'Ajuste (+)', venta:'Venta', perdida:'Pérdida', ajuste_salida:'Ajuste (-)' };
+  return map[t] || t;
+}
+function isEntry(t) { return ['compra','devolucion_entrada','ajuste_entrada'].includes(t); }
+
+function populateMovProduct() {
+  const sel = document.getElementById('movProduct');
+  const val = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar producto —</option>';
+  [...products].sort((a,b)=>a.name.localeCompare(b.name)).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = `${p.name} (Stock: ${p.stock})`;
+    if (p.id === val) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function registerMovement() {
+  const pid = document.getElementById('movProduct').value;
+  const type = document.getElementById('movType').value;
+  const qty = parseInt(document.getElementById('movQty').value) || 0;
+  const note = document.getElementById('movNote').value.trim();
+
+  if (!pid) { toast('Selecciona un producto', false); return; }
+  if (qty <= 0) { toast('La cantidad debe ser mayor a 0', false); return; }
+
+  const idx = products.findIndex(p => p.id === pid);
+  if (idx === -1) return;
+
+  const entry = isEntry(type);
+  if (!entry && products[idx].stock < qty) {
+    toast(`Solo hay ${products[idx].stock} unidades disponibles`, false); return;
+  }
+
+  const prev = products[idx].stock;
+  products[idx].stock = entry ? prev + qty : prev - qty;
+
+  const mov = { id: uid(), productId: pid, productName: products[idx].name, type, qty, note, ts: Date.now(), prevStock: prev, newStock: products[idx].stock };
+  movements.unshift(mov);
+
+  save('inv_products', products);
+  save('inv_movements', movements);
+
+  document.getElementById('movQty').value = 1;
+  document.getElementById('movNote').value = '';
+  populateMovProduct();
+  renderMovements();
+  updateMovStats();
+  updateAlertBadge();
+
+  toast(`${movTypeLabel(type)}: ${entry ? '+' : '-'}${qty} unidades registradas`);
+}
+
+function renderMovements() {
+  const filter = document.getElementById('movFilterType').value;
+  let list = movements;
+  if (filter === 'entrada') list = movements.filter(m => isEntry(m.type));
+  if (filter === 'salida') list = movements.filter(m => !isEntry(m.type));
+
+  const container = document.getElementById('movementsContainer');
+  if (list.length === 0) {
+    container.innerHTML = `<div class="text-center py-10 text-slate-400 text-sm">No hay movimientos registrados</div>`;
+    return;
+  }
+  container.innerHTML = list.slice(0,100).map(m => {
+    const entry = isEntry(m.type);
+    return `<div class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+      <div class="w-8 h-8 rounded-xl ${entry ? 'bg-green-100' : 'bg-red-100'} flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 ${entry ? 'text-green-600' : 'text-red-600'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          ${entry ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/>' : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/>'}
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-600 text-slate-800 truncate" style="font-weight:600">${m.productName}</p>
+        <p class="text-xs text-slate-400">${movTypeLabel(m.type)}${m.note ? ' · ' + m.note : ''} · ${fmtDate(m.ts)}</p>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-sm font-700 ${entry ? 'text-green-600' : 'text-red-600'}" style="font-weight:700">${entry ? '+' : '-'}${m.qty}</p>
+        <p class="text-xs text-slate-400">${m.prevStock} → ${m.newStock}</p>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateMovStats() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayMovs = movements.filter(m => m.ts >= today.getTime());
+  const entradas = todayMovs.filter(m => isEntry(m.type)).reduce((s,m) => s+m.qty, 0);
+  const salidas = todayMovs.filter(m => !isEntry(m.type)).reduce((s,m) => s+m.qty, 0);
+  document.getElementById('statEntradas').textContent = entradas;
+  document.getElementById('statSalidas').textContent = salidas;
+  document.getElementById('statMovTotal').textContent = movements.length;
+}
+
+function clearMovements() {
+  if (!confirm('¿Limpiar todo el historial de movimientos? Esto no afecta el stock actual.')) return;
+  movements = [];
+  save('inv_movements', movements);
+  renderMovements();
+  updateMovStats();
+  toast('Historial limpiado');
+}
+
+// ============================================================
+// REPORTS
+// ============================================================
+function renderReports() {
+  const totalCost = products.reduce((s,p) => s + p.stock * p.cost, 0);
+  const totalVenta = products.reduce((s,p) => s + p.stock * p.price, 0);
+  const margen = totalVenta - totalCost;
+  document.getElementById('reportValor').textContent = fmt(totalCost);
+  document.getElementById('reportValorVenta').textContent = fmt(totalVenta);
+  document.getElementById('reportMargen').textContent = fmt(margen);
+
+  // Category breakdown
+  const catMap = {};
+  products.forEach(p => {
+    if (!catMap[p.category]) catMap[p.category] = { count:0, stock:0, value:0, valueVenta:0 };
+    catMap[p.category].count++;
+    catMap[p.category].stock += p.stock;
+    catMap[p.category].value += p.stock * p.cost;
+    catMap[p.category].valueVenta += p.stock * p.price;
+  });
+  const cats = Object.entries(catMap).sort((a,b) => b[1].value - a[1].value);
+  const maxVal = Math.max(...cats.map(([,v]) => v.value)) || 1;
+  document.getElementById('categoryReport').innerHTML = cats.map(([cat, v]) => {
+    const pct = (v.value / maxVal * 100).toFixed(0);
+    return `<div class="space-y-1">
+      <div class="flex items-center justify-between text-sm">
+        <div class="flex items-center gap-2">
+          <span class="font-600 text-slate-800" style="font-weight:600">${cat}</span>
+          <span class="text-xs text-slate-400">${v.count} productos · ${v.stock} uds</span>
+        </div>
+        <div class="text-right">
+          <span class="font-600 text-slate-800" style="font-weight:600">${fmt(v.value)}</span>
+          <span class="text-xs text-slate-400 ml-1">costo</span>
+        </div>
+      </div>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div class="bg-green-500 h-full rounded-full" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Low stock table
+  const lowList = products.filter(p => getStatus(p) !== 'ok').sort((a,b) => a.stock - b.stock);
+  const container = document.getElementById('lowStockContainer');
+  if (lowList.length === 0) {
+    container.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm">Todos los productos tienen stock suficiente</div>`;
+    return;
+  }
+  container.innerHTML = lowList.map(p => {
+    const s = getStatus(p);
+    return `<div class="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-100 last:border-0 items-center ${s==='out'?'bg-red-50':s==='low'?'bg-yellow-50':''}">
+      <div class="col-span-5">
+        <p class="text-sm font-600 text-slate-800 truncate" style="font-weight:600">${p.name}</p>
+        <p class="text-xs text-slate-400">${p.sku} · ${p.category}</p>
+      </div>
+      <div class="col-span-2 text-center">${statusBadge(p)}</div>
+      <div class="col-span-2 text-center">
+        <span class="text-lg font-800 ${s==='out'?'text-red-600':'text-yellow-600'}" style="font-weight:800">${p.stock}</span>
+        <span class="text-xs text-slate-400"> / ${p.minStock}</span>
+      </div>
+      <div class="col-span-3 text-right text-sm font-600 text-slate-600" style="font-weight:600">Pedir: ${Math.max(0, p.minStock*2 - p.stock)} uds</div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// ALERTS MODAL
+// ============================================================
+function openAlerts() {
+  const alerts = products.filter(p => getStatus(p) !== 'ok').sort((a,b) => a.stock - b.stock);
+  const container = document.getElementById('alertsContent');
+  if (alerts.length === 0) {
+    container.innerHTML = `<div class="text-center py-6 text-slate-400 text-sm">No hay alertas activas</div>`;
+  } else {
+    container.innerHTML = alerts.map(p => {
+      const s = getStatus(p);
+      return `<div class="flex items-center gap-3 p-3 rounded-xl ${s==='out'?'bg-red-50 border border-red-200':'bg-yellow-50 border border-yellow-200'}">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-600 text-slate-800 truncate" style="font-weight:600">${p.name}</p>
+          <p class="text-xs text-slate-500">${p.category} · Min: ${p.minStock}</p>
+        </div>
+        ${statusBadge(p)}
+        <span class="text-lg font-800 ${s==='out'?'text-red-600':'text-yellow-600'}" style="font-weight:800">${p.stock}</span>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('alertsModal').classList.remove('hidden');
+}
+function closeAlerts() { document.getElementById('alertsModal').classList.add('hidden'); }
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function openSettings() {
+  document.getElementById('settingStore').value = settings.store;
+  document.getElementById('settingWA').value = settings.wa;
+  document.getElementById('settingCurrency').value = settings.currency;
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+function saveSettings() {
+  settings.store = document.getElementById('settingStore').value.trim() || 'Mi Tienda';
+  settings.wa = document.getElementById('settingWA').value.trim();
+  settings.currency = document.getElementById('settingCurrency').value;
+  save('inv_settings', settings);
+  document.getElementById('storeName').textContent = settings.store;
+  closeSettings();
+  toast('Configuración guardada');
+}
+function resetData() {
+  if (!confirm('¿BORRAR TODOS LOS DATOS? Se perderán productos, movimientos y configuración.')) return;
+  localStorage.removeItem('inv_products');
+  localStorage.removeItem('inv_movements');
+  localStorage.removeItem('inv_categories');
+  localStorage.removeItem('inv_settings');
+  location.reload();
+}
+
+// ============================================================
+// EXPORT CSV
+// ============================================================
+function exportCSV() {
+  const headers = ['SKU','Nombre','Categoría','Precio','Costo','Stock','Stock Mínimo','Estado','Valor Inventario'];
+  const rows = products.map(p => [
+    p.sku, `"${p.name}"`, p.category, p.price, p.cost, p.stock, p.minStock,
+    getStatus(p)==='ok'?'OK':getStatus(p)==='low'?'Stock Bajo':'Sin Stock',
+    (p.stock * p.cost).toFixed(2)
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  downloadFile(`inventario_${settings.store.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`, '\uFEFF' + csv, 'text/csv;charset=utf-8');
+  toast('CSV exportado');
+}
+
+function exportMovementsCSV() {
+  if (movements.length === 0) { toast('No hay movimientos para exportar', false); return; }
+  const headers = ['Fecha','Producto','SKU','Tipo','Cantidad','Stock Anterior','Stock Nuevo','Notas'];
+  const rows = movements.map(m => {
+    const p = products.find(x => x.id === m.productId);
+    return [fmtDate(m.ts), `"${m.productName}"`, p?.sku||'—', movTypeLabel(m.type), m.qty, m.prevStock, m.newStock, `"${m.note||''}"`];
+  });
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  downloadFile(`movimientos_${new Date().toISOString().slice(0,10)}.csv`, '\uFEFF' + csv, 'text/csv;charset=utf-8');
+  toast('Movimientos exportados');
+}
+
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ============================================================
+// PRINT
+// ============================================================
+function printLowStock() {
+  const lowList = products.filter(p => getStatus(p) !== 'ok').sort((a,b) => a.stock - b.stock);
+  const rows = lowList.map(p => {
+    const s = getStatus(p);
+    return `<tr style="background:${s==='out'?'#fee2e2':s==='low'?'#fef9c3':'#fff'}">
+      <td style="padding:8px;border:1px solid #e2e8f0">${p.sku}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0">${p.name}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0;text-align:center">${p.category}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;font-weight:bold;color:${s==='out'?'#dc2626':'#a16207'}">${p.stock}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0;text-align:center">${p.minStock}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;font-weight:bold">${Math.max(0, p.minStock*2 - p.stock)}</td>
+    </tr>`;
+  }).join('');
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reporte Stock Bajo — ${settings.store}</title>
+  <style>body{font-family:Arial,sans-serif;padding:20px;color:#1e293b}h1{font-size:20px;margin-bottom:4px}p{color:#64748b;margin:0 0 16px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#f1f5f9;padding:8px;border:1px solid #e2e8f0;text-align:left;font-weight:600}footer{margin-top:24px;font-size:11px;color:#94a3b8;text-align:center}</style>
+  </head><body>
+  <h1>Reporte de Stock Bajo — ${settings.store}</h1>
+  <p>Generado: ${new Date().toLocaleString('es-MX')} · Total: ${lowList.length} productos</p>
+  <table><thead><tr><th>SKU</th><th>Producto</th><th>Categoría</th><th>Stock Actual</th><th>Stock Mínimo</th><th>Sugerencia Pedido</th></tr></thead>
+  <tbody>${rows}</tbody></table>
+  <footer>Powered by Novamente Studio · InventarioPro</footer>
+  </body></html>`);
+  w.document.close();
+  w.print();
+}
+
+// ============================================================
+// WHATSAPP
+// ============================================================
+function sendLowStockWhatsApp() {
+  const wa = settings.wa;
+  if (!wa) { toast('Configura el número de WhatsApp en ajustes', false); openSettings(); return; }
+  const lowList = products.filter(p => getStatus(p) !== 'ok').sort((a,b) => a.stock - b.stock);
+  if (lowList.length === 0) { toast('No hay productos con stock bajo', false); return; }
+
+  let msg = `📦 *Alerta de Stock — ${settings.store}*\n`;
+  msg += `📅 ${new Date().toLocaleDateString('es-MX', {day:'2-digit',month:'long',year:'numeric'})}\n\n`;
+  msg += `Se necesita surtir ${lowList.length} producto(s):\n\n`;
+
+  lowList.forEach(p => {
+    const s = getStatus(p);
+    const icon = s === 'out' ? '🔴' : '🟡';
+    msg += `${icon} *${p.name}*\n`;
+    msg += `   SKU: ${p.sku} | Stock: ${p.stock} (mín: ${p.minStock})\n`;
+    msg += `   Sugerencia pedido: ${Math.max(0, p.minStock*2 - p.stock)} uds\n\n`;
+  });
+
+  msg += `_Enviado desde InventarioPro_`;
+  const encoded = encodeURIComponent(msg);
+  const num = wa.replace(/\D/g,'');
+  window.open(`https://wa.me/${num}?text=${encoded}`, '_blank');
+}
+
+// ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeProductForm();
+    closeDetail();
+    closeAlerts();
+    closeSettings();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && currentTab === 'productos') {
+    e.preventDefault();
+    openProductForm();
+  }
+});
+
+// ============================================================
+// INIT
+// ============================================================
+updateAlertBadge();
+</script>
+</body>
+</html>

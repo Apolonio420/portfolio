@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checklist de Limpieza</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; font-size: 12px; }
+    .print-section { page-break-inside: avoid; }
+  }
+  .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #059669; outline-offset: 0; }
+  .tab-btn.active { background: #059669; color: white; }
+  .check-item { transition: all 0.15s; }
+  .check-item.checked { background: #f0fdf4; border-color: #86efac; }
+  .progress-bar { transition: width 0.4s cubic-bezier(0.16,1,0.3,1); }
+  .streak-fire { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.7; } }
+</style>
+</head>
+<body class="bg-emerald-50 min-h-screen">
+
+<!-- Header -->
+<header class="bg-emerald-600 text-white shadow-lg no-print">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <h1 class="text-xl font-bold">Checklist de Limpieza</h1>
+      <p id="todayLabel" class="text-emerald-200 text-sm"></p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="printReport()" class="bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-800 transition no-print">Imprimir Reporte</button>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-6xl mx-auto px-4 py-6 no-print">
+
+  <!-- Compliance Dashboard -->
+  <div id="dashboardStats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+
+  <!-- Tabs -->
+  <div class="flex border-b border-emerald-200 mb-6 overflow-x-auto">
+    <button onclick="showTab('hoy')" id="tab-hoy" class="tab-btn active px-4 py-2.5 text-sm font-semibold rounded-tl-lg rounded-tr-lg transition whitespace-nowrap">Hoy</button>
+    <button onclick="showTab('historial')" id="tab-historial" class="tab-btn px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-tl-lg rounded-tr-lg transition whitespace-nowrap">Historial</button>
+    <button onclick="showTab('areas')" id="tab-areas" class="tab-btn px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-tl-lg rounded-tr-lg transition whitespace-nowrap">Configurar Areas</button>
+    <button onclick="showTab('cumplimiento')" id="tab-cumplimiento" class="tab-btn px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-tl-lg rounded-tr-lg transition whitespace-nowrap">Cumplimiento</button>
+  </div>
+
+  <!-- Tab: Hoy -->
+  <div id="tab-content-hoy">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <!-- Area List -->
+      <div class="md:col-span-1 space-y-3">
+        <h3 class="font-bold text-slate-700 text-sm uppercase tracking-wide">Areas</h3>
+        <div id="areaList" class="space-y-2"></div>
+      </div>
+      <!-- Checklist -->
+      <div class="md:col-span-2">
+        <div id="checklistPanel" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Historial -->
+  <div id="tab-content-historial" class="hidden">
+    <div class="flex gap-3 mb-4 flex-wrap">
+      <input id="histFecha" type="date" onchange="renderHistorial()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+      <select id="histArea" onchange="renderHistorial()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        <option value="">Todas las areas</option>
+      </select>
+    </div>
+    <div id="listaHistorial" class="space-y-4"></div>
+  </div>
+
+  <!-- Tab: Areas -->
+  <div id="tab-content-areas" class="hidden">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="font-bold text-slate-800">Areas Configuradas</h2>
+      <button onclick="openModal('modalArea')" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition">+ Nueva Area</button>
+    </div>
+    <div id="listaAreas" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+  </div>
+
+  <!-- Tab: Cumplimiento -->
+  <div id="tab-content-cumplimiento" class="hidden">
+    <h2 class="font-bold text-slate-800 mb-4">Dashboard de Cumplimiento</h2>
+    <div id="cumplimientoGrid" class="space-y-4"></div>
+  </div>
+</div>
+
+<!-- Modal: Agregar Area -->
+<div id="modalArea" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-5">
+        <h2 class="text-lg font-bold text-slate-800">Nueva Area</h2>
+        <button onclick="closeModal('modalArea')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Nombre del Area</label>
+          <input id="a-nombre" type="text" placeholder="Ej: Banos, Cocina, Recepcion..." class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Icono (emoji)</label>
+          <input id="a-icono" type="text" placeholder="🧹" maxlength="4" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Items del Checklist (uno por linea)</label>
+          <textarea id="a-items" rows="6" placeholder="Limpiar pisos&#10;Desinfectar superficies&#10;Vaciar botes de basura&#10;Limpiar vidrios" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeModal('modalArea')" class="flex-1 border border-slate-200 text-slate-600 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition">Cancelar</button>
+        <button onclick="guardarArea()" class="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition">Guardar Area</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Supervisor Sign-off -->
+<div id="modalSupervisor" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-slate-800">Aprobacion Supervisor</h2>
+        <button onclick="closeModal('modalSupervisor')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      <p class="text-slate-500 text-sm mb-4">Ingresa la contrasena del supervisor para aprobar este checklist.</p>
+      <input id="superPass" type="password" placeholder="Contrasena" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4">
+      <p id="superError" class="text-red-500 text-xs mb-3 hidden">Contrasena incorrecta. Intenta de nuevo.</p>
+      <div class="flex gap-3">
+        <button onclick="closeModal('modalSupervisor')" class="flex-1 border border-slate-200 text-slate-600 py-2 rounded-lg text-sm font-semibold">Cancelar</button>
+        <button onclick="confirmarAprobacion()" class="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition">Aprobar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="text-center py-6 text-slate-400 text-xs no-print">
+  Powered by <span class="font-semibold text-emerald-600">Novamente Studio</span>
+</footer>
+
+<script>
+const AREAS_KEY = 'limpieza_areas';
+const CHECKS_KEY = 'limpieza_checks';
+const SUPERVISOR_PASS = 'super';
+
+let selectedAreaId = null;
+let pendingApprovalKey = null;
+
+function getAreas() { return JSON.parse(localStorage.getItem(AREAS_KEY) || '[]'); }
+function setAreas(d) { localStorage.setItem(AREAS_KEY, JSON.stringify(d)); }
+function getChecks() { return JSON.parse(localStorage.getItem(CHECKS_KEY) || '{}'); }
+function setChecks(d) { localStorage.setItem(CHECKS_KEY, JSON.stringify(d)); }
+
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function formatDate(str) {
+  if (!str) return '-';
+  const [y,m,d] = str.split('-');
+  return `${d}/${m}/${y}`;
+}
+function now() {
+  const d = new Date();
+  return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+}
+
+function checkKey(date, areaId, itemIdx) { return `${date}_${areaId}_${itemIdx}`; }
+function approvalKey(date, areaId) { return `approved_${date}_${areaId}`; }
+function initialsKey(date, areaId) { return `initials_${date}_${areaId}`; }
+
+function getAreaProgress(areaId, date) {
+  const areas = getAreas();
+  const area = areas.find(a => a.id === areaId);
+  if (!area) return { done: 0, total: 0, pct: 0 };
+  const checks = getChecks();
+  const done = area.items.filter((_, i) => checks[checkKey(date, areaId, i)]).length;
+  const total = area.items.length;
+  return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
+}
+
+function renderDashboard() {
+  const areas = getAreas();
+  const today = todayStr();
+  const checks = getChecks();
+  let totalItems = 0, completedItems = 0, approvedAreas = 0;
+
+  areas.forEach(a => {
+    const { done, total } = getAreaProgress(a.id, today);
+    totalItems += total; completedItems += done;
+    if (checks[approvalKey(today, a.id)]) approvedAreas++;
+  });
+
+  const pct = totalItems ? Math.round((completedItems / totalItems) * 100) : 0;
+  const container = document.getElementById('dashboardStats');
+  container.innerHTML = `
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Completado Hoy</p>
+      <p class="text-3xl font-bold text-emerald-600 mt-1">${pct}%</p>
+      <div class="h-1.5 bg-slate-100 rounded-full mt-2"><div class="h-1.5 bg-emerald-500 rounded-full progress-bar" style="width:${pct}%"></div></div>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Items Completados</p>
+      <p class="text-3xl font-bold text-blue-600 mt-1">${completedItems}/${totalItems}</p>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Areas Aprobadas</p>
+      <p class="text-3xl font-bold text-teal-600 mt-1">${approvedAreas}/${areas.length}</p>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <p class="text-slate-500 text-xs font-medium uppercase tracking-wide">Areas Pendientes</p>
+      <p class="text-3xl font-bold text-orange-500 mt-1">${areas.length - approvedAreas}</p>
+    </div>`;
+}
+
+function renderAreaList() {
+  const areas = getAreas();
+  const today = todayStr();
+  const checks = getChecks();
+  const container = document.getElementById('areaList');
+  if (!areas.length) {
+    container.innerHTML = '<p class="text-slate-400 text-sm text-center py-4">No hay areas configuradas.</p>';
+    document.getElementById('checklistPanel').innerHTML = '<p class="text-slate-400 text-sm text-center py-8">Configura areas en la pestana "Configurar Areas".</p>';
+    return;
+  }
+  container.innerHTML = areas.map(a => {
+    const { pct } = getAreaProgress(a.id, today);
+    const isApproved = !!checks[approvalKey(today, a.id)];
+    const isSelected = a.id === selectedAreaId;
+    return `<button onclick="selectArea('${a.id}')" class="w-full text-left rounded-xl p-3.5 border transition ${isSelected ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:border-emerald-300'}">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">${a.icono || '🧹'}</span>
+          <span class="font-semibold text-slate-800 text-sm">${a.nombre}</span>
+        </div>
+        ${isApproved ? '<span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">OK</span>' : ''}
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="flex-1 h-1.5 bg-slate-100 rounded-full"><div class="h-1.5 bg-emerald-500 rounded-full progress-bar" style="width:${pct}%"></div></div>
+        <span class="text-xs font-semibold ${pct === 100 ? 'text-emerald-600' : 'text-slate-500'}">${pct}%</span>
+      </div>
+    </button>`;
+  }).join('');
+
+  if (!selectedAreaId || !areas.find(a => a.id === selectedAreaId)) {
+    selectedAreaId = areas[0].id;
+  }
+  renderChecklist();
+}
+
+function selectArea(id) {
+  selectedAreaId = id;
+  renderAreaList();
+}
+
+function renderChecklist() {
+  const areas = getAreas();
+  const area = areas.find(a => a.id === selectedAreaId);
+  const panel = document.getElementById('checklistPanel');
+  if (!area) { panel.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">Selecciona un area.</p>'; return; }
+
+  const today = todayStr();
+  const checks = getChecks();
+  const isApproved = !!checks[approvalKey(today, area.id)];
+  const initials = checks[initialsKey(today, area.id)] || '';
+  const { done, total, pct } = getAreaProgress(area.id, today);
+
+  panel.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">${area.icono || '🧹'}</span>
+        <h3 class="font-bold text-slate-800 text-lg">${area.nombre}</h3>
+      </div>
+      <span class="text-sm font-semibold ${pct === 100 ? 'text-emerald-600' : 'text-slate-500'}">${done}/${total} completados</span>
+    </div>
+    <div class="h-2 bg-slate-100 rounded-full mb-5">
+      <div class="h-2 bg-emerald-500 rounded-full progress-bar" style="width:${pct}%"></div>
+    </div>
+    <div class="space-y-2 mb-5">
+      ${area.items.map((item, i) => {
+        const key = checkKey(today, area.id, i);
+        const isChecked = !!checks[key];
+        const checkData = typeof checks[key] === 'object' ? checks[key] : null;
+        return `<div class="check-item border rounded-xl px-4 py-3 flex items-center gap-3 ${isChecked ? 'checked' : 'border-slate-200 bg-white'}">
+          <input type="checkbox" ${isChecked ? 'checked' : ''} ${isApproved ? 'disabled' : ''} onchange="toggleCheck('${area.id}', ${i}, this)"
+            class="w-5 h-5 rounded accent-emerald-600 cursor-pointer flex-shrink-0">
+          <div class="flex-1">
+            <span class="${isChecked ? 'line-through text-slate-400' : 'text-slate-700'} text-sm font-medium">${item}</span>
+            ${checkData ? `<span class="block text-xs text-slate-400 mt-0.5">${checkData.time} - ${checkData.initials || ''}</span>` : ''}
+          </div>
+          ${isChecked ? '<svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>' : ''}
+        </div>`;
+      }).join('')}
+    </div>
+    ${!isApproved && done > 0 ? `
+      <div class="bg-slate-50 rounded-xl p-4 mb-4">
+        <label class="block text-sm font-medium text-slate-700 mb-2">Iniciales del responsable</label>
+        <input id="initialsInput" type="text" maxlength="4" placeholder="Ej: JR" value="${initials}" onchange="saveInitials('${area.id}', this.value)" class="border border-slate-200 rounded-lg px-3 py-2 text-sm w-full">
+      </div>` : ''}
+    ${isApproved ?
+      `<div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        <span class="text-emerald-700 font-semibold text-sm">Aprobado por supervisor</span>
+      </div>` :
+      pct === 100 ?
+        `<button onclick="solicitarAprobacion('${area.id}')" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition">Solicitar Aprobacion del Supervisor</button>` :
+        `<button disabled class="w-full bg-slate-100 text-slate-400 py-3 rounded-xl font-semibold cursor-not-allowed">Completa todos los items para aprobar</button>`
+    }`;
+}
+
+function saveInitials(areaId, value) {
+  const checks = getChecks();
+  checks[initialsKey(todayStr(), areaId)] = value;
+  setChecks(checks);
+}
+
+function toggleCheck(areaId, itemIdx, el) {
+  const checks = getChecks();
+  const key = checkKey(todayStr(), areaId, itemIdx);
+  const initials = checks[initialsKey(todayStr(), areaId)] || '';
+  if (el.checked) {
+    checks[key] = { time: now(), initials };
+  } else {
+    delete checks[key];
+  }
+  setChecks(checks);
+  renderAreaList();
+  renderDashboard();
+}
+
+function solicitarAprobacion(areaId) {
+  pendingApprovalKey = approvalKey(todayStr(), areaId);
+  document.getElementById('superPass').value = '';
+  document.getElementById('superError').classList.add('hidden');
+  openModal('modalSupervisor');
+}
+
+function confirmarAprobacion() {
+  const pass = document.getElementById('superPass').value;
+  if (pass !== SUPERVISOR_PASS) {
+    document.getElementById('superError').classList.remove('hidden');
+    return;
+  }
+  const checks = getChecks();
+  checks[pendingApprovalKey] = true;
+  setChecks(checks);
+  closeModal('modalSupervisor');
+  renderAreaList();
+  renderDashboard();
+}
+
+function renderAreas() {
+  const areas = getAreas();
+  const container = document.getElementById('listaAreas');
+  if (!areas.length) {
+    container.innerHTML = '<p class="text-slate-400 text-sm col-span-2 text-center py-8">No hay areas. Agrega la primera area.</p>';
+    return;
+  }
+  container.innerHTML = areas.map(a => `
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <div class="flex justify-between items-start mb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">${a.icono || '🧹'}</span>
+          <h3 class="font-bold text-slate-800">${a.nombre}</h3>
+        </div>
+        <button onclick="eliminarArea('${a.id}')" class="text-red-400 hover:text-red-600 text-sm">Eliminar</button>
+      </div>
+      <ul class="space-y-1">
+        ${a.items.map(item => `<li class="flex items-center gap-2 text-sm text-slate-600"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full flex-shrink-0"></span>${item}</li>`).join('')}
+      </ul>
+      <p class="text-xs text-slate-400 mt-3">${a.items.length} items</p>
+    </div>`).join('');
+}
+
+function eliminarArea(id) {
+  if (!confirm('¿Eliminar esta area y sus datos?')) return;
+  const areas = getAreas().filter(a => a.id !== id);
+  setAreas(areas);
+  if (selectedAreaId === id) selectedAreaId = null;
+  renderAreas(); renderAreaList(); renderDashboard();
+}
+
+function guardarArea() {
+  const nombre = document.getElementById('a-nombre').value.trim();
+  const icono = document.getElementById('a-icono').value.trim() || '🧹';
+  const itemsRaw = document.getElementById('a-items').value.trim();
+  if (!nombre || !itemsRaw) { alert('Nombre e items son obligatorios.'); return; }
+  const items = itemsRaw.split('\n').map(s => s.trim()).filter(Boolean);
+  const areas = getAreas();
+  areas.push({ id: Date.now().toString(), nombre, icono, items });
+  setAreas(areas);
+  closeModal('modalArea');
+  ['a-nombre','a-icono','a-items'].forEach(id => document.getElementById(id).value = '');
+  renderAreas(); renderAreaList(); renderDashboard();
+}
+
+function renderHistorial() {
+  const checks = getChecks();
+  const areas = getAreas();
+  const filterFecha = document.getElementById('histFecha').value;
+  const filterArea = document.getElementById('histArea').value;
+
+  // Collect all unique dates from checks
+  const dates = [...new Set(Object.keys(checks)
+    .filter(k => !k.startsWith('approved_') && !k.startsWith('initials_'))
+    .map(k => k.split('_')[0])
+  )].sort().reverse();
+
+  const container = document.getElementById('listaHistorial');
+  const filteredDates = filterFecha ? dates.filter(d => d === filterFecha) : dates;
+
+  if (!filteredDates.length) {
+    container.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">No hay historial disponible.</p>';
+    return;
+  }
+
+  container.innerHTML = filteredDates.map(date => {
+    const filteredAreas = filterArea ? areas.filter(a => a.id === filterArea) : areas;
+    return `<div class="print-section bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+      <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+        <span class="bg-emerald-100 text-emerald-700 text-sm font-semibold px-3 py-1 rounded-full">${formatDate(date)}</span>
+      </h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        ${filteredAreas.map(a => {
+          const { done, total, pct } = getAreaProgress(a.id, date);
+          const approved = !!checks[approvalKey(date, a.id)];
+          const initials = checks[initialsKey(date, a.id)] || '';
+          if (done === 0 && !approved) return '';
+          return `<div class="border border-slate-100 rounded-xl p-3">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span>${a.icono}</span>
+                <span class="font-semibold text-slate-700 text-sm">${a.nombre}</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                ${approved ? '<span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-1.5 py-0.5 rounded-full">Aprobado</span>' : ''}
+                <span class="text-xs font-bold ${pct === 100 ? 'text-emerald-600' : 'text-orange-500'}">${pct}%</span>
+              </div>
+            </div>
+            <div class="h-1.5 bg-slate-100 rounded-full"><div class="h-1.5 bg-emerald-500 rounded-full" style="width:${pct}%"></div></div>
+            <p class="text-xs text-slate-400 mt-1.5">${done}/${total} items &bull; ${initials ? `Responsable: ${initials}` : ''}</p>
+          </div>`;
+        }).filter(Boolean).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderCumplimiento() {
+  const areas = getAreas();
+  const checks = getChecks();
+  const dates = [...new Set(Object.keys(checks)
+    .filter(k => !k.startsWith('approved_') && !k.startsWith('initials_'))
+    .map(k => k.split('_')[0])
+  )].sort().reverse().slice(0, 7);
+
+  const container = document.getElementById('cumplimientoGrid');
+  container.innerHTML = areas.map(a => {
+    const stats = dates.map(d => getAreaProgress(a.id, d));
+    const avgPct = stats.length ? Math.round(stats.reduce((s, x) => s + x.pct, 0) / stats.length) : 0;
+    const streak = (() => {
+      let s = 0;
+      for (const d of dates) {
+        if (getAreaProgress(a.id, d).pct === 100) s++;
+        else break;
+      }
+      return s;
+    })();
+    const missed = stats.reduce((acc, x) => acc + (x.total - x.done), 0);
+
+    return `<div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">${a.icono}</span>
+          <h3 class="font-bold text-slate-800">${a.nombre}</h3>
+        </div>
+        <div class="text-right">
+          <p class="text-2xl font-bold ${avgPct >= 80 ? 'text-emerald-600' : avgPct >= 50 ? 'text-yellow-500' : 'text-red-500'}">${avgPct}%</p>
+          <p class="text-xs text-slate-400">promedio</p>
+        </div>
+      </div>
+      <div class="flex gap-4 mb-4 text-sm">
+        <div class="flex-1 text-center bg-emerald-50 rounded-xl py-2">
+          <p class="font-bold text-emerald-700">${streak}</p>
+          <p class="text-xs text-emerald-600">dias racha</p>
+        </div>
+        <div class="flex-1 text-center bg-red-50 rounded-xl py-2">
+          <p class="font-bold text-red-600">${missed}</p>
+          <p class="text-xs text-red-500">items omitidos</p>
+        </div>
+        <div class="flex-1 text-center bg-blue-50 rounded-xl py-2">
+          <p class="font-bold text-blue-700">${dates.length}</p>
+          <p class="text-xs text-blue-500">dias rastreados</p>
+        </div>
+      </div>
+      ${dates.length ? `<div>
+        <p class="text-xs text-slate-500 mb-2 font-medium">Ultimos ${dates.length} dias</p>
+        <div class="flex gap-1">
+          ${dates.slice(0,7).reverse().map(d => {
+            const { pct } = getAreaProgress(a.id, d);
+            const color = pct === 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-yellow-400' : pct > 0 ? 'bg-red-400' : 'bg-slate-200';
+            return `<div class="flex-1 rounded" title="${formatDate(d)}: ${pct}%">
+              <div class="h-8 ${color} rounded" style="opacity:${0.5 + pct/200}"></div>
+              <p class="text-center text-xs text-slate-400 mt-1">${pct}%</p>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
+    </div>`;
+  }).join('') || '<p class="text-slate-400 text-sm text-center py-8">No hay datos de cumplimiento.</p>';
+}
+
+function populateHistAreaFilter() {
+  const areas = getAreas();
+  const sel = document.getElementById('histArea');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todas las areas</option>' +
+    areas.map(a => `<option value="${a.id}" ${current === a.id ? 'selected' : ''}>${a.nombre}</option>`).join('');
+}
+
+function showTab(tab) {
+  ['hoy','historial','areas','cumplimiento'].forEach(t => {
+    document.getElementById(`tab-content-${t}`).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById(`tab-${t}`);
+    btn.classList.toggle('active', t === tab);
+    if (t !== tab) btn.classList.remove('active');
+  });
+  if (tab === 'historial') { populateHistAreaFilter(); renderHistorial(); }
+  if (tab === 'areas') renderAreas();
+  if (tab === 'cumplimiento') renderCumplimiento();
+}
+
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function printReport() { window.print(); }
+
+function loadDemoData() {
+  if (getAreas().length > 0) return;
+  const areas = [
+    { id: 'a1', nombre: 'Banos', icono: '🚽', items: ['Limpiar pisos con cloro', 'Desinfectar inodoros', 'Limpiar lavabos y espejos', 'Rellenar jabon y papel', 'Vaciar bote de basura', 'Verificar olores (aromatizante)'] },
+    { id: 'a2', nombre: 'Cocina', icono: '🍳', items: ['Limpiar estufa y parrillas', 'Desinfectar tabla de cortar', 'Limpiar refrigerador externo', 'Barrer y trapear pisos', 'Sacar basura organica', 'Limpiar campana extractora', 'Revisar productos vencidos'] },
+    { id: 'a3', nombre: 'Salon Comedor', icono: '🪑', items: ['Limpiar mesas y sillas', 'Barrer y trapear pisos', 'Limpiar ventanas y vidrios', 'Organizar decoracion', 'Aspirar alfombras', 'Revisar iluminacion'] },
+    { id: 'a4', nombre: 'Recepcion', icono: '🖥️', items: ['Limpiar mostrador', 'Desinfectar teclado y mouse', 'Limpiar vidrios de entrada', 'Barrer area de entrada', 'Organizar folletos y material', 'Regar plantas'] },
+  ];
+  setAreas(areas);
+
+  // Generate 3 days of history
+  const checks = {};
+  const today = new Date();
+
+  function dayStr(offset) {
+    const d = new Date(today); d.setDate(d.getDate() + offset);
+    return d.toISOString().split('T')[0];
+  }
+
+  // 3 days ago: all complete, approved
+  const d3 = dayStr(-3);
+  areas.forEach(a => {
+    a.items.forEach((_, i) => { checks[checkKey(d3, a.id, i)] = { time: '08:30', initials: 'MG' }; });
+    checks[approvalKey(d3, a.id)] = true;
+    checks[initialsKey(d3, a.id)] = 'MG';
+  });
+
+  // 2 days ago: mostly complete
+  const d2 = dayStr(-2);
+  areas.forEach((a, ai) => {
+    const completeCount = ai < 3 ? a.items.length : a.items.length - 2;
+    a.items.slice(0, completeCount).forEach((_, i) => { checks[checkKey(d2, a.id, i)] = { time: '09:15', initials: 'LT' }; });
+    if (ai < 3) checks[approvalKey(d2, a.id)] = true;
+    checks[initialsKey(d2, a.id)] = 'LT';
+  });
+
+  // Yesterday: partial
+  const d1 = dayStr(-1);
+  areas.forEach((a, ai) => {
+    const completeCount = [5, 4, 3, 2][ai];
+    a.items.slice(0, completeCount).forEach((_, i) => { checks[checkKey(d1, a.id, i)] = { time: '10:00', initials: 'CR' }; });
+    checks[initialsKey(d1, a.id)] = 'CR';
+  });
+
+  setChecks(checks);
+  selectedAreaId = areas[0].id;
+}
+
+document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+loadDemoData();
+if (!selectedAreaId) selectedAreaId = (getAreas()[0] || {}).id;
+renderDashboard();
+renderAreaList();
+</script>
+</body>
+</html>

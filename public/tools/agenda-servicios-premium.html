@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenda de Servicios</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { jakarta: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        brand: { DEFAULT: '#0369a1', light: '#0ea5e9', dark: '#075985' },
+        accent: { DEFAULT: '#f97316', light: '#fb923c', dark: '#ea580c' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); }
+  .status-agendado { background:#dbeafe; color:#1e40af; border-color:#93c5fd; }
+  .status-camino { background:#fef3c7; color:#92400e; border-color:#fcd34d; }
+  .status-completado { background:#d1fae5; color:#065f46; border-color:#6ee7b7; }
+  .status-cancelado { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .slide-up { animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes slideUp { from { opacity:0; transform:translateY(20px) scale(0.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    .glass { background: white !important; backdrop-filter: none !important; box-shadow: none !important; }
+  }
+</style>
+</head>
+<body class="h-full bg-gradient-to-br from-sky-50 via-white to-orange-50 min-h-screen">
+
+<!-- Header -->
+<header class="no-print bg-white border-b border-gray-100 shadow-sm sticky top-0 z-40">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-brand flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      </div>
+      <div>
+        <h1 class="font-bold text-gray-900 text-sm leading-tight">Agenda de Servicios</h1>
+        <p class="text-xs text-gray-400">Gestión profesional</p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="showView('calendar')" id="btn-calendar" class="px-3 py-1.5 text-xs font-600 rounded-lg bg-brand text-white transition-all">Semana</button>
+      <button onclick="showView('clients')" id="btn-clients" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-gray-600 hover:bg-gray-100 transition-all">Clientes</button>
+      <button onclick="showView('route')" id="btn-route" class="px-3 py-1.5 text-xs font-semibold rounded-lg text-gray-600 hover:bg-gray-100 transition-all">Ruta</button>
+      <button onclick="openNewAppointment()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent text-white hover:bg-accent-dark transition-all flex items-center gap-1">
+        <span>+</span> Nuevo
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Main Content -->
+<main class="max-w-6xl mx-auto px-4 py-6">
+
+  <!-- Calendar View -->
+  <div id="view-calendar" class="fade-in">
+    <!-- Weekly Summary -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="glass rounded-2xl p-4 border border-white shadow-sm">
+        <p class="text-xs text-gray-400 mb-1">Esta semana</p>
+        <p class="text-2xl font-bold text-brand" id="stat-total">0</p>
+        <p class="text-xs text-gray-500">servicios</p>
+      </div>
+      <div class="glass rounded-2xl p-4 border border-white shadow-sm">
+        <p class="text-xs text-gray-400 mb-1">Completados</p>
+        <p class="text-2xl font-bold text-green-600" id="stat-done">0</p>
+        <p class="text-xs text-gray-500">servicios</p>
+      </div>
+      <div class="glass rounded-2xl p-4 border border-white shadow-sm">
+        <p class="text-xs text-gray-400 mb-1">Pendientes</p>
+        <p class="text-2xl font-bold text-amber-600" id="stat-pending">0</p>
+        <p class="text-xs text-gray-500">servicios</p>
+      </div>
+      <div class="glass rounded-2xl p-4 border border-white shadow-sm">
+        <p class="text-xs text-gray-400 mb-1">Ingresos semana</p>
+        <p class="text-2xl font-bold text-accent" id="stat-earnings">$0</p>
+        <p class="text-xs text-gray-500">estimado</p>
+      </div>
+    </div>
+
+    <!-- Week navigation -->
+    <div class="flex items-center justify-between mb-4">
+      <button onclick="changeWeek(-1)" class="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <h2 class="font-bold text-gray-800" id="week-label">Esta semana</h2>
+      <button onclick="changeWeek(1)" class="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+    <!-- Days Grid -->
+    <div id="week-grid" class="grid grid-cols-1 md:grid-cols-7 gap-3"></div>
+  </div>
+
+  <!-- Clients View -->
+  <div id="view-clients" class="hidden fade-in">
+    <div class="flex items-center gap-3 mb-5">
+      <input type="text" id="search-client" oninput="renderClients()" placeholder="Buscar cliente o teléfono..." class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+    </div>
+    <div id="clients-list" class="space-y-3"></div>
+  </div>
+
+  <!-- Route View -->
+  <div id="view-route" class="hidden fade-in">
+    <div class="flex items-center gap-3 mb-5">
+      <input type="date" id="route-date" onchange="renderRoute()" class="px-4 py-2.5 rounded-xl border border-gray-200 bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+      <span class="text-sm text-gray-400">Selecciona el día para ver la ruta</span>
+    </div>
+    <div id="route-list" class="space-y-3"></div>
+  </div>
+</main>
+
+<!-- New Appointment Modal -->
+<div id="modal-appointment" class="hidden fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/40 backdrop-blur-sm no-print">
+  <div class="slide-up glass bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-white overflow-hidden">
+    <div class="px-6 pt-6 pb-4 border-b border-gray-100">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-gray-900" id="modal-title">Nuevo Servicio</h3>
+        <button onclick="closeModal()" class="p-2 rounded-xl hover:bg-gray-100 transition-all">
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="px-6 py-4 space-y-3 overflow-y-auto max-h-[70vh]">
+      <input type="hidden" id="edit-id">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Nombre cliente *</label>
+          <input type="text" id="f-name" placeholder="María García" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Teléfono *</label>
+          <input type="text" id="f-phone" placeholder="55 1234 5678" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Dirección *</label>
+        <input type="text" id="f-address" placeholder="Calle, número, colonia" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Servicio</label>
+          <select id="f-service" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+            <option value="Plomería general">Plomería general</option>
+            <option value="Destapado de drenaje">Destapado de drenaje</option>
+            <option value="Instalación de tinaco">Instalación de tinaco</option>
+            <option value="Electricidad general">Electricidad general</option>
+            <option value="Instalación de contactos">Instalación de contactos</option>
+            <option value="Limpieza del hogar">Limpieza del hogar</option>
+            <option value="Limpieza de oficina">Limpieza de oficina</option>
+            <option value="Mantenimiento AC">Mantenimiento AC</option>
+            <option value="Pintura">Pintura</option>
+            <option value="Herrería">Herrería</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Costo estimado</label>
+          <input type="number" id="f-cost" placeholder="500" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Fecha *</label>
+          <input type="date" id="f-date" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-gray-500 mb-1 block">Hora *</label>
+          <input type="time" id="f-time" class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Estado</label>
+        <div class="flex gap-2 flex-wrap">
+          <button type="button" onclick="setStatus('Agendado')" class="status-btn px-3 py-1.5 rounded-xl text-xs font-semibold border status-agendado transition-all" data-status="Agendado">Agendado</button>
+          <button type="button" onclick="setStatus('En camino')" class="status-btn px-3 py-1.5 rounded-xl text-xs font-semibold border status-camino transition-all" data-status="En camino">En camino</button>
+          <button type="button" onclick="setStatus('Completado')" class="status-btn px-3 py-1.5 rounded-xl text-xs font-semibold border status-completado transition-all" data-status="Completado">Completado</button>
+          <button type="button" onclick="setStatus('Cancelado')" class="status-btn px-3 py-1.5 rounded-xl text-xs font-semibold border status-cancelado transition-all" data-status="Cancelado">Cancelado</button>
+        </div>
+        <input type="hidden" id="f-status" value="Agendado">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-gray-500 mb-1 block">Notas</label>
+        <textarea id="f-notes" rows="2" placeholder="Detalles adicionales..." class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 resize-none"></textarea>
+      </div>
+    </div>
+    <div class="px-6 pb-6 pt-3 flex gap-3">
+      <button onclick="saveAppointment()" class="flex-1 bg-brand hover:bg-brand-dark text-white font-semibold py-2.5 rounded-xl transition-all text-sm">Guardar Servicio</button>
+      <button onclick="closeModal()" class="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-all">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Invoice Modal -->
+<div id="modal-invoice" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+  <div class="slide-up bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
+    <div id="invoice-content" class="p-6"></div>
+    <div class="px-6 pb-6 flex gap-3 no-print">
+      <button onclick="window.print()" class="flex-1 bg-brand text-white font-semibold py-2.5 rounded-xl transition-all text-sm">Imprimir</button>
+      <button onclick="document.getElementById('modal-invoice').classList.add('hidden')" class="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 transition-all">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Client Detail Modal -->
+<div id="modal-client" class="hidden fixed inset-0 z-50 flex items-end md:items-center justify-center p-4 bg-black/40 backdrop-blur-sm no-print">
+  <div class="slide-up bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-gray-100 overflow-hidden max-h-[80vh] flex flex-col">
+    <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex justify-between items-center">
+      <h3 class="font-bold text-gray-900" id="client-modal-name">Cliente</h3>
+      <button onclick="document.getElementById('modal-client').classList.add('hidden')" class="p-2 rounded-xl hover:bg-gray-100">
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="client-history" class="overflow-y-auto p-6 space-y-3"></div>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="no-print text-center py-8 mt-8">
+  <p class="text-xs text-gray-400">Powered by <span class="font-semibold text-gray-500">Novamente Studio</span></p>
+</footer>
+
+<script>
+// ==================== DATA ====================
+const DAYS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const DAYS_FULL = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+let currentWeekOffset = 0;
+let selectedStatus = 'Agendado';
+
+function getData() {
+  return JSON.parse(localStorage.getItem('agenda_appointments') || '[]');
+}
+function saveData(data) {
+  localStorage.setItem('agenda_appointments', JSON.stringify(data));
+}
+
+// Demo data
+function loadDemo() {
+  if (getData().length > 0) return;
+  const today = new Date();
+  const getDay = (offset) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + offset);
+    return d.toISOString().split('T')[0];
+  };
+  const demo = [
+    { id:'d1', name:'Carlos Mendoza', phone:'5512345678', address:'Av. Insurgentes Sur 1234, Del Valle', service:'Plomería general', cost:850, date: getDay(0), time:'09:00', status:'Completado', notes:'Fuga en cocina reparada.' },
+    { id:'d2', name:'Ana López', phone:'5587654321', address:'Calle Reforma 567, Polanco', service:'Electricidad general', cost:600, date: getDay(0), time:'11:30', status:'Completado', notes:'Cambio de tablero eléctrico.' },
+    { id:'d3', name:'Roberto Jiménez', phone:'5523456789', address:'Blvd. Adolfo López Mateos 890, Lomas Verdes', service:'Destapado de drenaje', cost:400, date: getDay(1), time:'10:00', status:'Agendado', notes:'Drenaje de baño principal.' },
+    { id:'d4', name:'Patricia Vargas', phone:'5534567890', address:'Calle Xola 456, Narvarte', service:'Limpieza del hogar', cost:550, date: getDay(1), time:'14:00', status:'En camino', notes:'Casa de 3 recámaras.' },
+    { id:'d5', name:'Miguel Sánchez', phone:'5545678901', address:'Periférico Norte 2345, Satélite', service:'Mantenimiento AC', cost:700, date: getDay(2), time:'09:30', status:'Agendado', notes:'2 equipos de 1.5 ton.' },
+    // Past clients for history
+    { id:'d6', name:'Carlos Mendoza', phone:'5512345678', address:'Av. Insurgentes Sur 1234, Del Valle', service:'Destapado de drenaje', cost:350, date: getDay(-14), time:'10:00', status:'Completado', notes:'Cocina destapada.' },
+    { id:'d7', name:'Ana López', phone:'5587654321', address:'Calle Reforma 567, Polanco', service:'Instalación de contactos', cost:450, date: getDay(-7), time:'09:00', status:'Completado', notes:'3 contactos nuevos.' },
+    { id:'d8', name:'Laura Hernández', phone:'5556789012', address:'Calle Durango 123, Roma Norte', service:'Pintura', cost:2800, date: getDay(-10), time:'08:00', status:'Completado', notes:'Sala y comedor.' },
+    { id:'d9', name:'Jorge Torres', phone:'5567890123', address:'Av. Universidad 789, Copilco', service:'Limpieza del hogar', cost:500, date: getDay(-5), time:'13:00', status:'Completado', notes:'Limpieza profunda.' },
+    { id:'d10', name:'Sofía Ramírez', phone:'5578901234', address:'Calle Amores 321, Del Valle', service:'Instalación de tinaco', cost:1200, date: getDay(-3), time:'10:30', status:'Completado', notes:'Tinaco 1100L instalado.' },
+    { id:'d11', name:'Diego Castro', phone:'5589012345', address:'Oriente 174 #45, Iztapalapa', service:'Herrería', cost:1500, date: getDay(-8), time:'09:00', status:'Completado', notes:'Reja de entrada.' },
+    { id:'d12', name:'Valentina Cruz', phone:'5590123456', address:'Sur 8 #78, Iztapalapa', service:'Electricidad general', cost:650, date: getDay(-12), time:'11:00', status:'Cancelado', notes:'Cliente canceló.' },
+    { id:'d13', name:'Fernando Morales', phone:'5501234567', address:'Av. Tláhuac 456, Tláhuac', service:'Plomería general', cost:750, date: getDay(-6), time:'14:00', status:'Completado', notes:'Instalación de regadera.' },
+    { id:'d14', name:'Isabel Flores', phone:'5512340987', address:'Calle Moctezuma 12, Tepito', service:'Limpieza de oficina', cost:800, date: getDay(-9), time:'07:30', status:'Completado', notes:'Oficina de 200m2.' },
+    { id:'d15', name:'Arturo Gómez', phone:'5523451098', address:'Av. Politécnico 890, Lindavista', service:'Mantenimiento AC', cost:600, date: getDay(-4), time:'10:00', status:'Completado', notes:'Limpieza filtros.' },
+  ];
+  saveData(demo);
+}
+
+// ==================== VIEWS ====================
+function showView(view) {
+  ['calendar','clients','route'].forEach(v => {
+    document.getElementById('view-'+v).classList.add('hidden');
+    document.getElementById('btn-'+v)?.classList.remove('bg-brand','text-white');
+    document.getElementById('btn-'+v)?.classList.add('text-gray-600');
+  });
+  document.getElementById('view-'+view).classList.remove('hidden');
+  document.getElementById('btn-'+view)?.classList.add('bg-brand','text-white');
+  document.getElementById('btn-'+view)?.classList.remove('text-gray-600');
+  if (view === 'calendar') renderCalendar();
+  if (view === 'clients') renderClients();
+  if (view === 'route') { document.getElementById('route-date').value = new Date().toISOString().split('T')[0]; renderRoute(); }
+}
+
+// ==================== CALENDAR ====================
+function getWeekDates(offset = 0) {
+  const today = new Date();
+  const day = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - day + 1 + (offset * 7));
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    dates.push(d);
+  }
+  return dates;
+}
+
+function changeWeek(dir) {
+  currentWeekOffset += dir;
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const dates = getWeekDates(currentWeekOffset);
+  const appointments = getData();
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const fmt = (d) => d.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
+  document.getElementById('week-label').textContent = `${fmt(dates[0])} – ${fmt(dates[6])}`;
+
+  // Stats
+  const weekStrs = dates.map(d => d.toISOString().split('T')[0]);
+  const weekAppts = appointments.filter(a => weekStrs.includes(a.date));
+  document.getElementById('stat-total').textContent = weekAppts.length;
+  document.getElementById('stat-done').textContent = weekAppts.filter(a => a.status === 'Completado').length;
+  document.getElementById('stat-pending').textContent = weekAppts.filter(a => ['Agendado','En camino'].includes(a.status)).length;
+  const earnings = weekAppts.filter(a => a.status === 'Completado').reduce((s,a) => s + (parseFloat(a.cost)||0), 0);
+  document.getElementById('stat-earnings').textContent = '$' + earnings.toLocaleString('es-MX');
+
+  const grid = document.getElementById('week-grid');
+  grid.innerHTML = '';
+
+  dates.forEach((date, i) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const isToday = dateStr === todayStr;
+    const dayAppts = appointments.filter(a => a.date === dateStr).sort((a,b) => a.time.localeCompare(b.time));
+
+    const col = document.createElement('div');
+    col.className = 'glass rounded-2xl border border-white shadow-sm overflow-hidden hover:shadow-md transition-all';
+
+    col.innerHTML = `
+      <div class="px-3 py-2 ${isToday ? 'bg-brand' : 'bg-gray-50'} border-b border-gray-100">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="text-xs font-semibold ${isToday ? 'text-white/80' : 'text-gray-400'}">${DAYS[date.getDay()]}</p>
+            <p class="text-lg font-bold ${isToday ? 'text-white' : 'text-gray-700'}">${date.getDate()}</p>
+          </div>
+          ${dayAppts.length > 0 ? `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${isToday ? 'bg-white/20 text-white' : 'bg-brand/10 text-brand'}">${dayAppts.length}</span>` : ''}
+        </div>
+      </div>
+      <div class="p-2 space-y-1.5 min-h-[80px]">
+        ${dayAppts.map(a => `
+          <div onclick="editAppointment('${a.id}')" class="p-2 rounded-xl border cursor-pointer hover:scale-[1.02] transition-all ${statusClass(a.status)}">
+            <div class="flex items-center justify-between gap-1">
+              <span class="text-xs font-bold truncate">${a.time}</span>
+              ${a.status === 'Completado' ? `<button onclick="event.stopPropagation();printInvoice('${a.id}')" class="text-xs text-green-700 hover:underline no-print">🧾</button>` : ''}
+              ${a.status === 'Agendado' || a.status === 'En camino' ? `<a href="https://wa.me/52${a.phone}?text=${encodeURIComponent('Hola '+a.name+', le informamos que estamos en camino para atender su servicio de '+a.service+'. ¡Nos vemos pronto!')}" target="_blank" onclick="event.stopPropagation()" class="text-xs no-print">💬</a>` : ''}
+            </div>
+            <p class="text-xs font-semibold truncate">${a.name}</p>
+            <p class="text-xs opacity-70 truncate">${a.service}</p>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    grid.appendChild(col);
+  });
+}
+
+function statusClass(status) {
+  if (status === 'Agendado') return 'status-agendado';
+  if (status === 'En camino') return 'status-camino';
+  if (status === 'Completado') return 'status-completado';
+  if (status === 'Cancelado') return 'status-cancelado';
+  return '';
+}
+
+// ==================== CLIENTS ====================
+function getUniqueClients() {
+  const appointments = getData();
+  const map = {};
+  appointments.forEach(a => {
+    if (!map[a.phone]) map[a.phone] = { name: a.name, phone: a.phone, visits: [], total: 0 };
+    map[a.phone].visits.push(a);
+    if (a.status === 'Completado') map[a.phone].total += (parseFloat(a.cost)||0);
+  });
+  return Object.values(map).sort((a,b) => a.name.localeCompare(b.name));
+}
+
+function renderClients() {
+  const q = document.getElementById('search-client').value.toLowerCase();
+  const clients = getUniqueClients().filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
+  const list = document.getElementById('clients-list');
+  list.innerHTML = '';
+  if (!clients.length) { list.innerHTML = '<p class="text-center text-gray-400 py-8 text-sm">No se encontraron clientes</p>'; return; }
+  clients.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'glass rounded-2xl border border-white shadow-sm p-4 flex items-center justify-between hover:shadow-md transition-all cursor-pointer';
+    el.onclick = () => showClientHistory(c.phone);
+    el.innerHTML = `
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
+          <span class="font-bold text-brand text-sm">${c.name.charAt(0)}</span>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800 text-sm">${c.name}</p>
+          <p class="text-xs text-gray-400">${c.phone} · ${c.visits.length} servicios</p>
+        </div>
+      </div>
+      <div class="text-right">
+        <p class="text-sm font-bold text-accent">$${c.total.toLocaleString('es-MX')}</p>
+        <p class="text-xs text-gray-400">gastado</p>
+      </div>
+    `;
+    list.appendChild(el);
+  });
+}
+
+function showClientHistory(phone) {
+  const appointments = getData().filter(a => a.phone === phone).sort((a,b) => b.date.localeCompare(a.date));
+  if (!appointments.length) return;
+  const client = appointments[0];
+  document.getElementById('client-modal-name').textContent = client.name;
+  const hist = document.getElementById('client-history');
+  hist.innerHTML = `
+    <p class="text-xs text-gray-400 mb-3">📞 <a href="tel:${client.phone}" class="text-brand">${client.phone}</a></p>
+    ${appointments.map(a => `
+      <div class="p-3 rounded-xl border ${statusClass(a.status)} mb-2">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="font-semibold text-sm">${a.service}</p>
+            <p class="text-xs opacity-70">${a.date} a las ${a.time}</p>
+            ${a.notes ? `<p class="text-xs mt-1 opacity-60">${a.notes}</p>` : ''}
+          </div>
+          <div class="text-right">
+            <p class="font-bold text-sm">$${parseFloat(a.cost||0).toLocaleString('es-MX')}</p>
+            <span class="text-xs opacity-70">${a.status}</span>
+          </div>
+        </div>
+      </div>
+    `).join('')}
+  `;
+  document.getElementById('modal-client').classList.remove('hidden');
+}
+
+// ==================== ROUTE ====================
+function renderRoute() {
+  const date = document.getElementById('route-date').value;
+  if (!date) return;
+  const appointments = getData().filter(a => a.date === date && a.status !== 'Cancelado').sort((a,b) => a.time.localeCompare(b.time));
+  const list = document.getElementById('route-list');
+  if (!appointments.length) {
+    list.innerHTML = '<div class="text-center py-10 text-gray-400 text-sm">No hay servicios para este día</div>';
+    return;
+  }
+  list.innerHTML = appointments.map((a, i) => `
+    <div class="glass rounded-2xl border border-white shadow-sm p-4 flex gap-4 items-start hover:shadow-md transition-all">
+      <div class="w-8 h-8 rounded-xl bg-brand flex items-center justify-center flex-shrink-0">
+        <span class="text-white font-bold text-sm">${i+1}</span>
+      </div>
+      <div class="flex-1">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <p class="font-semibold text-gray-800 text-sm">${a.time} — ${a.name}</p>
+            <p class="text-xs text-gray-500">${a.service}</p>
+            <p class="text-xs text-gray-400 mt-0.5">${a.address}</p>
+          </div>
+          <span class="px-2 py-0.5 rounded-full text-xs font-semibold border flex-shrink-0 ${statusClass(a.status)}">${a.status}</span>
+        </div>
+        <div class="flex gap-2 mt-2 flex-wrap">
+          <a href="https://maps.google.com/?q=${encodeURIComponent(a.address)}" target="_blank" class="flex items-center gap-1 text-xs text-brand font-semibold hover:underline">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+            Ver en Maps
+          </a>
+          <a href="https://wa.me/52${a.phone}?text=${encodeURIComponent('Hola '+a.name+', le informamos que vamos en camino para su servicio de '+a.service+'. Llegamos aproximadamente en 20 minutos.')}" target="_blank" class="flex items-center gap-1 text-xs text-green-600 font-semibold hover:underline no-print">
+            💬 Avisar "en camino"
+          </a>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ==================== MODAL ====================
+function openNewAppointment() {
+  document.getElementById('modal-title').textContent = 'Nuevo Servicio';
+  document.getElementById('edit-id').value = '';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-phone').value = '';
+  document.getElementById('f-address').value = '';
+  document.getElementById('f-service').value = 'Plomería general';
+  document.getElementById('f-cost').value = '';
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('f-time').value = '09:00';
+  document.getElementById('f-notes').value = '';
+  setStatus('Agendado');
+  document.getElementById('modal-appointment').classList.remove('hidden');
+}
+
+function editAppointment(id) {
+  const data = getData();
+  const a = data.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('modal-title').textContent = 'Editar Servicio';
+  document.getElementById('edit-id').value = id;
+  document.getElementById('f-name').value = a.name;
+  document.getElementById('f-phone').value = a.phone;
+  document.getElementById('f-address').value = a.address;
+  document.getElementById('f-service').value = a.service;
+  document.getElementById('f-cost').value = a.cost;
+  document.getElementById('f-date').value = a.date;
+  document.getElementById('f-time').value = a.time;
+  document.getElementById('f-notes').value = a.notes || '';
+  setStatus(a.status);
+  document.getElementById('modal-appointment').classList.remove('hidden');
+}
+
+function setStatus(s) {
+  selectedStatus = s;
+  document.getElementById('f-status').value = s;
+  document.querySelectorAll('.status-btn').forEach(btn => {
+    btn.style.opacity = btn.dataset.status === s ? '1' : '0.4';
+    btn.style.transform = btn.dataset.status === s ? 'scale(1.05)' : 'scale(1)';
+  });
+}
+
+function closeModal() {
+  document.getElementById('modal-appointment').classList.add('hidden');
+}
+
+function saveAppointment() {
+  const name = document.getElementById('f-name').value.trim();
+  const phone = document.getElementById('f-phone').value.trim();
+  const address = document.getElementById('f-address').value.trim();
+  const date = document.getElementById('f-date').value;
+  const time = document.getElementById('f-time').value;
+  if (!name || !phone || !address || !date || !time) { alert('Por favor completa los campos obligatorios.'); return; }
+
+  const data = getData();
+  const editId = document.getElementById('edit-id').value;
+  const appt = {
+    id: editId || 'a' + Date.now(),
+    name, phone, address,
+    service: document.getElementById('f-service').value,
+    cost: document.getElementById('f-cost').value,
+    date, time,
+    status: document.getElementById('f-status').value,
+    notes: document.getElementById('f-notes').value.trim()
+  };
+
+  if (editId) {
+    const idx = data.findIndex(x => x.id === editId);
+    if (idx >= 0) data[idx] = appt;
+  } else {
+    data.push(appt);
+  }
+  saveData(data);
+  closeModal();
+  renderCalendar();
+}
+
+// ==================== INVOICE ====================
+function printInvoice(id) {
+  const data = getData();
+  const a = data.find(x => x.id === id);
+  if (!a) return;
+  const inv = document.getElementById('invoice-content');
+  inv.innerHTML = `
+    <div class="text-center mb-4">
+      <div class="w-12 h-12 bg-brand rounded-2xl flex items-center justify-center mx-auto mb-2">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </div>
+      <h3 class="font-bold text-gray-900 text-lg">Nota de Servicio</h3>
+      <p class="text-xs text-gray-400">${new Date().toLocaleDateString('es-MX', {day:'numeric',month:'long',year:'numeric'})}</p>
+    </div>
+    <div class="space-y-2 text-sm">
+      <div class="flex justify-between py-2 border-b border-dashed border-gray-200">
+        <span class="text-gray-500">Cliente</span><span class="font-semibold text-right">${a.name}</span>
+      </div>
+      <div class="flex justify-between py-2 border-b border-dashed border-gray-200">
+        <span class="text-gray-500">Teléfono</span><span class="font-semibold">${a.phone}</span>
+      </div>
+      <div class="flex justify-between py-2 border-b border-dashed border-gray-200">
+        <span class="text-gray-500">Dirección</span><span class="font-semibold text-right text-xs max-w-[180px]">${a.address}</span>
+      </div>
+      <div class="flex justify-between py-2 border-b border-dashed border-gray-200">
+        <span class="text-gray-500">Servicio</span><span class="font-semibold">${a.service}</span>
+      </div>
+      <div class="flex justify-between py-2 border-b border-dashed border-gray-200">
+        <span class="text-gray-500">Fecha</span><span class="font-semibold">${a.date} ${a.time}</span>
+      </div>
+      ${a.notes ? `<div class="flex justify-between py-2 border-b border-dashed border-gray-200"><span class="text-gray-500">Notas</span><span class="font-semibold text-xs text-right max-w-[180px]">${a.notes}</span></div>` : ''}
+      <div class="flex justify-between py-3 bg-brand/5 rounded-xl px-3 mt-3">
+        <span class="font-bold text-gray-800">Total</span><span class="font-bold text-xl text-brand">$${parseFloat(a.cost||0).toLocaleString('es-MX')}</span>
+      </div>
+    </div>
+    <p class="text-center text-xs text-gray-400 mt-4">Powered by Novamente Studio</p>
+  `;
+  document.getElementById('modal-invoice').classList.remove('hidden');
+}
+
+// ==================== INIT ====================
+loadDemo();
+renderCalendar();
+</script>
+</body>
+</html>

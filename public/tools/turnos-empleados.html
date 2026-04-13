@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turnos de Empleados</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; font-size: 11px; }
+    .print-table { font-size: 10px; }
+    th, td { padding: 4px 6px !important; }
+  }
+  .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+  .shift-cell { min-height: 44px; cursor: pointer; transition: all 0.15s; }
+  .shift-cell:hover { filter: brightness(0.92); }
+  .emp-color-0 { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .emp-color-1 { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .emp-color-2 { background: #fef9c3; color: #854d0e; border-color: #fde68a; }
+  .emp-color-3 { background: #fce7f3; color: #9d174d; border-color: #f9a8d4; }
+  .emp-color-4 { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
+  .emp-color-5 { background: #ffedd5; color: #9a3412; border-color: #fdba74; }
+  .emp-color-6 { background: #cffafe; color: #155e75; border-color: #67e8f9; }
+  .emp-color-7 { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
+  .understaffed { background: #fee2e2 !important; color: #991b1b !important; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #0d9488; outline-offset: 0; }
+  .tab-btn.active { background: #0d9488; color: white; }
+  .day-col { min-width: 100px; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- Header -->
+<header class="bg-teal-600 text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <h1 class="text-xl font-bold">Turnos de Empleados</h1>
+      <p id="weekLabel" class="text-teal-200 text-sm"></p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="prevWeek()" class="bg-teal-700 px-3 py-2 rounded-lg text-sm hover:bg-teal-800 transition">&larr;</button>
+      <button onclick="thisWeek()" class="bg-white text-teal-700 font-semibold px-3 py-2 rounded-lg text-sm hover:bg-teal-50 transition">Esta Semana</button>
+      <button onclick="nextWeek()" class="bg-teal-700 px-3 py-2 rounded-lg text-sm hover:bg-teal-800 transition">&rarr;</button>
+      <button onclick="printSchedule()" class="bg-teal-700 px-3 py-2 rounded-lg text-sm hover:bg-teal-800 transition no-print">Imprimir</button>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-7xl mx-auto px-4 py-6 no-print">
+  <!-- Tabs -->
+  <div class="flex border-b border-slate-200 mb-6">
+    <button onclick="showTab('horario')" id="tab-horario" class="tab-btn active px-5 py-2.5 text-sm font-semibold rounded-tl-lg rounded-tr-lg transition">Horario Semanal</button>
+    <button onclick="showTab('empleados')" id="tab-empleados" class="tab-btn px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-tl-lg rounded-tr-lg transition">Empleados</button>
+    <button onclick="showTab('swaps')" id="tab-swaps" class="tab-btn px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-tl-lg rounded-tr-lg transition">Cambios <span id="swapBadge" class="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 ml-1 hidden">0</span></button>
+  </div>
+
+  <!-- Tab: Horario -->
+  <div id="tab-content-horario">
+    <!-- Weekly summary -->
+    <div id="hoursGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5"></div>
+    <!-- Grid -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+      <table class="w-full text-sm print-table" id="scheduleTable">
+        <thead>
+          <tr class="border-b border-slate-100">
+            <th class="text-left px-4 py-3 text-slate-600 font-semibold w-28">Turno</th>
+            <th id="th-0" class="px-3 py-3 text-center text-slate-600 font-semibold day-col"></th>
+            <th id="th-1" class="px-3 py-3 text-center text-slate-600 font-semibold day-col"></th>
+            <th id="th-2" class="px-3 py-3 text-center text-slate-600 font-semibold day-col"></th>
+            <th id="th-3" class="px-3 py-3 text-center text-slate-600 font-semibold day-col"></th>
+            <th id="th-4" class="px-3 py-3 text-center text-slate-600 font-semibold day-col"></th>
+            <th id="th-5" class="px-3 py-3 text-center text-slate-600 font-semibold day-col"></th>
+            <th id="th-6" class="px-3 py-3 text-center text-slate-600 font-semibold day-col"></th>
+          </tr>
+        </thead>
+        <tbody id="scheduleBody"></tbody>
+      </table>
+    </div>
+    <p class="text-xs text-slate-400 mt-2 no-print">Haz clic en una celda para asignar o quitar un turno.</p>
+  </div>
+
+  <!-- Tab: Empleados -->
+  <div id="tab-content-empleados" class="hidden">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="font-bold text-slate-800">Empleados Registrados</h2>
+      <button onclick="openModal('modalEmpleado')" class="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-700 transition">+ Agregar Empleado</button>
+    </div>
+    <div id="listaEmpleados" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </div>
+
+  <!-- Tab: Cambios de Turno -->
+  <div id="tab-content-swaps" class="hidden">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="font-bold text-slate-800">Solicitudes de Cambio de Turno</h2>
+      <button onclick="openModal('modalSwap')" class="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-teal-700 transition">+ Solicitar Cambio</button>
+    </div>
+    <div id="listaSwaps" class="space-y-3"></div>
+  </div>
+</div>
+
+<!-- Modal: Asignar Turno -->
+<div id="modalAsignar" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 id="asignarTitle" class="text-lg font-bold text-slate-800">Asignar Turno</h2>
+        <button onclick="closeModal('modalAsignar')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      <p id="asignarInfo" class="text-slate-500 text-sm mb-4"></p>
+      <div id="empOptions" class="space-y-2 max-h-64 overflow-y-auto mb-4"></div>
+      <button onclick="clearCell()" class="w-full border border-red-200 text-red-600 py-2 rounded-lg text-sm font-semibold hover:bg-red-50 transition">Quitar Asignacion</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Agregar Empleado -->
+<div id="modalEmpleado" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-5">
+        <h2 class="text-lg font-bold text-slate-800">Agregar Empleado</h2>
+        <button onclick="closeModal('modalEmpleado')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
+          <input id="e-nombre" type="text" placeholder="Nombre del empleado" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Puesto</label>
+          <input id="e-puesto" type="text" placeholder="Ej: Cajero, Cocinero, Instructor..." class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Telefono</label>
+          <input id="e-telefono" type="tel" placeholder="10 digitos" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Disponibilidad</label>
+          <div class="flex flex-wrap gap-2">
+            <label class="flex items-center gap-1.5 text-sm"><input type="checkbox" id="d-manana" value="Manana" class="rounded"> Manana</label>
+            <label class="flex items-center gap-1.5 text-sm"><input type="checkbox" id="d-tarde" value="Tarde" class="rounded"> Tarde</label>
+            <label class="flex items-center gap-1.5 text-sm"><input type="checkbox" id="d-noche" value="Noche" class="rounded"> Noche</label>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeModal('modalEmpleado')" class="flex-1 border border-slate-200 text-slate-600 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition">Cancelar</button>
+        <button onclick="guardarEmpleado()" class="flex-1 bg-teal-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-teal-700 transition">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Solicitar Cambio -->
+<div id="modalSwap" class="fixed inset-0 modal-bg z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+    <div class="p-6">
+      <div class="flex justify-between items-center mb-5">
+        <h2 class="text-lg font-bold text-slate-800">Solicitar Cambio de Turno</h2>
+        <button onclick="closeModal('modalSwap')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Empleado que solicita</label>
+          <select id="sw-empleado" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Dia</label>
+            <select id="sw-dia" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+              <option>Lunes</option><option>Martes</option><option>Miercoles</option><option>Jueves</option><option>Viernes</option><option>Sabado</option><option>Domingo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Turno</label>
+            <select id="sw-turno" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm">
+              <option>Manana</option><option>Tarde</option><option>Noche</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Motivo</label>
+          <textarea id="sw-motivo" rows="2" placeholder="Razon del cambio..." class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="closeModal('modalSwap')" class="flex-1 border border-slate-200 text-slate-600 py-2 rounded-lg text-sm font-semibold hover:bg-slate-50 transition">Cancelar</button>
+        <button onclick="guardarSwap()" class="flex-1 bg-teal-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-teal-700 transition">Enviar Solicitud</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="text-center py-6 text-slate-400 text-xs no-print">
+  Powered by <span class="font-semibold text-teal-600">Novamente Studio</span>
+</footer>
+
+<script>
+const EMP_KEY = 'turnos_empleados';
+const SCHED_KEY = 'turnos_horario';
+const SWAP_KEY = 'turnos_swaps';
+
+const TURNOS = [
+  { id: 'manana', label: 'Manana', hours: '6:00 - 14:00', h: 8 },
+  { id: 'tarde', label: 'Tarde', hours: '14:00 - 22:00', h: 8 },
+  { id: 'noche', label: 'Noche', hours: '22:00 - 6:00', h: 8 },
+];
+const DIAS = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+const DIAS_FULL = ['Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo'];
+
+let currentWeekStart = getMonday(new Date());
+let selectedCell = null;
+
+function getEmployees() { return JSON.parse(localStorage.getItem(EMP_KEY) || '[]'); }
+function setEmployees(d) { localStorage.setItem(EMP_KEY, JSON.stringify(d)); }
+function getSchedule() { return JSON.parse(localStorage.getItem(SCHED_KEY) || '{}'); }
+function setSchedule(d) { localStorage.setItem(SCHED_KEY, JSON.stringify(d)); }
+function getSwaps() { return JSON.parse(localStorage.getItem(SWAP_KEY) || '[]'); }
+function setSwaps(d) { localStorage.setItem(SWAP_KEY, JSON.stringify(d)); }
+
+function getMonday(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff); d.setHours(0,0,0,0);
+  return d;
+}
+
+function weekKey(date) { return date.toISOString().split('T')[0]; }
+
+function prevWeek() { currentWeekStart.setDate(currentWeekStart.getDate() - 7); renderSchedule(); }
+function nextWeek() { currentWeekStart.setDate(currentWeekStart.getDate() + 7); renderSchedule(); }
+function thisWeek() { currentWeekStart = getMonday(new Date()); renderSchedule(); }
+
+function getWeekDates() {
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(currentWeekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+}
+
+function formatShortDate(d) {
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+}
+
+function renderWeekLabel() {
+  const dates = getWeekDates();
+  const opts = { day: '2-digit', month: 'short' };
+  document.getElementById('weekLabel').textContent =
+    `Semana del ${dates[0].toLocaleDateString('es-MX', opts)} al ${dates[6].toLocaleDateString('es-MX', opts)}`;
+}
+
+function renderHeaders() {
+  const dates = getWeekDates();
+  const today = new Date(); today.setHours(0,0,0,0);
+  dates.forEach((d,i) => {
+    const isToday = d.getTime() === today.getTime();
+    document.getElementById(`th-${i}`).innerHTML = `
+      <span class="${isToday ? 'bg-teal-600 text-white' : 'text-slate-600'} px-2 py-0.5 rounded-full text-xs block">${DIAS[i]}</span>
+      <span class="text-xs ${isToday ? 'text-teal-600 font-bold' : 'text-slate-400'} block mt-0.5">${formatShortDate(d)}</span>`;
+  });
+}
+
+function renderSchedule() {
+  renderWeekLabel(); renderHeaders();
+  const schedule = getSchedule();
+  const employees = getEmployees();
+  const wk = weekKey(currentWeekStart);
+  const body = document.getElementById('scheduleBody');
+
+  body.innerHTML = TURNOS.map(turno => {
+    const cells = Array.from({length:7}, (_,dayIdx) => {
+      const key = `${wk}_${dayIdx}_${turno.id}`;
+      const empId = schedule[key];
+      const emp = employees.find(e => e.id === empId);
+      const colorIdx = emp ? employees.indexOf(emp) % 8 : -1;
+      return `<td class="px-2 py-1.5 text-center border-l border-slate-50">
+        <div class="shift-cell emp-color-${colorIdx >= 0 ? colorIdx : 'none'} ${emp ? `emp-color-${colorIdx} border rounded-lg` : 'border border-dashed border-slate-200 rounded-lg hover:border-teal-300'} px-2 py-1.5 text-xs font-medium"
+          onclick="clickCell('${key}')">${emp ? `<span class="block truncate max-w-[80px]">${emp.nombre.split(' ')[0]}</span>` : '<span class="text-slate-300">+</span>'}</div>
+      </td>`;
+    }).join('');
+
+    // Coverage count
+    const coverageCells = Array.from({length:7}, (_,dayIdx) => {
+      const key = `${wk}_${dayIdx}_${turno.id}`;
+      const count = Object.keys(schedule).filter(k => k === key && schedule[k]).length;
+      const assigned = schedule[key] ? 1 : 0;
+      return assigned;
+    });
+
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50/50">
+      <td class="px-4 py-2 border-r border-slate-100">
+        <p class="font-semibold text-slate-700 text-xs">${turno.label}</p>
+        <p class="text-slate-400 text-xs">${turno.hours}</p>
+      </td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  // Coverage summary row
+  const coverageRow = document.createElement('tr');
+  coverageRow.className = 'bg-slate-50';
+  coverageRow.innerHTML = `<td class="px-4 py-2 text-xs font-semibold text-slate-500">Cobertura</td>` +
+    Array.from({length:7}, (_,dayIdx) => {
+      const count = TURNOS.reduce((acc, turno) => {
+        const key = `${wk}_${dayIdx}_${turno.id}`;
+        return acc + (schedule[key] ? 1 : 0);
+      }, 0);
+      const cls = count === 0 ? 'understaffed' : count < 2 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
+      return `<td class="px-2 py-2 text-center"><span class="${cls} text-xs font-semibold px-2 py-0.5 rounded-full">${count}/${TURNOS.length}</span></td>`;
+    }).join('');
+  body.appendChild(coverageRow);
+
+  renderHoursGrid();
+}
+
+function renderHoursGrid() {
+  const schedule = getSchedule();
+  const employees = getEmployees();
+  const wk = weekKey(currentWeekStart);
+  const container = document.getElementById('hoursGrid');
+  container.innerHTML = employees.map((emp, idx) => {
+    const hours = TURNOS.reduce((total, turno) => {
+      return total + Array.from({length:7}, (_,dayIdx) => {
+        const key = `${wk}_${dayIdx}_${turno.id}`;
+        return schedule[key] === emp.id ? turno.h : 0;
+      }).reduce((a,b) => a+b, 0);
+    }, 0);
+    const colorIdx = idx % 8;
+    return `<div class="bg-white rounded-xl p-3 shadow-sm border border-slate-100">
+      <div class="flex justify-between items-start">
+        <div>
+          <p class="font-semibold text-slate-800 text-sm">${emp.nombre.split(' ')[0]}</p>
+          <p class="text-slate-400 text-xs">${emp.puesto}</p>
+        </div>
+        <span class="emp-color-${colorIdx} border text-xs font-bold px-2 py-1 rounded-full">${hours}h</span>
+      </div>
+    </div>`;
+  }).join('') || '<p class="text-slate-400 text-sm col-span-4 text-center py-4">Agrega empleados para ver sus horas.</p>';
+}
+
+function clickCell(key) {
+  selectedCell = key;
+  const parts = key.split('_');
+  const dayIdx = parseInt(parts[3]);
+  const turnoId = parts[4];
+  const turno = TURNOS.find(t => t.id === turnoId);
+  document.getElementById('asignarTitle').textContent = `Asignar Turno`;
+  document.getElementById('asignarInfo').textContent = `${DIAS_FULL[dayIdx]} - ${turno.label} (${turno.hours})`;
+
+  const employees = getEmployees();
+  const schedule = getSchedule();
+  const currentEmpId = schedule[key];
+
+  document.getElementById('empOptions').innerHTML = employees.map((emp, idx) => {
+    const isAssigned = emp.id === currentEmpId;
+    return `<button onclick="assignEmp('${emp.id}')" class="w-full text-left emp-color-${idx%8} border rounded-lg px-3 py-2.5 text-sm font-medium hover:opacity-80 transition flex justify-between items-center ${isAssigned ? 'ring-2 ring-teal-500' : ''}">
+      <span>${emp.nombre}</span>
+      <span class="text-xs opacity-70">${emp.puesto}</span>
+    </button>`;
+  }).join('') || '<p class="text-slate-400 text-sm text-center py-2">No hay empleados registrados.</p>';
+
+  openModal('modalAsignar');
+}
+
+function assignEmp(empId) {
+  const schedule = getSchedule();
+  schedule[selectedCell] = empId;
+  setSchedule(schedule);
+  closeModal('modalAsignar');
+  renderSchedule();
+}
+
+function clearCell() {
+  const schedule = getSchedule();
+  delete schedule[selectedCell];
+  setSchedule(schedule);
+  closeModal('modalAsignar');
+  renderSchedule();
+}
+
+function renderEmpleados() {
+  const employees = getEmployees();
+  const schedule = getSchedule();
+  const wk = weekKey(currentWeekStart);
+  const container = document.getElementById('listaEmpleados');
+  if (!employees.length) {
+    container.innerHTML = '<p class="text-slate-400 text-sm col-span-3 text-center py-8">No hay empleados registrados.</p>';
+    return;
+  }
+  container.innerHTML = employees.map((emp, idx) => {
+    const hours = TURNOS.reduce((total, turno) =>
+      total + Array.from({length:7}, (_,d) => schedule[`${wk}_${d}_${turno.id}`] === emp.id ? turno.h : 0).reduce((a,b)=>a+b,0), 0);
+    return `<div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <div class="flex justify-between items-start mb-3">
+        <div class="emp-color-${idx%8} border w-10 h-10 rounded-full flex items-center justify-center font-bold text-base">${emp.nombre[0]}</div>
+        <span class="bg-teal-50 text-teal-700 text-xs font-semibold px-2 py-1 rounded-full">${hours}h esta semana</span>
+      </div>
+      <p class="font-bold text-slate-800">${emp.nombre}</p>
+      <p class="text-slate-500 text-sm">${emp.puesto}</p>
+      <p class="text-slate-400 text-xs mt-1">${emp.telefono}</p>
+      <p class="text-slate-400 text-xs mt-1">Disponible: ${(emp.disponibilidad||[]).join(', ') || 'No especificado'}</p>
+      <div class="flex gap-2 mt-3">
+        <a href="https://wa.me/52${emp.telefono}?text=Hola%20${encodeURIComponent(emp.nombre)},%20te%20compartimos%20tu%20horario%20de%20esta%20semana."
+           target="_blank" class="flex-1 bg-green-500 text-white text-xs font-semibold py-1.5 rounded-lg text-center hover:bg-green-600 transition">WhatsApp</a>
+        <button onclick="eliminarEmpleado('${emp.id}')" class="flex-1 bg-red-50 text-red-600 text-xs font-semibold py-1.5 rounded-lg hover:bg-red-100 transition">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function eliminarEmpleado(id) {
+  if (!confirm('¿Eliminar este empleado?')) return;
+  const employees = getEmployees().filter(e => e.id !== id);
+  setEmployees(employees);
+  renderEmpleados();
+}
+
+function guardarEmpleado() {
+  const nombre = document.getElementById('e-nombre').value.trim();
+  const puesto = document.getElementById('e-puesto').value.trim();
+  const telefono = document.getElementById('e-telefono').value.trim();
+  const disponibilidad = ['manana','tarde','noche'].filter(d => document.getElementById(`d-${d}`).checked).map(d => d[0].toUpperCase() + d.slice(1));
+  if (!nombre || !puesto) { alert('Nombre y puesto son obligatorios.'); return; }
+  const employees = getEmployees();
+  employees.push({ id: Date.now().toString(), nombre, puesto, telefono, disponibilidad });
+  setEmployees(employees);
+  closeModal('modalEmpleado');
+  ['e-nombre','e-puesto','e-telefono'].forEach(id => document.getElementById(id).value = '');
+  ['d-manana','d-tarde','d-noche'].forEach(id => document.getElementById(id).checked = false);
+  renderEmpleados();
+}
+
+function renderSwaps() {
+  const swaps = getSwaps();
+  const employees = getEmployees();
+  const badge = document.getElementById('swapBadge');
+  const pending = swaps.filter(s => s.estado === 'Pendiente').length;
+  badge.textContent = pending;
+  badge.classList.toggle('hidden', pending === 0);
+
+  const container = document.getElementById('listaSwaps');
+  if (!swaps.length) {
+    container.innerHTML = '<p class="text-slate-400 text-sm text-center py-8">No hay solicitudes de cambio.</p>';
+    return;
+  }
+  container.innerHTML = swaps.map(s => {
+    const emp = employees.find(e => e.id === s.empleadoId);
+    const estadoCls = { Pendiente: 'bg-yellow-100 text-yellow-800', Aprobado: 'bg-green-100 text-green-800', Rechazado: 'bg-red-100 text-red-800' }[s.estado];
+    return `<div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+      <div class="flex justify-between items-start gap-2 mb-2">
+        <div>
+          <p class="font-semibold text-slate-800">${emp ? emp.nombre : 'Empleado'}</p>
+          <p class="text-slate-500 text-sm">${s.dia} - Turno ${s.turno}</p>
+          <p class="text-slate-600 text-sm mt-1">${s.motivo}</p>
+        </div>
+        <span class="${estadoCls} text-xs font-semibold px-2 py-1 rounded-full">${s.estado}</span>
+      </div>
+      ${s.estado === 'Pendiente' ? `<div class="flex gap-2 mt-3">
+        <button onclick="resolverSwap('${s.id}','Aprobado')" class="flex-1 bg-green-600 text-white text-xs font-semibold py-1.5 rounded-lg hover:bg-green-700 transition">Aprobar</button>
+        <button onclick="resolverSwap('${s.id}','Rechazado')" class="flex-1 bg-red-50 text-red-600 text-xs font-semibold py-1.5 rounded-lg hover:bg-red-100 transition">Rechazar</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function resolverSwap(id, estado) {
+  const swaps = getSwaps();
+  const idx = swaps.findIndex(s => s.id === id);
+  if (idx >= 0) swaps[idx].estado = estado;
+  setSwaps(swaps);
+  renderSwaps();
+}
+
+function guardarSwap() {
+  const empleadoId = document.getElementById('sw-empleado').value;
+  const dia = document.getElementById('sw-dia').value;
+  const turno = document.getElementById('sw-turno').value;
+  const motivo = document.getElementById('sw-motivo').value.trim();
+  if (!empleadoId || !motivo) { alert('Por favor completa todos los campos.'); return; }
+  const swaps = getSwaps();
+  swaps.unshift({ id: Date.now().toString(), empleadoId, dia, turno, motivo, estado: 'Pendiente' });
+  setSwaps(swaps);
+  closeModal('modalSwap');
+  document.getElementById('sw-motivo').value = '';
+  renderSwaps();
+}
+
+function populateSwapSelect() {
+  const employees = getEmployees();
+  const sel = document.getElementById('sw-empleado');
+  sel.innerHTML = employees.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+}
+
+function showTab(tab) {
+  ['horario','empleados','swaps'].forEach(t => {
+    document.getElementById(`tab-content-${t}`).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById(`tab-${t}`);
+    btn.classList.toggle('active', t === tab);
+    if (t !== tab) btn.classList.remove('active');
+  });
+  if (tab === 'empleados') renderEmpleados();
+  if (tab === 'swaps') { renderSwaps(); populateSwapSelect(); }
+}
+
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function printSchedule() { window.print(); }
+
+function loadDemoData() {
+  if (getEmployees().length > 0) return;
+  const employees = [
+    { id: 'e1', nombre: 'Ana Torres', puesto: 'Cajera', telefono: '5512345678', disponibilidad: ['Manana','Tarde'] },
+    { id: 'e2', nombre: 'Luis Mendoza', puesto: 'Cocinero', telefono: '5523456789', disponibilidad: ['Tarde','Noche'] },
+    { id: 'e3', nombre: 'Sofia Ramirez', puesto: 'Mesera', telefono: '5534567890', disponibilidad: ['Manana','Tarde'] },
+    { id: 'e4', nombre: 'Carlos Vega', puesto: 'Bartender', telefono: '5545678901', disponibilidad: ['Tarde','Noche'] },
+    { id: 'e5', nombre: 'Maria Flores', puesto: 'Hostess', telefono: '5556789012', disponibilidad: ['Manana'] },
+    { id: 'e6', nombre: 'Pedro Castro', puesto: 'Cocinero', telefono: '5567890123', disponibilidad: ['Manana','Tarde'] },
+    { id: 'e7', nombre: 'Laura Jimenez', puesto: 'Mesera', telefono: '5578901234', disponibilidad: ['Tarde','Noche'] },
+    { id: 'e8', nombre: 'Diego Morales', puesto: 'Seguridad', telefono: '5589012345', disponibilidad: ['Noche'] },
+  ];
+  setEmployees(employees);
+
+  const wk = weekKey(currentWeekStart);
+  const schedule = {};
+  const assign = (day, turno, empId) => { schedule[`${wk}_${day}_${turno}`] = empId; };
+  // Mon-Fri morning: Ana, Sofia, Maria
+  [0,1,2,3,4].forEach(d => { assign(d,'manana','e1'); assign(d,'manana','e3'); });
+  assign(0,'manana','e5'); assign(2,'manana','e5'); assign(4,'manana','e5');
+  // Pedro cooks mornings
+  [0,1,2,3,4].forEach(d => assign(d,'manana','e6'));
+  // Afternoons: Luis, Carlos, Laura
+  [0,1,2,3,4,5].forEach(d => assign(d,'tarde','e2'));
+  [1,2,3,4,5].forEach(d => assign(d,'tarde','e4'));
+  [0,2,4,5].forEach(d => assign(d,'tarde','e7'));
+  // Nights: Diego + Carlos
+  [4,5,6].forEach(d => assign(d,'noche','e8'));
+  [5,6].forEach(d => assign(d,'noche','e4'));
+  // Weekend morning
+  assign(5,'manana','e1'); assign(6,'manana','e3'); assign(6,'manana','e6');
+  setSchedule(schedule);
+
+  const swaps = [
+    { id: 'sw1', empleadoId: 'e3', dia: 'Viernes', turno: 'Manana', motivo: 'Cita medica en la manana, necesito entrar en la tarde.', estado: 'Pendiente' },
+    { id: 'sw2', empleadoId: 'e7', dia: 'Sabado', turno: 'Tarde', motivo: 'Compromiso familiar, me gustaria moverme al turno de la manana.', estado: 'Aprobado' },
+  ];
+  setSwaps(swaps);
+}
+
+loadDemoData();
+renderSchedule();
+renderSwaps();
+</script>
+</body>
+</html>

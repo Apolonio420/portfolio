@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encuestas de Satisfacción — Novamente Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .star-btn { transition: all 0.15s ease; cursor: pointer; }
+  .star-btn:hover, .star-btn.active { color: #f59e0b; transform: scale(1.2); }
+  .tab-btn.active { background: #f59e0b; color: white; }
+  .tab-btn { transition: all 0.2s ease; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    .print-break { page-break-before: always; }
+  }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .hover-card { transition: all 0.2s ease; }
+  .hover-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(245,158,11,0.15); }
+</style>
+</head>
+<body class="bg-amber-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-amber-100 sticky top-0 z-50 no-print">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-amber-400 rounded-xl flex items-center justify-center text-white font-bold text-lg">S</div>
+      <div>
+        <div class="font-700 text-slate-800 text-sm font-bold">Encuestas de Satisfacción</div>
+        <div class="text-xs text-slate-400">Conoce la opinión de tus clientes</div>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="showView('admin')" id="btn-admin" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-600 font-semibold text-slate-600 border border-slate-200">Panel Admin</button>
+      <button onclick="showView('survey')" id="btn-survey" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-600 font-semibold text-slate-600 border border-slate-200">Vista Cliente</button>
+      <button onclick="showView('results')" id="btn-results" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-600 font-semibold text-slate-600 border border-slate-200">Resultados</button>
+    </div>
+  </div>
+</header>
+
+<!-- ADMIN VIEW -->
+<div id="view-admin" class="max-w-5xl mx-auto px-4 py-6 hidden fade-in">
+  <div class="mb-6">
+    <h2 class="text-xl font-bold text-slate-800">Panel de Administración</h2>
+    <p class="text-sm text-slate-500 mt-1">Crea y gestiona tus encuestas de satisfacción</p>
+  </div>
+
+  <!-- Survey List -->
+  <div id="survey-list" class="grid gap-4 mb-6"></div>
+
+  <!-- Create Survey Form -->
+  <div class="bg-white rounded-2xl border border-amber-100 p-6 shadow-sm">
+    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+      <span class="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600 text-sm">+</span>
+      Nueva Encuesta
+    </h3>
+    <div class="grid gap-4">
+      <div>
+        <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1 block">Título de la encuesta</label>
+        <input id="survey-title" type="text" placeholder="Ej: ¿Cómo fue tu experiencia con nosotros?" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300">
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1 block">Mensaje de agradecimiento</label>
+        <textarea id="survey-thanks" placeholder="Ej: ¡Gracias por tu opinión! Nos ayuda a mejorar cada día." class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none h-20"></textarea>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2 block">Preguntas</label>
+        <div id="questions-container" class="grid gap-3 mb-3"></div>
+        <div class="flex gap-2 flex-wrap">
+          <button onclick="addQuestion('stars')" class="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 font-semibold hover:bg-amber-100 transition-colors">+ Calificación ⭐</button>
+          <button onclick="addQuestion('choice')" class="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 font-semibold hover:bg-amber-100 transition-colors">+ Opción múltiple</button>
+          <button onclick="addQuestion('text')" class="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 font-semibold hover:bg-amber-100 transition-colors">+ Texto libre</button>
+        </div>
+      </div>
+
+      <button onclick="saveSurvey()" class="w-full bg-amber-400 hover:bg-amber-500 text-white font-bold py-3 rounded-xl transition-colors text-sm">
+        Guardar Encuesta
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- SURVEY VIEW (Customer) -->
+<div id="view-survey" class="max-w-lg mx-auto px-4 py-6 hidden fade-in">
+  <div id="survey-form-container"></div>
+  <div id="survey-thanks-msg" class="hidden text-center py-16">
+    <div class="text-6xl mb-4">🎉</div>
+    <h2 class="text-2xl font-bold text-slate-800 mb-2">¡Gracias!</h2>
+    <p id="thanks-text" class="text-slate-500 text-sm"></p>
+    <button onclick="resetSurvey()" class="mt-6 text-xs text-amber-600 underline">Llenar de nuevo</button>
+  </div>
+</div>
+
+<!-- RESULTS VIEW -->
+<div id="view-results" class="max-w-5xl mx-auto px-4 py-6 hidden fade-in no-print-nav">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-xl font-bold text-slate-800">Resultados</h2>
+      <p class="text-sm text-slate-500 mt-1">Análisis de respuestas recibidas</p>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="exportCSV()" class="text-xs px-3 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 transition-colors">Exportar CSV</button>
+      <button onclick="window.print()" class="text-xs px-3 py-2 bg-amber-400 text-white rounded-xl font-semibold hover:bg-amber-500 transition-colors">Imprimir</button>
+    </div>
+  </div>
+
+  <!-- Stats Summary -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="stats-grid"></div>
+
+  <!-- WhatsApp Share -->
+  <div class="bg-white rounded-2xl border border-amber-100 p-4 mb-6 flex items-center justify-between">
+    <div>
+      <div class="font-semibold text-slate-800 text-sm">Compartir encuesta por WhatsApp</div>
+      <div class="text-xs text-slate-500 mt-0.5">Envía el link a tus clientes para recopilar más respuestas</div>
+    </div>
+    <button onclick="shareWhatsApp()" class="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      Compartir
+    </button>
+  </div>
+
+  <!-- Charts -->
+  <div id="charts-container" class="grid gap-6"></div>
+
+  <!-- Responses Table -->
+  <div class="bg-white rounded-2xl border border-amber-100 p-6 mt-6">
+    <h3 class="font-bold text-slate-800 mb-4">Respuestas individuales</h3>
+    <div id="responses-table" class="overflow-x-auto"></div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center py-8 text-xs text-slate-400 no-print">
+  Powered by <span class="font-semibold text-amber-500">Novamente Studio</span> · novamente.studio
+</footer>
+
+<script>
+const STORAGE_KEY = 'novadev_surveys';
+const RESPONSES_KEY = 'novadev_responses';
+
+// ──────────── DEMO DATA ────────────
+function initDemoData() {
+  if (localStorage.getItem(STORAGE_KEY)) return;
+
+  const surveys = [{
+    id: 'demo-1',
+    title: '¿Cómo fue tu experiencia con nosotros?',
+    thanks: '¡Gracias por tomarte el tiempo de respondernos! Tu opinión es muy valiosa y nos ayuda a mejorar cada día.',
+    questions: [
+      { id: 'q1', type: 'stars', text: '¿Cómo calificarías tu experiencia general?' },
+      { id: 'q2', type: 'stars', text: '¿Qué tan amable fue nuestro personal?' },
+      { id: 'q3', type: 'choice', text: '¿Cómo nos conociste?', options: ['Redes sociales', 'Recomendación', 'Google', 'Pasé por aquí', 'Otro'] },
+      { id: 'q4', type: 'choice', text: '¿Volverías a visitarnos?', options: ['Definitivamente sí', 'Probablemente sí', 'No estoy seguro', 'Probablemente no'] },
+      { id: 'q5', type: 'text', text: '¿Qué podríamos mejorar?' }
+    ],
+    createdAt: '2026-01-15'
+  }];
+
+  const responses = [
+    { surveyId: 'demo-1', date: '2026-04-01', answers: { q1: 5, q2: 5, q3: 'Recomendación', q4: 'Definitivamente sí', q5: 'Todo estuvo excelente, nada que mejorar' } },
+    { surveyId: 'demo-1', date: '2026-04-02', answers: { q1: 4, q2: 5, q3: 'Redes sociales', q4: 'Definitivamente sí', q5: 'El tiempo de espera podría ser menor' } },
+    { surveyId: 'demo-1', date: '2026-04-03', answers: { q1: 5, q2: 4, q3: 'Google', q4: 'Probablemente sí', q5: '' } },
+    { surveyId: 'demo-1', date: '2026-04-04', answers: { q1: 3, q2: 4, q3: 'Recomendación', q4: 'Probablemente sí', q5: 'El estacionamiento es muy pequeño' } },
+    { surveyId: 'demo-1', date: '2026-04-05', answers: { q1: 5, q2: 5, q3: 'Redes sociales', q4: 'Definitivamente sí', q5: 'Excelente servicio, lo recomiendo mucho' } },
+    { surveyId: 'demo-1', date: '2026-04-06', answers: { q1: 4, q2: 3, q3: 'Pasé por aquí', q4: 'Probablemente sí', q5: 'Más variedad en el menú' } },
+    { surveyId: 'demo-1', date: '2026-04-07', answers: { q1: 5, q2: 5, q3: 'Google', q4: 'Definitivamente sí', q5: 'Me encantó, volveré pronto' } },
+    { surveyId: 'demo-1', date: '2026-04-08', answers: { q1: 4, q2: 4, q3: 'Recomendación', q4: 'Definitivamente sí', q5: '' } }
+  ];
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(surveys));
+  localStorage.setItem(RESPONSES_KEY, JSON.stringify(responses));
+}
+
+function getSurveys() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+function getResponses() { return JSON.parse(localStorage.getItem(RESPONSES_KEY) || '[]'); }
+function saveSurveys(s) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+function saveResponses(r) { localStorage.setItem(RESPONSES_KEY, JSON.stringify(r)); }
+
+let currentSurveyId = 'demo-1';
+let editingQuestions = [];
+let surveyAnswers = {};
+let chartInstances = {};
+
+// ──────────── VIEW MANAGEMENT ────────────
+function showView(view) {
+  ['admin','survey','results'].forEach(v => {
+    document.getElementById(`view-${v}`).classList.add('hidden');
+    document.getElementById(`btn-${v}`).classList.remove('active');
+  });
+  document.getElementById(`view-${view}`).classList.remove('hidden');
+  document.getElementById(`btn-${view}`).classList.add('active');
+
+  if (view === 'admin') renderAdminSurveys();
+  if (view === 'survey') renderSurveyForm();
+  if (view === 'results') renderResults();
+}
+
+// ──────────── ADMIN ────────────
+function renderAdminSurveys() {
+  const surveys = getSurveys();
+  const responses = getResponses();
+  const el = document.getElementById('survey-list');
+  el.innerHTML = surveys.map(s => {
+    const resCount = responses.filter(r => r.surveyId === s.id).length;
+    const isActive = s.id === currentSurveyId;
+    return `
+    <div class="hover-card bg-white rounded-2xl border ${isActive ? 'border-amber-300' : 'border-slate-200'} p-5 shadow-sm">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex-1">
+          <div class="flex items-center gap-2 mb-1">
+            ${isActive ? '<span class="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">Activa</span>' : ''}
+            <span class="text-xs text-slate-400">Creada ${s.createdAt}</span>
+          </div>
+          <h3 class="font-bold text-slate-800">${s.title}</h3>
+          <p class="text-xs text-slate-500 mt-1">${s.questions.length} preguntas · ${resCount} respuestas</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="setActiveSurvey('${s.id}')" class="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-semibold hover:bg-amber-100 transition-colors">Activar</button>
+          <button onclick="deleteSurvey('${s.id}')" class="text-xs px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg font-semibold hover:bg-red-100 transition-colors">Eliminar</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('') || '<div class="text-center text-slate-400 text-sm py-8">No hay encuestas creadas aún. Crea la primera abajo.</div>';
+}
+
+function setActiveSurvey(id) {
+  currentSurveyId = id;
+  renderAdminSurveys();
+  showToast('Encuesta activada');
+}
+
+function deleteSurvey(id) {
+  if (!confirm('¿Eliminar esta encuesta y sus respuestas?')) return;
+  saveSurveys(getSurveys().filter(s => s.id !== id));
+  saveResponses(getResponses().filter(r => r.surveyId !== id));
+  if (currentSurveyId === id) currentSurveyId = getSurveys()[0]?.id || null;
+  renderAdminSurveys();
+}
+
+let qCounter = 0;
+function addQuestion(type) {
+  const qs = getSurveys();
+  qCounter++;
+  const q = { id: `q-${Date.now()}`, type, text: '', options: type === 'choice' ? ['Opción 1', 'Opción 2', 'Opción 3'] : [] };
+  editingQuestions.push(q);
+  renderQuestionEditor();
+}
+
+function renderQuestionEditor() {
+  const container = document.getElementById('questions-container');
+  container.innerHTML = editingQuestions.map((q, i) => `
+    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-xs font-bold text-slate-400 uppercase">${q.type === 'stars' ? '⭐ Calificación' : q.type === 'choice' ? '☑ Opción múltiple' : '✍ Texto libre'}</span>
+        <button onclick="removeQuestion(${i})" class="ml-auto text-xs text-red-400 hover:text-red-600">✕ Eliminar</button>
+      </div>
+      <input type="text" value="${q.text}" oninput="editingQuestions[${i}].text=this.value" placeholder="Escribe la pregunta..." class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-amber-300">
+      ${q.type === 'choice' ? `
+        <div class="grid gap-1.5">
+          ${q.options.map((o, oi) => `
+            <div class="flex gap-2">
+              <input type="text" value="${o}" oninput="editingQuestions[${i}].options[${oi}]=this.value" class="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300">
+              <button onclick="editingQuestions[${i}].options.splice(${oi},1);renderQuestionEditor()" class="text-xs text-red-400">✕</button>
+            </div>
+          `).join('')}
+          <button onclick="editingQuestions[${i}].options.push('Nueva opción');renderQuestionEditor()" class="text-xs text-amber-600 text-left pl-1 mt-1">+ Agregar opción</button>
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function removeQuestion(i) {
+  editingQuestions.splice(i, 1);
+  renderQuestionEditor();
+}
+
+function saveSurvey() {
+  const title = document.getElementById('survey-title').value.trim();
+  const thanks = document.getElementById('survey-thanks').value.trim();
+  if (!title) return showToast('Ingresa un título', 'error');
+  if (editingQuestions.length < 1) return showToast('Agrega al menos una pregunta', 'error');
+
+  const survey = {
+    id: `survey-${Date.now()}`,
+    title,
+    thanks: thanks || '¡Gracias por tu respuesta!',
+    questions: editingQuestions.map(q => ({ ...q })),
+    createdAt: new Date().toISOString().split('T')[0]
+  };
+
+  const surveys = getSurveys();
+  surveys.push(survey);
+  saveSurveys(surveys);
+  currentSurveyId = survey.id;
+  editingQuestions = [];
+  document.getElementById('survey-title').value = '';
+  document.getElementById('survey-thanks').value = '';
+  renderQuestionEditor();
+  renderAdminSurveys();
+  showToast('Encuesta guardada correctamente');
+}
+
+// ──────────── SURVEY FORM (Customer) ────────────
+function renderSurveyForm() {
+  const surveys = getSurveys();
+  const survey = surveys.find(s => s.id === currentSurveyId) || surveys[0];
+  if (!survey) {
+    document.getElementById('survey-form-container').innerHTML = '<div class="text-center text-slate-400 py-16">No hay encuesta activa. Crea una desde el panel de administración.</div>';
+    return;
+  }
+  surveyAnswers = {};
+  document.getElementById('survey-thanks-msg').classList.add('hidden');
+  document.getElementById('survey-form-container').classList.remove('hidden');
+
+  document.getElementById('survey-form-container').innerHTML = `
+    <div class="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+      <div class="bg-gradient-to-r from-amber-400 to-amber-500 p-6 text-white">
+        <h1 class="text-xl font-bold">${survey.title}</h1>
+        <p class="text-sm opacity-80 mt-1">Tu opinión nos ayuda a mejorar</p>
+      </div>
+      <div class="p-6 grid gap-6">
+        ${survey.questions.map((q, i) => renderQuestion(q, i)).join('')}
+        <button onclick="submitSurvey('${survey.id}')" class="w-full bg-amber-400 hover:bg-amber-500 text-white font-bold py-3.5 rounded-xl transition-colors">
+          Enviar respuesta
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderQuestion(q, i) {
+  if (q.type === 'stars') return `
+    <div>
+      <p class="font-semibold text-slate-700 text-sm mb-3">${i+1}. ${q.text}</p>
+      <div class="flex gap-3" id="stars-${q.id}">
+        ${[1,2,3,4,5].map(n => `
+          <button class="star-btn text-3xl text-slate-300" onclick="setStars('${q.id}', ${n})">★</button>
+        `).join('')}
+      </div>
+    </div>`;
+
+  if (q.type === 'choice') return `
+    <div>
+      <p class="font-semibold text-slate-700 text-sm mb-3">${i+1}. ${q.text}</p>
+      <div class="grid gap-2">
+        ${q.options.map(o => `
+          <button onclick="setChoice('${q.id}', '${o}', this)" class="choice-btn text-left px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 hover:border-amber-300 hover:bg-amber-50 transition-all">
+            ${o}
+          </button>
+        `).join('')}
+      </div>
+    </div>`;
+
+  return `
+    <div>
+      <p class="font-semibold text-slate-700 text-sm mb-3">${i+1}. ${q.text}</p>
+      <textarea id="text-${q.id}" oninput="surveyAnswers['${q.id}']=this.value" placeholder="Escribe tu respuesta..." class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none h-24"></textarea>
+    </div>`;
+}
+
+function setStars(qId, rating) {
+  surveyAnswers[qId] = rating;
+  const container = document.getElementById(`stars-${qId}`);
+  container.querySelectorAll('.star-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i < rating);
+    btn.style.color = i < rating ? '#f59e0b' : '#cbd5e1';
+  });
+}
+
+function setChoice(qId, value, btn) {
+  surveyAnswers[qId] = value;
+  btn.closest('.grid').querySelectorAll('.choice-btn').forEach(b => {
+    b.classList.remove('border-amber-400', 'bg-amber-50', 'text-amber-700', 'font-semibold');
+  });
+  btn.classList.add('border-amber-400', 'bg-amber-50', 'text-amber-700', 'font-semibold');
+}
+
+function submitSurvey(surveyId) {
+  const surveys = getSurveys();
+  const survey = surveys.find(s => s.id === surveyId);
+  const responses = getResponses();
+  responses.push({
+    surveyId,
+    date: new Date().toISOString().split('T')[0],
+    answers: { ...surveyAnswers }
+  });
+  saveResponses(responses);
+
+  document.getElementById('survey-form-container').classList.add('hidden');
+  document.getElementById('survey-thanks-msg').classList.remove('hidden');
+  document.getElementById('thanks-text').textContent = survey.thanks;
+  showToast('¡Respuesta enviada! 🎉');
+}
+
+function resetSurvey() {
+  renderSurveyForm();
+}
+
+// ──────────── RESULTS ────────────
+function renderResults() {
+  const surveys = getSurveys();
+  const survey = surveys.find(s => s.id === currentSurveyId) || surveys[0];
+  if (!survey) return;
+
+  const responses = getResponses().filter(r => r.surveyId === survey.id);
+  const statsEl = document.getElementById('stats-grid');
+
+  // Calculate avg star rating across all star questions
+  let totalStars = 0, starCount = 0;
+  responses.forEach(r => {
+    survey.questions.filter(q => q.type === 'stars').forEach(q => {
+      if (r.answers[q.id]) { totalStars += r.answers[q.id]; starCount++; }
+    });
+  });
+  const avgRating = starCount > 0 ? (totalStars / starCount).toFixed(1) : '–';
+
+  statsEl.innerHTML = `
+    <div class="hover-card bg-white rounded-2xl border border-amber-100 p-4 shadow-sm text-center">
+      <div class="text-3xl font-bold text-amber-500">${responses.length}</div>
+      <div class="text-xs text-slate-500 mt-1">Respuestas totales</div>
+    </div>
+    <div class="hover-card bg-white rounded-2xl border border-amber-100 p-4 shadow-sm text-center">
+      <div class="text-3xl font-bold text-amber-500">${avgRating}</div>
+      <div class="text-xs text-slate-500 mt-1">Calificación promedio</div>
+    </div>
+    <div class="hover-card bg-white rounded-2xl border border-amber-100 p-4 shadow-sm text-center">
+      <div class="text-3xl font-bold text-amber-500">${survey.questions.length}</div>
+      <div class="text-xs text-slate-500 mt-1">Preguntas</div>
+    </div>
+    <div class="hover-card bg-white rounded-2xl border border-amber-100 p-4 shadow-sm text-center">
+      <div class="text-3xl font-bold text-amber-500">★${avgRating}</div>
+      <div class="text-xs text-slate-500 mt-1">NPS promedio</div>
+    </div>
+  `;
+
+  const chartsEl = document.getElementById('charts-container');
+  chartsEl.innerHTML = '';
+
+  // Destroy old charts
+  Object.values(chartInstances).forEach(c => c.destroy());
+  chartInstances = {};
+
+  survey.questions.forEach(q => {
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl border border-amber-100 p-6 shadow-sm';
+
+    if (q.type === 'stars') {
+      const distribution = {1:0, 2:0, 3:0, 4:0, 5:0};
+      let sum = 0, cnt = 0;
+      responses.forEach(r => {
+        const v = r.answers[q.id];
+        if (v) { distribution[v]++; sum += v; cnt++; }
+      });
+      const avg = cnt > 0 ? (sum/cnt).toFixed(1) : '–';
+      card.innerHTML = `
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h4 class="font-bold text-slate-800 text-sm">${q.text}</h4>
+            <p class="text-xs text-slate-400 mt-0.5">Calificación de estrellas</p>
+          </div>
+          <div class="text-right">
+            <div class="text-2xl font-bold text-amber-500">${avg}</div>
+            <div class="text-xs text-slate-400">promedio</div>
+          </div>
+        </div>
+        <canvas id="chart-${q.id}" height="80"></canvas>`;
+      chartsEl.appendChild(card);
+      const ctx = document.getElementById(`chart-${q.id}`).getContext('2d');
+      chartInstances[q.id] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['1 ★', '2 ★', '3 ★', '4 ★', '5 ★'],
+          datasets: [{ data: Object.values(distribution), backgroundColor: ['#fde68a','#fcd34d','#fbbf24','#f59e0b','#d97706'], borderRadius: 8, borderSkipped: false }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+      });
+
+    } else if (q.type === 'choice') {
+      const counts = {};
+      q.options.forEach(o => counts[o] = 0);
+      responses.forEach(r => { if (r.answers[q.id]) counts[r.answers[q.id]] = (counts[r.answers[q.id]] || 0) + 1; });
+      card.innerHTML = `
+        <h4 class="font-bold text-slate-800 text-sm mb-4">${q.text}</h4>
+        <canvas id="chart-${q.id}" height="100"></canvas>`;
+      chartsEl.appendChild(card);
+      const ctx = document.getElementById(`chart-${q.id}`).getContext('2d');
+      chartInstances[q.id] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(counts),
+          datasets: [{ data: Object.values(counts), backgroundColor: ['#fcd34d','#f59e0b','#d97706','#92400e','#78350f'], borderWidth: 0 }]
+        },
+        options: { plugins: { legend: { position: 'right' } }, cutout: '60%' }
+      });
+
+    } else {
+      const textAnswers = responses.map(r => r.answers[q.id]).filter(Boolean);
+      card.innerHTML = `
+        <h4 class="font-bold text-slate-800 text-sm mb-4">${q.text}</h4>
+        <div class="grid gap-2">
+          ${textAnswers.length > 0 ? textAnswers.map(t => `<div class="bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5 text-sm text-slate-700">"${t}"</div>`).join('') : '<div class="text-slate-400 text-sm">Sin respuestas de texto aún.</div>'}
+        </div>`;
+      chartsEl.appendChild(card);
+    }
+  });
+
+  // Responses Table
+  const tableEl = document.getElementById('responses-table');
+  if (responses.length === 0) {
+    tableEl.innerHTML = '<p class="text-slate-400 text-sm">Aún no hay respuestas.</p>';
+    return;
+  }
+  tableEl.innerHTML = `
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="border-b border-slate-100">
+          <th class="text-left py-2 px-3 text-slate-500 font-semibold">#</th>
+          <th class="text-left py-2 px-3 text-slate-500 font-semibold">Fecha</th>
+          ${survey.questions.map(q => `<th class="text-left py-2 px-3 text-slate-500 font-semibold">${q.text.slice(0,25)}…</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${responses.map((r, i) => `
+          <tr class="border-b border-slate-50 hover:bg-amber-50 transition-colors">
+            <td class="py-2 px-3 text-slate-400">${i+1}</td>
+            <td class="py-2 px-3 text-slate-600">${r.date}</td>
+            ${survey.questions.map(q => `<td class="py-2 px-3 text-slate-700">${r.answers[q.id] !== undefined ? (q.type === 'stars' ? '★'.repeat(r.answers[q.id]) : r.answers[q.id]) : '–'}</td>`).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ──────────── EXPORT ────────────
+function exportCSV() {
+  const surveys = getSurveys();
+  const survey = surveys.find(s => s.id === currentSurveyId) || surveys[0];
+  const responses = getResponses().filter(r => r.surveyId === survey.id);
+  const headers = ['#', 'Fecha', ...survey.questions.map(q => q.text)];
+  const rows = responses.map((r, i) => [i+1, r.date, ...survey.questions.map(q => r.answers[q.id] ?? '')]);
+  const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `encuesta-respuestas-${new Date().toISOString().split('T')[0]}.csv`; a.click();
+}
+
+// ──────────── WHATSAPP ────────────
+function shareWhatsApp() {
+  const url = encodeURIComponent(window.location.href + '?view=survey');
+  const msg = encodeURIComponent('Hola! Te compartimos nuestra encuesta de satisfacción. Solo toma 1 minuto y nos ayuda a mejorar para ti. ');
+  window.open(`https://wa.me/?text=${msg}${url}`, '_blank');
+}
+
+// ──────────── TOAST ────────────
+function showToast(msg, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-3 rounded-xl text-sm font-semibold text-white shadow-lg z-50 fade-in ${type === 'error' ? 'bg-red-500' : 'bg-amber-500'}`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// ──────────── INIT ────────────
+initDemoData();
+showView('results');
+</script>
+</body>
+</html>

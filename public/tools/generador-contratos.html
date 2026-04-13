@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Contratos — Novamente Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] },
+      colors: {
+        navy: { 50:'#f0f4ff', 100:'#e0e8ff', 200:'#c7d5f8', 300:'#a3b8f0', 400:'#7a93e6', 500:'#5570d9', 600:'#3d54c9', 700:'#3344b5', 800:'#2d3a94', 900:'#1e293b', 950:'#141b2d' },
+        gold: { 100:'#fef5e7', 200:'#fde8c5', 300:'#fad299', 400:'#f5b561', 500:'#d4a574', 600:'#c08050', 700:'#a0633a', 800:'#7d4a2e', 900:'#5a3420' }
+      }
+    }
+  }
+}
+</script>
+<style>
+* { font-family: 'Plus Jakarta Sans', sans-serif; }
+.tab-btn.active { background: #1e293b; color: #d4a574; border-color: #d4a574; }
+.template-card.selected { border-color: #d4a574; background: #fef5e7; }
+.status-borrador { background:#fef9c3; color:#854d0e; }
+.status-enviado { background:#dbeafe; color:#1e40af; }
+.status-firmado { background:#dcfce7; color:#166534; }
+@media print {
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  body { background: white !important; }
+  #contract-preview { box-shadow: none !important; border: none !important; font-size: 11pt; line-height: 1.6; }
+  .contract-header { text-align: center; margin-bottom: 2rem; }
+  .clause { margin-bottom: 1rem; text-align: justify; }
+}
+.print-only { display: none; }
+#preview-pane::-webkit-scrollbar { width: 6px; }
+#preview-pane::-webkit-scrollbar-track { background: #f1f5f9; }
+#preview-pane::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+</style>
+</head>
+<body class="bg-navy-50 min-h-full">
+
+<!-- Header -->
+<header class="no-print bg-navy-900 text-white shadow-xl sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 bg-gold-500 rounded-lg flex items-center justify-center">
+        <svg class="w-5 h-5 text-navy-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg leading-none">Generador de Contratos</h1>
+        <p class="text-navy-300 text-xs">Despacho Profesional</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="showView('history')" class="no-print text-sm bg-navy-800 hover:bg-navy-700 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Historial
+      </button>
+      <button onclick="newContract()" class="text-sm bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-3 py-1.5 rounded-lg transition">
+        + Nuevo
+      </button>
+    </div>
+  </div>
+  <!-- Tabs -->
+  <div class="no-print max-w-7xl mx-auto px-4 flex gap-1 pb-3" id="main-tabs">
+    <button onclick="showStep(1)" id="tab-1" class="tab-btn active text-xs px-3 py-1.5 rounded-md border border-transparent transition font-medium">1. Tipo</button>
+    <button onclick="showStep(2)" id="tab-2" class="tab-btn text-xs px-3 py-1.5 rounded-md border border-transparent transition font-medium text-gray-400">2. Partes</button>
+    <button onclick="showStep(3)" id="tab-3" class="tab-btn text-xs px-3 py-1.5 rounded-md border border-transparent transition font-medium text-gray-400">3. Términos</button>
+    <button onclick="showStep(4)" id="tab-4" class="tab-btn text-xs px-3 py-1.5 rounded-md border border-transparent transition font-medium text-gray-400">4. Vista previa</button>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- HISTORY VIEW -->
+  <div id="view-history" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-navy-900 text-xl">Historial de Contratos</h2>
+      <button onclick="showView('builder')" class="text-sm text-navy-600 hover:text-navy-900 font-medium flex items-center gap-1">
+        ← Volver
+      </button>
+    </div>
+    <div id="history-list" class="space-y-3"></div>
+  </div>
+
+  <!-- BUILDER VIEW -->
+  <div id="view-builder">
+    <!-- Step 1: Template -->
+    <div id="step-1">
+      <h2 class="font-bold text-navy-900 text-xl mb-4">Selecciona el tipo de contrato</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="template-card cursor-pointer border-2 border-slate-200 rounded-xl p-5 hover:border-gold-500 transition" onclick="selectTemplate('arrendamiento')" id="tpl-arrendamiento">
+          <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          </div>
+          <h3 class="font-bold text-navy-900">Arrendamiento</h3>
+          <p class="text-sm text-slate-500 mt-1">Contrato de renta de inmuebles residenciales o comerciales</p>
+        </div>
+        <div class="template-card cursor-pointer border-2 border-slate-200 rounded-xl p-5 hover:border-gold-500 transition" onclick="selectTemplate('servicios')" id="tpl-servicios">
+          <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          </div>
+          <h3 class="font-bold text-navy-900">Prestación de Servicios</h3>
+          <p class="text-sm text-slate-500 mt-1">Servicios profesionales, consultoría y asesoría</p>
+        </div>
+        <div class="template-card cursor-pointer border-2 border-slate-200 rounded-xl p-5 hover:border-gold-500 transition" onclick="selectTemplate('compraventa')" id="tpl-compraventa">
+          <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          </div>
+          <h3 class="font-bold text-navy-900">Compraventa</h3>
+          <p class="text-sm text-slate-500 mt-1">Transferencia de bienes muebles o inmuebles</p>
+        </div>
+        <div class="template-card cursor-pointer border-2 border-slate-200 rounded-xl p-5 hover:border-gold-500 transition" onclick="selectTemplate('nda')" id="tpl-nda">
+          <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <h3 class="font-bold text-navy-900">Confidencialidad (NDA)</h3>
+          <p class="text-sm text-slate-500 mt-1">Acuerdo de no divulgación de información confidencial</p>
+        </div>
+        <div class="template-card cursor-pointer border-2 border-slate-200 rounded-xl p-5 hover:border-gold-500 transition" onclick="selectTemplate('laboral')" id="tpl-laboral">
+          <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center mb-3">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <h3 class="font-bold text-navy-900">Contrato Laboral</h3>
+          <p class="text-sm text-slate-500 mt-1">Relación de trabajo por tiempo determinado o indeterminado</p>
+        </div>
+      </div>
+      <div class="mt-6 flex justify-end">
+        <button onclick="goToStep2()" class="bg-navy-900 hover:bg-navy-800 text-gold-500 font-semibold px-6 py-2.5 rounded-xl transition" id="btn-step1-next" disabled>
+          Siguiente: Datos de las Partes →
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Parties -->
+    <div id="step-2" class="hidden">
+      <div class="flex lg:flex-row flex-col gap-6">
+        <div class="flex-1 space-y-6">
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 class="font-bold text-navy-900 mb-4 flex items-center gap-2"><span class="w-6 h-6 bg-navy-900 text-gold-500 rounded-full flex items-center justify-center text-xs font-bold">A</span> Primera Parte</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="sm:col-span-2"><label class="block text-xs font-semibold text-slate-600 mb-1">Nombre completo / Razón social *</label>
+              <input id="p1-nombre" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="Ej. Carlos López Hernández" oninput="updatePreview()"></div>
+              <div><label class="block text-xs font-semibold text-slate-600 mb-1">RFC</label>
+              <input id="p1-rfc" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="LOHE801201XXX" oninput="updatePreview()"></div>
+              <div><label class="block text-xs font-semibold text-slate-600 mb-1">Rol en contrato</label>
+              <select id="p1-rol" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" onchange="updatePreview()"><option>Arrendador</option><option>Prestador</option><option>Vendedor</option><option>Empleador</option><option>Divulgante</option></select></div>
+              <div class="sm:col-span-2"><label class="block text-xs font-semibold text-slate-600 mb-1">Domicilio</label>
+              <input id="p1-domicilio" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="Calle, No., Colonia, Ciudad, C.P." oninput="updatePreview()"></div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 class="font-bold text-navy-900 mb-4 flex items-center gap-2"><span class="w-6 h-6 bg-gold-500 text-navy-900 rounded-full flex items-center justify-center text-xs font-bold">B</span> Segunda Parte</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="sm:col-span-2"><label class="block text-xs font-semibold text-slate-600 mb-1">Nombre completo / Razón social *</label>
+              <input id="p2-nombre" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="Ej. María García Soto" oninput="updatePreview()"></div>
+              <div><label class="block text-xs font-semibold text-slate-600 mb-1">RFC</label>
+              <input id="p2-rfc" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="GASO850510XXX" oninput="updatePreview()"></div>
+              <div><label class="block text-xs font-semibold text-slate-600 mb-1">Rol en contrato</label>
+              <select id="p2-rol" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" onchange="updatePreview()"><option>Arrendatario</option><option>Cliente</option><option>Comprador</option><option>Trabajador</option><option>Receptor</option></select></div>
+              <div class="sm:col-span-2"><label class="block text-xs font-semibold text-slate-600 mb-1">Domicilio</label>
+              <input id="p2-domicilio" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="Calle, No., Colonia, Ciudad, C.P." oninput="updatePreview()"></div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl border border-slate-200 p-5">
+            <h3 class="font-bold text-navy-900 mb-4">Datos generales del contrato</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><label class="block text-xs font-semibold text-slate-600 mb-1">Ciudad de firma</label>
+              <input id="ciudad" type="text" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="Ciudad de México" oninput="updatePreview()"></div>
+              <div><label class="block text-xs font-semibold text-slate-600 mb-1">Fecha de firma</label>
+              <input id="fecha-firma" type="date" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" oninput="updatePreview()"></div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="showStep(1)" class="border border-slate-300 text-slate-600 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition">← Atrás</button>
+            <button onclick="showStep(3)" class="flex-1 bg-navy-900 hover:bg-navy-800 text-gold-500 font-semibold px-6 py-2.5 rounded-xl transition">Siguiente: Términos específicos →</button>
+          </div>
+        </div>
+        <!-- Mini preview -->
+        <div class="lg:w-72 hidden lg:block">
+          <div class="bg-white rounded-xl border border-slate-200 p-4 sticky top-32">
+            <p class="text-xs font-bold text-slate-400 uppercase mb-3">Vista rápida</p>
+            <div id="mini-preview" class="text-xs text-slate-600 space-y-1 leading-relaxed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Terms -->
+    <div id="step-3" class="hidden">
+      <div class="grid lg:grid-cols-2 gap-6">
+        <div id="terms-fields" class="space-y-4"></div>
+        <div class="bg-white rounded-xl border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <p class="text-xs font-bold text-slate-400 uppercase">Vista previa del contrato</p>
+            <span id="preview-status" class="text-xs px-2 py-0.5 rounded-full status-borrador font-semibold">Borrador</span>
+          </div>
+          <div id="preview-pane" class="overflow-y-auto h-80 text-xs text-slate-700 leading-relaxed" id="contract-preview-small"></div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="showStep(2)" class="border border-slate-300 text-slate-600 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition">← Atrás</button>
+        <button onclick="showStep(4)" class="flex-1 bg-navy-900 hover:bg-navy-800 text-gold-500 font-semibold px-6 py-2.5 rounded-xl transition">Ver contrato completo →</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Preview & Save -->
+    <div id="step-4" class="hidden">
+      <div class="flex flex-col lg:flex-row gap-6">
+        <div class="flex-1">
+          <div class="bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden">
+            <div class="bg-navy-900 text-white px-6 py-4 flex items-center justify-between no-print">
+              <p class="font-bold">Vista previa del contrato</p>
+              <div class="flex gap-2">
+                <select id="status-select" onchange="updateStatus()" class="text-xs bg-navy-800 border border-navy-700 rounded-lg px-2 py-1 text-white">
+                  <option value="borrador">Borrador</option>
+                  <option value="enviado">Enviado</option>
+                  <option value="firmado">Firmado</option>
+                </select>
+                <button onclick="printContract()" class="text-xs bg-gold-500 text-navy-900 font-semibold px-3 py-1 rounded-lg hover:bg-gold-400 transition">Imprimir</button>
+                <button onclick="saveContract()" class="text-xs bg-green-600 text-white font-semibold px-3 py-1 rounded-lg hover:bg-green-700 transition">Guardar</button>
+              </div>
+            </div>
+            <div class="p-8 max-h-[600px] overflow-y-auto" id="contract-preview"></div>
+          </div>
+        </div>
+        <div class="lg:w-64 space-y-4 no-print">
+          <div class="bg-white rounded-xl border border-slate-200 p-4">
+            <p class="text-xs font-bold text-slate-400 uppercase mb-3">Acciones</p>
+            <div class="space-y-2">
+              <button onclick="printContract()" class="w-full flex items-center gap-2 text-sm text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg transition">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                Imprimir PDF
+              </button>
+              <button onclick="sendWhatsApp()" class="w-full flex items-center gap-2 text-sm text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg transition">
+                <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.553 4.107 1.523 5.83L.057 23.07a.75.75 0 00.914.914l5.265-1.476A11.956 11.956 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.921 0-3.724-.512-5.278-1.406l-.349-.207-3.647 1.022 1.022-3.621-.225-.363A9.956 9.956 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                Enviar por WhatsApp
+              </button>
+              <button onclick="saveContract()" class="w-full flex items-center gap-2 text-sm text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg transition">
+                <svg class="w-4 h-4 text-navy-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                Guardar en historial
+              </button>
+            </div>
+          </div>
+          <div class="bg-gold-100 rounded-xl border border-gold-200 p-4">
+            <p class="text-xs font-bold text-gold-800 mb-2">Nota legal</p>
+            <p class="text-xs text-gold-700 leading-relaxed">Este contrato es una plantilla de referencia. Se recomienda la revisión de un abogado antes de su firma y protocolización notarial.</p>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 flex gap-3 no-print">
+        <button onclick="showStep(3)" class="border border-slate-300 text-slate-600 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition">← Editar</button>
+        <button onclick="newContract()" class="border border-slate-300 text-slate-600 px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50 transition">Nuevo contrato</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="no-print mt-12 border-t border-slate-200 py-6 text-center">
+  <p class="text-xs text-slate-400">Powered by <span class="font-semibold text-navy-700">Novamente Studio</span> · Soluciones digitales para profesionales</p>
+</footer>
+
+<script>
+const STORAGE_KEY = 'contratos_v1';
+let currentTemplate = null;
+let currentData = {};
+let editingId = null;
+
+// Templates definitions
+const templates = {
+  arrendamiento: {
+    name: 'Contrato de Arrendamiento',
+    p1rol: 'Arrendador',
+    p2rol: 'Arrendatario',
+    fields: [
+      { id:'inmueble', label:'Descripción del inmueble', type:'textarea', placeholder:'Departamento ubicado en Av. Insurgentes Sur 1234, Piso 3, CDMX' },
+      { id:'renta', label:'Monto mensual de renta (MXN)', type:'text', placeholder:'12,500.00' },
+      { id:'deposito', label:'Depósito en garantía (MXN)', type:'text', placeholder:'25,000.00' },
+      { id:'inicio', label:'Fecha de inicio', type:'date' },
+      { id:'duracion', label:'Duración del contrato', type:'select', options:['6 meses','1 año','2 años','Tiempo indefinido'] },
+      { id:'pago-dia', label:'Día de pago mensual', type:'select', options:['1','5','10','15','Último día del mes'] },
+      { id:'uso', label:'Uso del inmueble', type:'select', options:['Habitacional','Comercial','Mixto'] },
+    ]
+  },
+  servicios: {
+    name: 'Contrato de Prestación de Servicios',
+    p1rol: 'Prestador de Servicios',
+    p2rol: 'Cliente',
+    fields: [
+      { id:'servicio', label:'Descripción de los servicios', type:'textarea', placeholder:'Asesoría jurídica en materia mercantil y corporativa...' },
+      { id:'monto', label:'Honorarios pactados (MXN)', type:'text', placeholder:'45,000.00' },
+      { id:'forma-pago', label:'Forma de pago', type:'select', options:['Pago único al inicio','50% inicio / 50% entrega','Mensualidades','Por entregable'] },
+      { id:'inicio-s', label:'Fecha de inicio', type:'date' },
+      { id:'termino', label:'Fecha de término estimada', type:'date' },
+      { id:'entregables', label:'Entregables / Alcance', type:'textarea', placeholder:'1. Estudio de viabilidad jurídica\n2. Redacción de estatutos\n3. Representación ante notario' },
+    ]
+  },
+  compraventa: {
+    name: 'Contrato de Compraventa',
+    p1rol: 'Vendedor',
+    p2rol: 'Comprador',
+    fields: [
+      { id:'bien', label:'Descripción del bien', type:'textarea', placeholder:'Vehículo marca Toyota, modelo Corolla 2020, color blanco, placas XXX-000...' },
+      { id:'precio', label:'Precio de venta (MXN)', type:'text', placeholder:'250,000.00' },
+      { id:'forma-cv', label:'Forma de pago', type:'select', options:['Contado al momento','Transferencia bancaria','50% señal + 50% entrega','Financiamiento directo'] },
+      { id:'fecha-entrega', label:'Fecha de entrega del bien', type:'date' },
+      { id:'garantia', label:'Garantía ofrecida', type:'select', options:['Sin garantía','30 días','90 días','1 año','Garantía de evicción'] },
+      { id:'estado', label:'Estado del bien', type:'select', options:['Nuevo','Usado en buen estado','Usado con detalles conocidos'] },
+    ]
+  },
+  nda: {
+    name: 'Acuerdo de Confidencialidad (NDA)',
+    p1rol: 'Parte Divulgante',
+    p2rol: 'Parte Receptora',
+    fields: [
+      { id:'info-conf', label:'Tipo de información confidencial', type:'textarea', placeholder:'Estrategias de negocio, listas de clientes, procesos internos, tecnología propietaria, datos financieros...' },
+      { id:'proposito', label:'Propósito de la divulgación', type:'textarea', placeholder:'Evaluación de posible colaboración comercial entre las partes' },
+      { id:'vigencia-nda', label:'Vigencia del acuerdo', type:'select', options:['1 año','2 años','3 años','5 años','Indefinida'] },
+      { id:'penalizacion', label:'Penalización por incumplimiento (MXN)', type:'text', placeholder:'500,000.00' },
+      { id:'jurisdiccion', label:'Jurisdicción aplicable', type:'text', placeholder:'Ciudad de México' },
+    ]
+  },
+  laboral: {
+    name: 'Contrato Laboral',
+    p1rol: 'Empleador (Patrón)',
+    p2rol: 'Trabajador',
+    fields: [
+      { id:'puesto', label:'Puesto / Denominación del cargo', type:'text', placeholder:'Coordinador de Ventas' },
+      { id:'salario', label:'Salario mensual bruto (MXN)', type:'text', placeholder:'18,000.00' },
+      { id:'tipo-contrato', label:'Tipo de contrato', type:'select', options:['Por tiempo indeterminado','Por tiempo determinado (6 meses)','Por tiempo determinado (1 año)','Por obra determinada','Por temporada'] },
+      { id:'jornada', label:'Tipo de jornada', type:'select', options:['Diurna (8h)','Nocturna (7h)','Mixta (7.5h)','Por horas','Medio tiempo'] },
+      { id:'inicio-lab', label:'Fecha de inicio de labores', type:'date' },
+      { id:'lugar-trabajo', label:'Lugar de trabajo', type:'text', placeholder:'Oficinas en Av. Reforma 222, CDMX' },
+      { id:'prestaciones', label:'Prestaciones adicionales', type:'textarea', placeholder:'Vales de despensa $2,000/mes, seguro de gastos médicos, fondo de ahorro 5%' },
+    ]
+  }
+};
+
+// Sample demo data
+const demoContracts = [
+  {
+    id: 'demo-1',
+    template: 'arrendamiento',
+    p1nombre: 'Roberto Méndez Castillo',
+    p1rfc: 'MECR750312HDF',
+    p1rol: 'Arrendador',
+    p1domicilio: 'Av. Pedregal 340, Col. Molino del Rey, CDMX',
+    p2nombre: 'Sandra Vázquez Ortiz',
+    p2rfc: 'VAOS910615MDF',
+    p2rol: 'Arrendatario',
+    p2domicilio: 'Calle Olivos 12, Col. Napoles, CDMX',
+    ciudad: 'Ciudad de México',
+    fechaFirma: '2024-03-01',
+    terms: { inmueble: 'Departamento 4B en Periférico Norte 1800, Col. San Pedro Zacatenco, CDMX. 68m², 2 recámaras, 1 baño.', renta: '14,500.00', deposito: '29,000.00', inicio: '2024-03-15', duracion: '1 año', 'pago-dia': '5', uso: 'Habitacional' },
+    status: 'firmado',
+    savedAt: '2024-03-01T10:30:00'
+  },
+  {
+    id: 'demo-2',
+    template: 'servicios',
+    p1nombre: 'Lic. Fernando Torres Ramírez',
+    p1rfc: 'TORF820820HJL',
+    p1rol: 'Prestador de Servicios',
+    p1domicilio: 'Insurgentes Sur 1898, Of. 302, Col. Florida, CDMX',
+    p2nombre: 'Grupo Industrial Norteño S.A. de C.V.',
+    p2rfc: 'GIN010315XXX',
+    p2rol: 'Cliente',
+    p2domicilio: 'Blvd. Industrial 450, Parque Industrial, Monterrey, N.L.',
+    ciudad: 'Ciudad de México',
+    fechaFirma: '2024-04-10',
+    terms: { servicio: 'Asesoría jurídica corporativa para proceso de fusión empresarial con empresa filial.', monto: '120,000.00', 'forma-pago': '50% inicio / 50% entrega', 'inicio-s': '2024-04-15', termino: '2024-07-15', entregables: '1. Auditoría legal de ambas empresas\n2. Dictamen de viabilidad\n3. Proyecto de escritura de fusión' },
+    status: 'enviado',
+    savedAt: '2024-04-10T14:20:00'
+  }
+];
+
+function loadContracts() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(demoContracts));
+    return demoContracts;
+  }
+  return JSON.parse(saved);
+}
+
+function saveContracts(list) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function selectTemplate(tpl) {
+  currentTemplate = tpl;
+  document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('tpl-' + tpl).classList.add('selected');
+  document.getElementById('btn-step1-next').disabled = false;
+  document.getElementById('btn-step1-next').classList.remove('opacity-50');
+  // Set default roles
+  const t = templates[tpl];
+  document.getElementById('p1-rol').innerHTML = `<option>${t.p1rol}</option>`;
+  document.getElementById('p2-rol').innerHTML = `<option>${t.p2rol}</option>`;
+}
+
+function goToStep2() {
+  if (!currentTemplate) return;
+  showStep(2);
+}
+
+function showStep(n) {
+  [1,2,3,4].forEach(i => {
+    document.getElementById('step-'+i).classList.add('hidden');
+    const tab = document.getElementById('tab-'+i);
+    tab.classList.remove('active');
+    tab.classList.add('text-gray-400');
+  });
+  document.getElementById('step-'+n).classList.remove('hidden');
+  const activeTab = document.getElementById('tab-'+n);
+  activeTab.classList.add('active');
+  activeTab.classList.remove('text-gray-400');
+  if (n === 3) buildTermsFields();
+  if (n === 4) renderFullPreview();
+  updateMiniPreview();
+}
+
+function buildTermsFields() {
+  if (!currentTemplate) return;
+  const container = document.getElementById('terms-fields');
+  const tpl = templates[currentTemplate];
+  container.innerHTML = `<div class="bg-white rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-900 mb-4">${tpl.name}</h3><div class="space-y-3">` +
+    tpl.fields.map(f => {
+      const val = currentData[f.id] || '';
+      if (f.type === 'textarea') return `<div><label class="block text-xs font-semibold text-slate-600 mb-1">${f.label}</label><textarea id="term-${f.id}" rows="3" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="${f.placeholder||''}" oninput="updatePreview()">${val}</textarea></div>`;
+      if (f.type === 'select') return `<div><label class="block text-xs font-semibold text-slate-600 mb-1">${f.label}</label><select id="term-${f.id}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" onchange="updatePreview()">${f.options.map(o=>`<option ${val===o?'selected':''}>${o}</option>`).join('')}</select></div>`;
+      return `<div><label class="block text-xs font-semibold text-slate-600 mb-1">${f.label}</label><input id="term-${f.id}" type="${f.type}" value="${val}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-navy-900" placeholder="${f.placeholder||''}" oninput="updatePreview()"></div>`;
+    }).join('') + '</div></div>';
+  updatePreview();
+}
+
+function getFormData() {
+  const d = {
+    p1nombre: (document.getElementById('p1-nombre')||{}).value || '',
+    p1rfc: (document.getElementById('p1-rfc')||{}).value || '',
+    p1rol: (document.getElementById('p1-rol')||{}).value || '',
+    p1domicilio: (document.getElementById('p1-domicilio')||{}).value || '',
+    p2nombre: (document.getElementById('p2-nombre')||{}).value || '',
+    p2rfc: (document.getElementById('p2-rfc')||{}).value || '',
+    p2rol: (document.getElementById('p2-rol')||{}).value || '',
+    p2domicilio: (document.getElementById('p2-domicilio')||{}).value || '',
+    ciudad: (document.getElementById('ciudad')||{}).value || '',
+    fechaFirma: (document.getElementById('fecha-firma')||{}).value || ''
+  };
+  if (currentTemplate) {
+    d.terms = {};
+    templates[currentTemplate].fields.forEach(f => {
+      const el = document.getElementById('term-'+f.id);
+      if (el) d.terms[f.id] = el.value;
+    });
+  }
+  return d;
+}
+
+function generateContractHTML(data) {
+  if (!data.template && !currentTemplate) return '<p class="text-slate-400">Selecciona un tipo de contrato para ver la vista previa.</p>';
+  const tpl = templates[data.template || currentTemplate];
+  if (!tpl) return '';
+  const terms = data.terms || {};
+  const fechaStr = data.fechaFirma ? new Date(data.fechaFirma+'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'}) : '_____ de __________ de 20__';
+  const p1 = data.p1nombre || '[PRIMERA PARTE]';
+  const p2 = data.p2nombre || '[SEGUNDA PARTE]';
+  const p1rol = data.p1rol || tpl.p1rol;
+  const p2rol = data.p2rol || tpl.p2rol;
+
+  let clauses = '';
+  if (data.template === 'arrendamiento' || currentTemplate === 'arrendamiento') {
+    clauses = `
+<p class="clause"><strong>PRIMERA. OBJETO.</strong> El ${p1rol} da en arrendamiento al ${p2rol}, quien acepta en arrendamiento el inmueble con las siguientes características: <em>${terms.inmueble || '[descripción del inmueble]'}</em>.</p>
+<p class="clause"><strong>SEGUNDA. RENTA.</strong> El ${p2rol} se obliga a pagar al ${p1rol} la cantidad de <strong>$${terms.renta || '0.00'} M.N.</strong> (MONEDA NACIONAL) mensuales como renta, pagaderos los días <strong>${terms['pago-dia'] || '1'}</strong> de cada mes.</p>
+<p class="clause"><strong>TERCERA. DEPÓSITO EN GARANTÍA.</strong> Al momento de la firma del presente contrato, el ${p2rol} entrega al ${p1rol} la cantidad de <strong>$${terms.deposito || '0.00'} M.N.</strong> como depósito en garantía, misma que será devuelta al término del contrato previa revisión del estado del inmueble.</p>
+<p class="clause"><strong>CUARTA. DURACIÓN.</strong> El presente contrato tendrá una duración de <strong>${terms.duracion || '1 año'}</strong>, con vigencia a partir del <em>${terms.inicio || fechaStr}</em>.</p>
+<p class="clause"><strong>QUINTA. USO.</strong> El inmueble será destinado exclusivamente a uso <strong>${terms.uso || 'habitacional'}</strong>, no pudiendo el ${p2rol} modificar el destino sin autorización escrita del ${p1rol}.</p>
+<p class="clause"><strong>SEXTA. CONSERVACIÓN.</strong> El ${p2rol} se obliga a conservar el inmueble en buen estado, realizando las reparaciones menores que correspondan al uso ordinario, dando aviso inmediato al ${p1rol} sobre cualquier desperfecto mayor.</p>
+<p class="clause"><strong>SÉPTIMA. TERMINACIÓN ANTICIPADA.</strong> En caso de que el ${p2rol} desee dar por terminado el contrato anticipadamente, deberá notificarlo con un mínimo de 60 días naturales de anticipación, so pena de perder el depósito en garantía.</p>
+<p class="clause"><strong>OCTAVA. SUBARRENDAMIENTO.</strong> Queda expresamente prohibido el subarrendamiento total o parcial del inmueble sin consentimiento escrito del ${p1rol}.</p>`;
+  } else if (data.template === 'servicios' || currentTemplate === 'servicios') {
+    clauses = `
+<p class="clause"><strong>PRIMERA. OBJETO.</strong> El ${p1rol} se obliga a prestar al ${p2rol} los siguientes servicios profesionales: <em>${terms.servicio || '[descripción de los servicios]'}</em>.</p>
+<p class="clause"><strong>SEGUNDA. HONORARIOS.</strong> Por concepto de los servicios pactados, el ${p2rol} pagará al ${p1rol} la cantidad de <strong>$${terms.monto || '0.00'} M.N.</strong> más IVA correspondiente, bajo la modalidad de: <strong>${terms['forma-pago'] || 'pago único'}</strong>.</p>
+<p class="clause"><strong>TERCERA. VIGENCIA.</strong> Los servicios se llevarán a cabo del <em>${terms['inicio-s'] || '___'}  al ${terms.termino || '___'}</em>, pudiendo prorrogarse por acuerdo mutuo por escrito.</p>
+<p class="clause"><strong>CUARTA. ENTREGABLES.</strong> El ${p1rol} se compromete a entregar los siguientes productos:<br>${(terms.entregables||'').replace(/\n/g,'<br>')}</p>
+<p class="clause"><strong>QUINTA. CONFIDENCIALIDAD.</strong> El ${p1rol} se obliga a mantener estricta confidencialidad respecto a toda la información que le sea proporcionada por el ${p2rol} en el marco de la prestación de servicios.</p>
+<p class="clause"><strong>SEXTA. INDEPENDENCIA.</strong> El presente contrato no crea relación laboral entre las partes, siendo el ${p1rol} un profesional independiente con plena autonomía técnica para el desarrollo de su trabajo.</p>
+<p class="clause"><strong>SÉPTIMA. RESCISIÓN.</strong> Cualquiera de las partes podrá rescindir el presente contrato con 15 días naturales de aviso previo por escrito, procediéndose a la liquidación proporcional de los servicios efectivamente prestados.</p>`;
+  } else if (data.template === 'compraventa' || currentTemplate === 'compraventa') {
+    clauses = `
+<p class="clause"><strong>PRIMERA. OBJETO.</strong> El ${p1rol} vende y transfiere al ${p2rol}, quien adquiere para sí, el siguiente bien: <em>${terms.bien || '[descripción del bien]'}</em>, el cual declara ser de su legítima propiedad, libre de gravámenes y limitaciones de dominio.</p>
+<p class="clause"><strong>SEGUNDA. PRECIO.</strong> El precio total de la compraventa es la cantidad de <strong>$${terms.precio || '0.00'} M.N.</strong>, que el ${p2rol} se obliga a pagar bajo la modalidad de: <strong>${terms['forma-cv'] || 'contado'}</strong>.</p>
+<p class="clause"><strong>TERCERA. ENTREGA.</strong> El ${p1rol} se obliga a entregar el bien en las condiciones pactadas a más tardar el día <em>${terms['fecha-entrega'] || '___'}</em>.</p>
+<p class="clause"><strong>CUARTA. ESTADO DEL BIEN.</strong> El bien se entrega en estado: <strong>${terms.estado || 'usado en buen estado'}</strong>. La garantía ofrecida es: <strong>${terms.garantia || 'sin garantía'}</strong>.</p>
+<p class="clause"><strong>QUINTA. SANEAMIENTO.</strong> El ${p1rol} responde por los vicios ocultos que presente el bien conforme a lo establecido en el Código Civil Federal y demás disposiciones aplicables.</p>
+<p class="clause"><strong>SEXTA. TRASLADO DE DOMINIO.</strong> La propiedad del bien se transfiere al ${p2rol} en el momento en que se realice el pago total del precio pactado, salvo pacto en contrario.</p>`;
+  } else if (data.template === 'nda' || currentTemplate === 'nda') {
+    clauses = `
+<p class="clause"><strong>PRIMERA. OBJETO.</strong> Las partes convienen en mantener confidencialidad respecto a la información que sea intercambiada con motivo de: <em>${terms.proposito || '[propósito de la divulgación]'}</em>.</p>
+<p class="clause"><strong>SEGUNDA. INFORMACIÓN CONFIDENCIAL.</strong> Se considerará información confidencial la siguiente: <em>${terms['info-conf'] || '[tipo de información]'}</em>, así como cualquier información técnica, comercial, financiera o de otra índole que sea designada como confidencial por la parte divulgante.</p>
+<p class="clause"><strong>TERCERA. OBLIGACIONES.</strong> La Parte Receptora se obliga a: (a) no divulgar la información confidencial a terceros sin autorización previa y por escrito de la Parte Divulgante; (b) utilizar la información exclusivamente para el propósito pactado; (c) adoptar las medidas de seguridad razonables para proteger la información.</p>
+<p class="clause"><strong>CUARTA. VIGENCIA.</strong> Las obligaciones de confidencialidad establecidas en el presente acuerdo tendrán una vigencia de <strong>${terms['vigencia-nda'] || '2 años'}</strong> a partir de la fecha de firma.</p>
+<p class="clause"><strong>QUINTA. PENALIZACIÓN.</strong> El incumplimiento del presente acuerdo dará lugar a una penalización de <strong>$${terms.penalizacion || '0.00'} M.N.</strong> por cada infracción comprobada, sin perjuicio de las acciones legales adicionales que procedan.</p>
+<p class="clause"><strong>SEXTA. JURISDICCIÓN.</strong> Para la interpretación y cumplimiento del presente acuerdo, las partes se someten a las leyes y tribunales competentes de <strong>${terms.jurisdiccion || 'Ciudad de México'}</strong>, renunciando a cualquier otro fuero que pudiera corresponderles.</p>`;
+  } else if (data.template === 'laboral' || currentTemplate === 'laboral') {
+    clauses = `
+<p class="clause"><strong>PRIMERA. OBJETO.</strong> El ${p1rol} contrata los servicios del ${p2rol} para desempeñar el cargo de <strong>${terms.puesto || '[puesto]'}</strong>, bajo la modalidad de contrato <strong>${terms['tipo-contrato'] || 'por tiempo indeterminado'}</strong>, con inicio de labores el <em>${terms['inicio-lab'] || '___'}</em>.</p>
+<p class="clause"><strong>SEGUNDA. LUGAR DE TRABAJO.</strong> Las labores se llevarán a cabo en: <em>${terms['lugar-trabajo'] || '[lugar de trabajo]'}</em>, pudiendo el ${p1rol} modificar el lugar de trabajo según las necesidades de la empresa, dentro de los límites legales.</p>
+<p class="clause"><strong>TERCERA. JORNADA.</strong> La jornada de trabajo será de tipo <strong>${terms.jornada || 'diurna'}</strong>, conforme a lo establecido en la Ley Federal del Trabajo.</p>
+<p class="clause"><strong>CUARTA. SALARIO.</strong> El ${p1rol} se obliga a pagar al ${p2rol} un salario mensual bruto de <strong>$${terms.salario || '0.00'} M.N.</strong>, que incluye la parte proporcional de días de descanso, sujeto a las retenciones de ley (ISR e IMSS).</p>
+<p class="clause"><strong>QUINTA. PRESTACIONES DE LEY.</strong> El trabajador tendrá derecho a las prestaciones mínimas de ley: vacaciones, prima vacacional (25%), aguinaldo (15 días), IMSS, INFONAVIT y AFORE.</p>
+<p class="clause"><strong>SEXTA. PRESTACIONES ADICIONALES.</strong> Adicionalmente, el trabajador recibirá: <em>${terms.prestaciones || '[prestaciones adicionales]'}</em>.</p>
+<p class="clause"><strong>SÉPTIMA. RESCISIÓN.</strong> El presente contrato podrá rescindirse en los términos establecidos en los artículos 46, 47 y 51 de la Ley Federal del Trabajo, según sea el caso.</p>`;
+  }
+
+  return `
+<div class="contract-header text-center mb-8">
+  <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#94a3b8;margin-bottom:4px">DOCUMENTO PRIVADO</div>
+  <h2 style="font-size:18px;font-weight:800;color:#1e293b;margin-bottom:4px">${tpl.name.toUpperCase()}</h2>
+  <div style="width:60px;height:3px;background:#d4a574;margin:8px auto;border-radius:2px"></div>
+</div>
+<p class="clause" style="text-align:justify">En la ciudad de <strong>${data.ciudad || '___________'}</strong>, siendo el día <strong>${fechaStr}</strong>, comparecen ante los presentes:</p>
+<p class="clause" style="text-align:justify"><strong>${p1.toUpperCase()}</strong>${data.p1rfc ? `, con RFC <strong>${data.p1rfc}</strong>` : ''}, con domicilio en ${data.p1domicilio || '[domicilio de la primera parte]'}, en lo sucesivo denominado <strong>"${p1rol.toUpperCase()}"</strong>.</p>
+<p class="clause" style="text-align:justify"><strong>${p2.toUpperCase()}</strong>${data.p2rfc ? `, con RFC <strong>${data.p2rfc}</strong>` : ''}, con domicilio en ${data.p2domicilio || '[domicilio de la segunda parte]'}, en lo sucesivo denominado <strong>"${p2rol.toUpperCase()}"</strong>.</p>
+<p class="clause" style="text-align:justify">Ambas partes reconocen su plena capacidad jurídica para contratar y obligarse, y convienen en celebrar el presente contrato al tenor de las siguientes:</p>
+<h3 style="font-size:13px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:1px;margin:20px 0 12px;border-bottom:1px solid #e2e8f0;padding-bottom:6px">CLÁUSULAS</h3>
+${clauses}
+<p class="clause" style="text-align:justify;margin-top:20px"><strong>RESOLUCIÓN DE CONTROVERSIAS.</strong> Para la interpretación, ejecución y cumplimiento del presente contrato, las partes acuerdan someterse a la legislación aplicable y a los tribunales competentes de <strong>${data.ciudad || 'la Ciudad de México'}</strong>, renunciando al fuero que por razón de su domicilio presente o futuro pudiera corresponderles.</p>
+<div style="margin-top:48px;display:flex;justify-content:space-around;text-align:center">
+  <div style="min-width:180px">
+    <div style="border-top:1px solid #1e293b;padding-top:8px;margin-top:60px">
+      <p style="font-size:11px;font-weight:700;color:#1e293b">${p1 || 'PRIMERA PARTE'}</p>
+      <p style="font-size:10px;color:#64748b">${p1rol}</p>
+      ${data.p1rfc ? `<p style="font-size:9px;color:#94a3b8">RFC: ${data.p1rfc}</p>` : ''}
+    </div>
+  </div>
+  <div style="min-width:180px">
+    <div style="border-top:1px solid #1e293b;padding-top:8px;margin-top:60px">
+      <p style="font-size:11px;font-weight:700;color:#1e293b">${p2 || 'SEGUNDA PARTE'}</p>
+      <p style="font-size:10px;color:#64748b">${p2rol}</p>
+      ${data.p2rfc ? `<p style="font-size:9px;color:#94a3b8">RFC: ${data.p2rfc}</p>` : ''}
+    </div>
+  </div>
+</div>
+<p style="font-size:9px;color:#94a3b8;text-align:center;margin-top:24px">Documento generado el ${new Date().toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})} · Para uso privado</p>`;
+}
+
+function updatePreview() {
+  const data = getFormData();
+  data.template = currentTemplate;
+  const html = generateContractHTML(data);
+  const pane = document.getElementById('preview-pane');
+  if (pane) pane.innerHTML = html;
+  updateMiniPreview();
+}
+
+function updateMiniPreview() {
+  const mini = document.getElementById('mini-preview');
+  if (!mini) return;
+  const d = getFormData();
+  mini.innerHTML = `
+    <p><span class="font-semibold text-slate-700">Tipo:</span> ${currentTemplate ? templates[currentTemplate].name : 'No seleccionado'}</p>
+    <p><span class="font-semibold text-slate-700">Parte A:</span> ${d.p1nombre || '—'}</p>
+    <p><span class="font-semibold text-slate-700">Parte B:</span> ${d.p2nombre || '—'}</p>
+    <p><span class="font-semibold text-slate-700">Ciudad:</span> ${d.ciudad || '—'}</p>
+    <p><span class="font-semibold text-slate-700">Fecha:</span> ${d.fechaFirma || '—'}</p>`;
+}
+
+function renderFullPreview() {
+  const data = getFormData();
+  data.template = currentTemplate;
+  const html = generateContractHTML(data);
+  document.getElementById('contract-preview').innerHTML = html;
+}
+
+function updateStatus() {
+  const sel = document.getElementById('status-select');
+  const badge = document.getElementById('preview-status');
+  if (!badge || !sel) return;
+  badge.className = 'text-xs px-2 py-0.5 rounded-full font-semibold status-' + sel.value;
+  badge.textContent = sel.value.charAt(0).toUpperCase() + sel.value.slice(1);
+}
+
+function saveContract() {
+  const data = getFormData();
+  data.template = currentTemplate;
+  data.status = (document.getElementById('status-select')||{}).value || 'borrador';
+  data.savedAt = new Date().toISOString();
+  data.id = editingId || 'c-' + Date.now();
+  const contracts = loadContracts();
+  const idx = contracts.findIndex(c => c.id === data.id);
+  if (idx >= 0) contracts[idx] = data; else contracts.unshift(data);
+  saveContracts(contracts);
+  editingId = data.id;
+  alert('Contrato guardado en el historial.');
+}
+
+function printContract() {
+  renderFullPreview();
+  window.print();
+}
+
+function sendWhatsApp() {
+  const d = getFormData();
+  const tplName = currentTemplate ? templates[currentTemplate].name : 'contrato';
+  const msg = `Hola ${d.p2nombre || ''},\n\nLe informo que su *${tplName}* ya está listo para revisión y firma.\n\nPartes involucradas:\n• ${d.p1nombre || 'Primera parte'} (${d.p1rol || ''})\n• ${d.p2nombre || 'Segunda parte'} (${d.p2rol || ''})\n\nEl contrato completo se lo envío por email a la brevedad.\n\nQuedo a sus órdenes.`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function showView(v) {
+  document.getElementById('view-builder').classList.toggle('hidden', v !== 'builder');
+  document.getElementById('view-history').classList.toggle('hidden', v !== 'history');
+  document.getElementById('main-tabs').classList.toggle('hidden', v !== 'builder');
+  if (v === 'history') renderHistory();
+}
+
+function renderHistory() {
+  const contracts = loadContracts();
+  const container = document.getElementById('history-list');
+  if (!contracts.length) { container.innerHTML = '<p class="text-slate-400 text-sm">No hay contratos guardados.</p>'; return; }
+  container.innerHTML = contracts.map(c => {
+    const tplName = templates[c.template] ? templates[c.template].name : c.template;
+    const date = new Date(c.savedAt).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'});
+    const statusClass = 'status-' + (c.status || 'borrador');
+    return `<div class="bg-white rounded-xl border border-slate-200 p-4 flex items-start justify-between gap-4">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs px-2 py-0.5 rounded-full font-semibold ${statusClass}">${c.status||'borrador'}</span>
+          <span class="text-xs text-slate-400">${date}</span>
+        </div>
+        <p class="font-bold text-navy-900 text-sm">${tplName}</p>
+        <p class="text-xs text-slate-500 mt-0.5">${c.p1nombre||'—'} ↔ ${c.p2nombre||'—'}</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="loadContract('${c.id}')" class="text-xs bg-navy-900 text-gold-500 font-semibold px-3 py-1.5 rounded-lg hover:bg-navy-800 transition">Abrir</button>
+        <button onclick="deleteContract('${c.id}')" class="text-xs text-red-500 hover:bg-red-50 px-2 py-1.5 rounded-lg transition">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function loadContract(id) {
+  const contracts = loadContracts();
+  const c = contracts.find(x => x.id === id);
+  if (!c) return;
+  editingId = c.id;
+  currentTemplate = c.template;
+  selectTemplate(c.template);
+  document.getElementById('p1-nombre').value = c.p1nombre || '';
+  document.getElementById('p1-rfc').value = c.p1rfc || '';
+  document.getElementById('p1-domicilio').value = c.p1domicilio || '';
+  document.getElementById('p2-nombre').value = c.p2nombre || '';
+  document.getElementById('p2-rfc').value = c.p2rfc || '';
+  document.getElementById('p2-domicilio').value = c.p2domicilio || '';
+  document.getElementById('ciudad').value = c.ciudad || '';
+  document.getElementById('fecha-firma').value = c.fechaFirma || '';
+  currentData = c.terms || {};
+  showView('builder');
+  showStep(4);
+}
+
+function deleteContract(id) {
+  if (!confirm('¿Eliminar este contrato del historial?')) return;
+  const contracts = loadContracts().filter(c => c.id !== id);
+  saveContracts(contracts);
+  renderHistory();
+}
+
+function newContract() {
+  currentTemplate = null;
+  currentData = {};
+  editingId = null;
+  document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('btn-step1-next').disabled = true;
+  ['p1-nombre','p1-rfc','p1-domicilio','p2-nombre','p2-rfc','p2-domicilio','ciudad','fecha-firma'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  showView('builder');
+  showStep(1);
+}
+
+// Init
+document.getElementById('fecha-firma').valueAsDate = new Date();
+loadContracts();
+</script>
+</body>
+</html>

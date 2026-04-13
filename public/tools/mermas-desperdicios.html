@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Mermas y Desperdicios</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .gradient-header { background: linear-gradient(135deg, #16a34a 0%, #059669 100%); }
+  .card { background: white; border-radius: 16px; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; }
+    .print-section { page-break-inside: avoid; }
+    .card { box-shadow: none !important; border: 1px solid #d1d5db !important; }
+  }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+  .modal-overlay.hidden { display: none; }
+  .tab-btn { padding: 8px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; transition: all 0.15s; cursor: pointer; }
+  .tab-btn.active { background: #16a34a; color: white; }
+  .tab-btn:not(.active) { color: #6b7280; }
+  .tab-btn:not(.active):hover { background: #f0fdf4; color: #16a34a; }
+  .cat-chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .progress-bar { height: 10px; border-radius: 5px; background: #e5e7eb; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 5px; transition: width 0.5s ease; }
+  .row-hover:hover { background: #f0fdf4; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #16a34a; outline-offset: -1px; }
+  .stat-card { border-left: 4px solid; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Header -->
+<header class="gradient-header text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h1 class="text-2xl font-800 tracking-tight">Control de Mermas y Desperdicios</h1>
+        <p class="text-green-200 text-sm mt-0.5">Reducción de pérdidas · Sostenibilidad · Control de costos</p>
+      </div>
+      <div class="flex gap-2 flex-wrap">
+        <button onclick="openAddModal()" class="bg-white text-green-700 font-600 px-4 py-2 rounded-xl text-sm hover:bg-green-50 transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Registrar Merma
+        </button>
+        <button onclick="sendWhatsApp()" class="bg-green-800 text-white font-600 px-4 py-2 rounded-xl text-sm hover:bg-green-900 transition flex items-center gap-2">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Resumen WhatsApp
+        </button>
+        <button onclick="window.print()" class="bg-green-800 text-white font-600 px-4 py-2 rounded-xl text-sm hover:bg-green-900 transition no-print flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          Reporte
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<div class="max-w-7xl mx-auto px-4 py-4 no-print">
+  <div class="flex gap-2 flex-wrap">
+    <button class="tab-btn active" onclick="setTab('dashboard', this)">Dashboard</button>
+    <button class="tab-btn" onclick="setTab('registros', this)">Registros</button>
+    <button class="tab-btn" onclick="setTab('metas', this)">Metas</button>
+  </div>
+</div>
+
+<!-- Dashboard Tab -->
+<div id="tab-dashboard" class="max-w-7xl mx-auto px-4 pb-12 space-y-6">
+
+  <!-- Stats Row -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="card p-4 stat-card border-l-green-500">
+      <div class="text-xs text-gray-500 font-600 uppercase tracking-wide mb-1">Esta Semana</div>
+      <div id="stat-week-kg" class="text-2xl font-800 text-gray-800">— kg</div>
+      <div id="stat-week-mxn" class="text-sm text-green-600 font-600 mt-1">$— MXN</div>
+    </div>
+    <div class="card p-4 stat-card border-l-emerald-500">
+      <div class="text-xs text-gray-500 font-600 uppercase tracking-wide mb-1">Este Mes</div>
+      <div id="stat-month-kg" class="text-2xl font-800 text-gray-800">— kg</div>
+      <div id="stat-month-mxn" class="text-sm text-emerald-600 font-600 mt-1">$— MXN</div>
+    </div>
+    <div class="card p-4 stat-card border-l-amber-500">
+      <div class="text-xs text-gray-500 font-600 uppercase tracking-wide mb-1">% de Compras</div>
+      <div id="stat-pct" class="text-2xl font-800 text-gray-800">—%</div>
+      <div class="text-xs text-gray-400 mt-1">Meta: &lt;5%</div>
+    </div>
+    <div class="card p-4 stat-card border-l-red-500">
+      <div class="text-xs text-gray-500 font-600 uppercase tracking-wide mb-1">Registros Mes</div>
+      <div id="stat-count" class="text-2xl font-800 text-gray-800">—</div>
+      <div class="text-xs text-gray-400 mt-1">entradas totales</div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="card p-5">
+      <h3 class="font-700 text-gray-800 mb-4">Por Categoría (este mes)</h3>
+      <div class="relative" style="height:240px">
+        <canvas id="donut-chart"></canvas>
+      </div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-700 text-gray-800 mb-4">Tendencia Diaria (últimos 30 días)</h3>
+      <div class="relative" style="height:240px">
+        <canvas id="line-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top 5 + Waste % -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="card p-5">
+      <h3 class="font-700 text-gray-800 mb-4">Top 5 Productos con Más Merma</h3>
+      <div id="top5-list" class="space-y-3"></div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-700 text-gray-800 mb-1">Merma vs Compras</h3>
+      <p class="text-xs text-gray-500 mb-4">Porcentaje de desperdicio sobre total de compras del mes</p>
+      <div id="waste-pct-display" class="text-center py-4"></div>
+      <div class="mt-4">
+        <label class="text-xs text-gray-600 font-600">Compras del mes (MXN)</label>
+        <input id="monthly-purchases" type="number" placeholder="50000" oninput="updateStats()" class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Registros Tab -->
+<div id="tab-registros" class="max-w-7xl mx-auto px-4 pb-12 hidden">
+  <div class="card overflow-hidden">
+    <div class="p-4 border-b border-gray-100 flex gap-3 flex-wrap items-center">
+      <input id="search-records" type="text" placeholder="Buscar producto..." oninput="renderTable()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm flex-1 min-w-40">
+      <select id="filter-cat" onchange="renderTable()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        <option value="">Todas las categorías</option>
+        <option>Preparación</option><option>Caducidad</option><option>Devolución</option><option>Sobrante</option><option>Accidente</option>
+      </select>
+      <select id="filter-period" onchange="renderTable()" class="border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        <option value="month">Este mes</option>
+        <option value="week">Esta semana</option>
+        <option value="all">Todos</option>
+      </select>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-100">
+          <tr>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Fecha</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Producto</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600">Categoría</th>
+            <th class="text-right px-4 py-3 font-600 text-gray-600">Cantidad</th>
+            <th class="text-right px-4 py-3 font-600 text-gray-600">Costo MXN</th>
+            <th class="text-left px-4 py-3 font-600 text-gray-600 w-40">Nota</th>
+            <th class="px-4 py-3 no-print"></th>
+          </tr>
+        </thead>
+        <tbody id="records-tbody"></tbody>
+      </table>
+    </div>
+    <div id="table-empty" class="text-center py-12 text-gray-400 hidden">No hay registros para este período</div>
+  </div>
+</div>
+
+<!-- Metas Tab -->
+<div id="tab-metas" class="max-w-7xl mx-auto px-4 pb-12 hidden">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <h3 class="font-700 text-gray-800 text-lg mb-4">Meta Mensual de Reducción</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Meta máxima de merma (kg/mes)</label>
+          <input id="goal-kg" type="number" placeholder="50" oninput="updateGoals()" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Meta máxima de costo (MXN/mes)</label>
+          <input id="goal-mxn" type="number" placeholder="5000" oninput="updateGoals()" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Meta % máximo sobre compras</label>
+          <input id="goal-pct" type="number" placeholder="5" oninput="updateGoals()" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <button onclick="saveGoals()" class="w-full bg-green-600 text-white font-600 py-2.5 rounded-xl hover:bg-green-700 transition">Guardar Metas</button>
+      </div>
+    </div>
+    <div class="card p-6">
+      <h3 class="font-700 text-gray-800 text-lg mb-4">Progreso Este Mes</h3>
+      <div id="goals-progress" class="space-y-5"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div id="add-modal" class="modal-overlay hidden no-print">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+    <div class="gradient-header text-white p-5 rounded-t-2xl flex justify-between items-center">
+      <h2 class="text-lg font-700">Registrar Merma</h2>
+      <button onclick="closeModal()" class="hover:opacity-70 text-xl">✕</button>
+    </div>
+    <form id="waste-form" class="p-5 space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Fecha *</label>
+          <input id="f-date" type="date" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Categoría *</label>
+          <select id="f-cat" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+            <option>Preparación</option>
+            <option>Caducidad</option>
+            <option>Devolución</option>
+            <option>Sobrante</option>
+            <option>Accidente</option>
+          </select>
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-600 text-gray-700 mb-1">Producto *</label>
+          <input id="f-product" type="text" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="ej. Aguacate Hass">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Cantidad (kg)</label>
+          <input id="f-qty" type="number" step="0.01" required class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="0.00" oninput="calcCost()">
+        </div>
+        <div>
+          <label class="block text-sm font-600 text-gray-700 mb-1">Precio/kg (MXN)</label>
+          <input id="f-price" type="number" step="0.01" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="65" oninput="calcCost()">
+        </div>
+      </div>
+      <div class="bg-green-50 rounded-xl px-4 py-3 flex justify-between items-center">
+        <span class="text-sm font-600 text-green-800">Costo estimado:</span>
+        <span id="cost-preview" class="text-lg font-800 text-green-700">$0.00 MXN</span>
+      </div>
+      <div>
+        <label class="block text-sm font-600 text-gray-700 mb-1">Nota / Motivo</label>
+        <textarea id="f-note" rows="2" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="Descripción del motivo..."></textarea>
+      </div>
+      <div class="flex gap-3 pt-1">
+        <button type="submit" class="flex-1 bg-green-600 text-white font-600 py-2.5 rounded-xl hover:bg-green-700 transition">Guardar</button>
+        <button type="button" onclick="closeModal()" class="px-6 border border-gray-200 rounded-xl text-sm font-600 hover:bg-gray-50 transition">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer class="bg-white border-t border-gray-100 py-4 text-center text-xs text-gray-400 no-print mt-8">
+  Powered by <span class="font-700 text-green-600">Novamente Studio</span> &copy; <span id="footer-year"></span>
+</footer>
+
+<script>
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+const CATEGORIES = {
+  'Preparación': { color: 'bg-amber-100 text-amber-800', hex: '#f59e0b' },
+  'Caducidad':   { color: 'bg-red-100 text-red-800',    hex: '#ef4444' },
+  'Devolución':  { color: 'bg-blue-100 text-blue-800',  hex: '#3b82f6' },
+  'Sobrante':    { color: 'bg-purple-100 text-purple-800', hex: '#a855f7' },
+  'Accidente':   { color: 'bg-orange-100 text-orange-800', hex: '#f97316' },
+};
+
+// Generate 30 days of demo data
+function generateDemoData() {
+  const products = [
+    { name: 'Aguacate Hass', price: 65 },
+    { name: 'Jitomate bola', price: 35 },
+    { name: 'Pechuga de pollo', price: 95 },
+    { name: 'Pan de caja', price: 45 },
+    { name: 'Lechuga romana', price: 30 },
+    { name: 'Cebolla blanca', price: 20 },
+    { name: 'Chile serrano', price: 50 },
+    { name: 'Cilantro', price: 60 },
+    { name: 'Zanahoria', price: 18 },
+    { name: 'Queso Oaxaca', price: 220 },
+    { name: 'Crema', price: 90 },
+    { name: 'Naranja', price: 25 },
+  ];
+
+  const catList = ['Preparación', 'Caducidad', 'Devolución', 'Sobrante', 'Accidente'];
+  const notes = {
+    'Preparación': ['Cáscaras y recortes normales', 'Trimmings de mise en place', 'Partes no comestibles'],
+    'Caducidad': ['Venció antes de usarse', 'Mala rotación de inventario', 'Pedido excesivo'],
+    'Devolución': ['Cliente rechazó el platillo', 'Error en pedido', 'Plato incorrecto'],
+    'Sobrante': ['Sobró de servicio', 'No se vendió', 'Exceso de producción'],
+    'Accidente': ['Se cayó al suelo', 'Se quemó en cocina', 'Derrame en almacén'],
+  };
+
+  const today = new Date();
+  const data = [];
+  let id = 1;
+
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const entries = Math.floor(Math.random() * 3) + 1;
+    for (let j = 0; j < entries; j++) {
+      const prod = products[Math.floor(Math.random() * products.length)];
+      const cat = catList[Math.floor(Math.random() * catList.length)];
+      const qty = parseFloat((Math.random() * 2 + 0.2).toFixed(2));
+      const noteArr = notes[cat];
+      data.push({
+        id: id++,
+        date: dateStr,
+        product: prod.name,
+        category: cat,
+        qty: qty,
+        pricePerKg: prod.price,
+        cost: parseFloat((qty * prod.price).toFixed(2)),
+        note: noteArr[Math.floor(Math.random() * noteArr.length)],
+      });
+    }
+  }
+  return data;
+}
+
+let records = [];
+let goals = { kg: 50, mxn: 5000, pct: 5 };
+let monthlyPurchases = 50000;
+let donutChart = null, lineChart = null;
+let activeTab = 'dashboard';
+
+function loadData() {
+  const stored = localStorage.getItem('mermas_v2');
+  if (stored) {
+    const parsed = JSON.parse(stored);
+    records = parsed.records || [];
+    goals = parsed.goals || { kg: 50, mxn: 5000, pct: 5 };
+    monthlyPurchases = parsed.monthlyPurchases || 50000;
+  } else {
+    records = generateDemoData();
+    saveData();
+  }
+  document.getElementById('monthly-purchases').value = monthlyPurchases;
+  document.getElementById('goal-kg').value = goals.kg;
+  document.getElementById('goal-mxn').value = goals.mxn;
+  document.getElementById('goal-pct').value = goals.pct;
+}
+
+function saveData() {
+  localStorage.setItem('mermas_v2', JSON.stringify({ records, goals, monthlyPurchases }));
+}
+
+function getToday() { return new Date().toISOString().split('T')[0]; }
+
+function getWeekStart() {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return d.toISOString().split('T')[0];
+}
+
+function getMonthStart() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+}
+
+function filterRecords(period) {
+  const today = getToday();
+  if (period === 'week') return records.filter(r => r.date >= getWeekStart() && r.date <= today);
+  if (period === 'month') return records.filter(r => r.date >= getMonthStart() && r.date <= today);
+  return records;
+}
+
+function updateStats() {
+  monthlyPurchases = parseFloat(document.getElementById('monthly-purchases').value) || 50000;
+  saveData();
+
+  const weekRec = filterRecords('week');
+  const monthRec = filterRecords('month');
+
+  const weekKg = weekRec.reduce((s, r) => s + r.qty, 0);
+  const weekMxn = weekRec.reduce((s, r) => s + r.cost, 0);
+  const monthKg = monthRec.reduce((s, r) => s + r.qty, 0);
+  const monthMxn = monthRec.reduce((s, r) => s + r.cost, 0);
+  const pct = monthlyPurchases > 0 ? (monthMxn / monthlyPurchases * 100) : 0;
+
+  document.getElementById('stat-week-kg').textContent = `${weekKg.toFixed(1)} kg`;
+  document.getElementById('stat-week-mxn').textContent = `$${weekMxn.toFixed(0)} MXN`;
+  document.getElementById('stat-month-kg').textContent = `${monthKg.toFixed(1)} kg`;
+  document.getElementById('stat-month-mxn').textContent = `$${monthMxn.toFixed(0)} MXN`;
+  document.getElementById('stat-pct').textContent = `${pct.toFixed(1)}%`;
+  document.getElementById('stat-count').textContent = monthRec.length;
+
+  // Waste % display
+  const pctEl = document.getElementById('waste-pct-display');
+  const color = pct <= 3 ? 'text-green-600' : pct <= 5 ? 'text-amber-600' : 'text-red-600';
+  pctEl.innerHTML = `
+    <div class="text-5xl font-800 ${color}">${pct.toFixed(1)}%</div>
+    <div class="text-sm text-gray-500 mt-2">de $${monthlyPurchases.toLocaleString()} MXN en compras</div>
+    <div class="mt-3 text-sm font-600 ${color}">${pct <= 5 ? '✓ Dentro de la meta' : '⚠ Por encima de la meta'}</div>
+  `;
+
+  renderTop5(monthRec);
+  renderCharts(monthRec);
+  renderGoalsProgress(monthKg, monthMxn, pct);
+}
+
+function renderTop5(recs) {
+  const totals = {};
+  recs.forEach(r => {
+    if (!totals[r.product]) totals[r.product] = { kg: 0, cost: 0 };
+    totals[r.product].kg += r.qty;
+    totals[r.product].cost += r.cost;
+  });
+  const sorted = Object.entries(totals).sort((a, b) => b[1].kg - a[1].kg).slice(0, 5);
+  const maxKg = sorted[0]?.[1]?.kg || 1;
+  document.getElementById('top5-list').innerHTML = sorted.map(([name, data]) => `
+    <div>
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-sm font-600 text-gray-700">${name}</span>
+        <span class="text-sm text-gray-500">${data.kg.toFixed(1)} kg · $${data.cost.toFixed(0)}</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill bg-green-500" style="width:${(data.kg/maxKg*100).toFixed(0)}%"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderCharts(monthRec) {
+  // Donut
+  const catTotals = {};
+  Object.keys(CATEGORIES).forEach(c => catTotals[c] = 0);
+  monthRec.forEach(r => catTotals[r.category] = (catTotals[r.category] || 0) + r.cost);
+
+  const catLabels = Object.keys(catTotals);
+  const catValues = Object.values(catTotals);
+  const catColors = catLabels.map(c => CATEGORIES[c]?.hex || '#6b7280');
+
+  if (donutChart) donutChart.destroy();
+  const dCtx = document.getElementById('donut-chart').getContext('2d');
+  donutChart = new Chart(dCtx, {
+    type: 'doughnut',
+    data: { labels: catLabels, datasets: [{ data: catValues, backgroundColor: catColors, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { font: { family: 'Plus Jakarta Sans', size: 11 }, padding: 12 } } }
+    }
+  });
+
+  // Line: last 30 days
+  const today = new Date();
+  const days = [], dayTotals = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    const ds = d.toISOString().split('T')[0];
+    const dayRecs = records.filter(r => r.date === ds);
+    days.push(d.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }));
+    dayTotals.push(dayRecs.reduce((s, r) => s + r.qty, 0));
+  }
+
+  if (lineChart) lineChart.destroy();
+  const lCtx = document.getElementById('line-chart').getContext('2d');
+  lineChart = new Chart(lCtx, {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [{
+        label: 'kg merma',
+        data: dayTotals,
+        borderColor: '#16a34a',
+        backgroundColor: 'rgba(22,163,74,0.1)',
+        fill: true, tension: 0.4, pointRadius: 3,
+        pointBackgroundColor: '#16a34a',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { family: 'Plus Jakarta Sans', size: 10 }, maxTicksLimit: 8 }, grid: { display: false } },
+        y: { ticks: { font: { family: 'Plus Jakarta Sans', size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderGoalsProgress(kg, mxn, pct) {
+  const items = [
+    { label: 'Kg merma', current: kg, goal: goals.kg, unit: 'kg', suffix: 'kg' },
+    { label: 'Costo merma', current: mxn, goal: goals.mxn, unit: 'MXN', prefix: '$', suffix: '' },
+    { label: '% sobre compras', current: pct, goal: goals.pct, unit: '%', suffix: '%' },
+  ];
+  document.getElementById('goals-progress').innerHTML = items.map(item => {
+    const ratio = Math.min(item.current / item.goal, 1);
+    const over = item.current > item.goal;
+    const pctWidth = (ratio * 100).toFixed(0);
+    return `<div>
+      <div class="flex justify-between items-center mb-1">
+        <span class="text-sm font-600 text-gray-700">${item.label}</span>
+        <span class="text-sm font-700 ${over ? 'text-red-600' : 'text-green-600'}">${item.prefix || ''}${item.unit === 'MXN' ? item.current.toFixed(0) : item.current.toFixed(1)}${item.suffix} / ${item.prefix || ''}${item.goal}${item.suffix}</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill ${over ? 'bg-red-500' : 'bg-green-500'}" style="width:${pctWidth}%"></div>
+      </div>
+      <div class="text-xs mt-1 ${over ? 'text-red-500' : 'text-gray-400'}">${over ? '⚠ Por encima de la meta' : `${(100 - pctWidth)}% disponible`}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTable() {
+  const search = document.getElementById('search-records').value.toLowerCase();
+  const cat = document.getElementById('filter-cat').value;
+  const period = document.getElementById('filter-period').value;
+
+  let recs = filterRecords(period).filter(r => {
+    const matchSearch = r.product.toLowerCase().includes(search) || r.note?.toLowerCase().includes(search);
+    const matchCat = !cat || r.category === cat;
+    return matchSearch && matchCat;
+  }).sort((a, b) => b.date.localeCompare(a.date));
+
+  const tbody = document.getElementById('records-tbody');
+  const empty = document.getElementById('table-empty');
+
+  if (recs.length === 0) {
+    tbody.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  tbody.innerHTML = recs.map(r => {
+    const catStyle = CATEGORIES[r.category]?.color || 'bg-gray-100 text-gray-700';
+    return `<tr class="border-b border-gray-50 row-hover">
+      <td class="px-4 py-3 text-gray-600 text-sm">${r.date}</td>
+      <td class="px-4 py-3 font-600 text-gray-800">${r.product}</td>
+      <td class="px-4 py-3"><span class="cat-chip ${catStyle}">${r.category}</span></td>
+      <td class="px-4 py-3 text-right font-600 text-gray-800">${r.qty} kg</td>
+      <td class="px-4 py-3 text-right font-700 text-gray-800">$${r.cost.toFixed(2)}</td>
+      <td class="px-4 py-3 text-xs text-gray-500">${r.note || '—'}</td>
+      <td class="px-4 py-3 no-print">
+        <button onclick="deleteRecord(${r.id})" class="text-red-400 hover:text-red-600 transition text-xs p-1">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function saveGoals() {
+  goals.kg = parseFloat(document.getElementById('goal-kg').value) || 50;
+  goals.mxn = parseFloat(document.getElementById('goal-mxn').value) || 5000;
+  goals.pct = parseFloat(document.getElementById('goal-pct').value) || 5;
+  saveData();
+  updateStats();
+  alert('Metas guardadas ✓');
+}
+
+function updateGoals() {}
+
+function deleteRecord(id) {
+  if (!confirm('¿Eliminar este registro?')) return;
+  records = records.filter(r => r.id !== id);
+  saveData();
+  renderTable();
+  updateStats();
+}
+
+function calcCost() {
+  const qty = parseFloat(document.getElementById('f-qty').value) || 0;
+  const price = parseFloat(document.getElementById('f-price').value) || 0;
+  document.getElementById('cost-preview').textContent = `$${(qty * price).toFixed(2)} MXN`;
+}
+
+function openAddModal() {
+  document.getElementById('f-date').value = getToday();
+  document.getElementById('f-qty').value = '';
+  document.getElementById('f-price').value = '';
+  document.getElementById('f-product').value = '';
+  document.getElementById('f-note').value = '';
+  document.getElementById('cost-preview').textContent = '$0.00 MXN';
+  document.getElementById('add-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('add-modal').classList.add('hidden');
+}
+
+document.getElementById('waste-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const qty = parseFloat(document.getElementById('f-qty').value) || 0;
+  const price = parseFloat(document.getElementById('f-price').value) || 0;
+  records.push({
+    id: Date.now(),
+    date: document.getElementById('f-date').value,
+    product: document.getElementById('f-product').value,
+    category: document.getElementById('f-cat').value,
+    qty,
+    pricePerKg: price,
+    cost: parseFloat((qty * price).toFixed(2)),
+    note: document.getElementById('f-note').value,
+  });
+  saveData();
+  closeModal();
+  updateStats();
+  if (activeTab === 'registros') renderTable();
+});
+
+function setTab(tab, el) {
+  activeTab = tab;
+  ['dashboard', 'registros', 'metas'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.add('hidden');
+  });
+  document.getElementById(`tab-${tab}`).classList.remove('hidden');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  if (tab === 'registros') renderTable();
+}
+
+function sendWhatsApp() {
+  const monthRec = filterRecords('month');
+  const kg = monthRec.reduce((s, r) => s + r.qty, 0).toFixed(1);
+  const cost = monthRec.reduce((s, r) => s + r.cost, 0).toFixed(0);
+  const pct = monthlyPurchases > 0 ? (parseFloat(cost) / monthlyPurchases * 100).toFixed(1) : '—';
+  const catBreak = {};
+  monthRec.forEach(r => catBreak[r.category] = (catBreak[r.category] || 0) + r.cost);
+  const catLines = Object.entries(catBreak).map(([c, v]) => `  • ${c}: $${v.toFixed(0)}`).join('\n');
+  const msg = `*♻️ Reporte de Mermas — ${new Date().toLocaleDateString('es-MX', {month:'long',year:'numeric'})}*\n\n*Total kg:* ${kg} kg\n*Costo total:* $${cost} MXN\n*% sobre compras:* ${pct}%\n\n*Por categoría:*\n${catLines}\n\n_Generado desde Control de Mermas_`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+loadData();
+updateStats();
+</script>
+</body>
+</html>

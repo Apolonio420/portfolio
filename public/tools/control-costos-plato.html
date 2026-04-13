@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Costos por Plato</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .accent { color: #475569; }
+  .accent-bg { background-color: #475569; }
+  .accent-light { background-color: #f8fafc; }
+  .card { background: #fff; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06); }
+  .kpi-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06); padding: 20px; }
+  .dish-row { cursor:pointer; border-bottom: 1px solid #f1f5f9; transition: background 0.15s; }
+  .dish-row:hover { background: #f8fafc; }
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:50; overflow-y:auto; }
+  .modal-overlay.open { display:flex; align-items:flex-start; justify-content:center; padding:24px 16px; }
+  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #f1f5f9; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  .star-q { background:#eff6ff; color:#2563eb; }
+  .puzzle-q { background:#fef9c3; color:#854d0e; }
+  .horse-q { background:#fce7f3; color:#9d174d; }
+  .dog-q { background:#f1f5f9; color:#475569; }
+  @media print {
+    .no-print { display: none !important; }
+    .card,.kpi-card { box-shadow:none; border:1px solid #e2e8f0; }
+    canvas { max-width:100%; }
+  }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- HEADER -->
+<header class="accent-bg text-white no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div>
+      <p class="text-slate-300 text-xs font-medium uppercase tracking-widest">Restaurante</p>
+      <h1 class="text-xl font-bold">Control de Costos por Plato</h1>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="window.print()" class="bg-white text-slate-700 text-sm px-4 py-2 rounded-lg font-medium hover:bg-slate-50 transition">⎙ Imprimir</button>
+    </div>
+  </div>
+</header>
+
+<!-- KPI ROW -->
+<div class="max-w-7xl mx-auto px-4 mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+  <div class="kpi-card">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Costo Promedio Menú</p>
+    <p class="text-2xl font-bold text-slate-800 mt-1" id="kpi-avg-cost">—</p>
+    <p class="text-xs text-slate-400 mt-1">Meta: 28-32%</p>
+  </div>
+  <div class="kpi-card">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Platos Críticos</p>
+    <p class="text-2xl font-bold text-red-600 mt-1" id="kpi-critical">0</p>
+    <p class="text-xs text-slate-400 mt-1">Costo &gt;35%</p>
+  </div>
+  <div class="kpi-card">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Platos Saludables</p>
+    <p class="text-2xl font-bold text-green-600 mt-1" id="kpi-healthy">0</p>
+    <p class="text-xs text-slate-400 mt-1">Costo &lt;30%</p>
+  </div>
+  <div class="kpi-card">
+    <p class="text-xs text-slate-500 font-medium uppercase tracking-wide">Mejor Margen</p>
+    <p class="text-lg font-bold text-slate-800 mt-1 leading-tight" id="kpi-best-margin">—</p>
+    <p class="text-xs text-slate-400 mt-1" id="kpi-best-margin-val"></p>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="max-w-7xl mx-auto px-4 mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+  <!-- DISH LIST (2 cols) -->
+  <div class="lg:col-span-2 card p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-slate-700">Menú — Análisis de Costos</h3>
+      <div class="flex gap-2">
+        <select id="cat-filter" onchange="renderDishList()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600">
+          <option value="">Todas las categorías</option>
+          <option>Entradas</option>
+          <option>Principales</option>
+          <option>Bebidas</option>
+          <option>Postres</option>
+        </select>
+        <select id="status-filter" onchange="renderDishList()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600">
+          <option value="">Todos</option>
+          <option value="healthy">🟢 Saludable</option>
+          <option value="warning">🟡 Atención</option>
+          <option value="critical">🔴 Crítico</option>
+        </select>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-slate-500 border-b border-slate-100">
+            <th class="pb-3 font-semibold">Platillo</th>
+            <th class="pb-3 font-semibold">Cat.</th>
+            <th class="pb-3 font-semibold text-right">Precio</th>
+            <th class="pb-3 font-semibold text-right">Costo</th>
+            <th class="pb-3 font-semibold text-right">Costo %</th>
+            <th class="pb-3 font-semibold text-right">Margen</th>
+            <th class="pb-3 font-semibold text-center">Estado</th>
+          </tr>
+        </thead>
+        <tbody id="dish-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SIDE CHARTS -->
+  <div class="flex flex-col gap-4">
+    <div class="card p-5">
+      <h3 class="font-semibold text-slate-700 mb-3">Top 5 Peor Margen</h3>
+      <div id="worst-list" class="space-y-2"></div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-semibold text-slate-700 mb-3">Top 5 Mejor Margen</h3>
+      <div id="best-list" class="space-y-2"></div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-semibold text-slate-700 mb-3">Tendencia Costo Mensual</h3>
+      <canvas id="chartMonthly" height="200"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- BOSTON MATRIX -->
+<div class="max-w-7xl mx-auto px-4 mt-4">
+  <div class="card p-5">
+    <h3 class="font-semibold text-slate-700 mb-1">Ingeniería de Menú — Matriz Boston</h3>
+    <p class="text-xs text-slate-400 mb-4">Popularidad (ventas) vs Margen de contribución. Haz clic en un punto para ver detalle.</p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <canvas id="chartBoston" height="320"></canvas>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="star-q rounded-xl p-4">
+          <div class="text-2xl mb-1">⭐</div>
+          <p class="font-bold text-sm">Estrellas</p>
+          <p class="text-xs mt-1 opacity-80">Alta popularidad + Alto margen. Proteger y promover.</p>
+          <div id="stars-list" class="mt-2 space-y-1"></div>
+        </div>
+        <div class="puzzle-q rounded-xl p-4">
+          <div class="text-2xl mb-1">🧩</div>
+          <p class="font-bold text-sm">Puzzles</p>
+          <p class="text-xs mt-1 opacity-80">Baja popularidad + Alto margen. Promover más.</p>
+          <div id="puzzles-list" class="mt-2 space-y-1"></div>
+        </div>
+        <div class="horse-q rounded-xl p-4">
+          <div class="text-2xl mb-1">🐴</div>
+          <p class="font-bold text-sm">Caballos</p>
+          <p class="text-xs mt-1 opacity-80">Alta popularidad + Bajo margen. Optimizar costos.</p>
+          <div id="horses-list" class="mt-2 space-y-1"></div>
+        </div>
+        <div class="dog-q rounded-xl p-4">
+          <div class="text-2xl mb-1">🐕</div>
+          <p class="font-bold text-sm">Perros</p>
+          <p class="text-xs mt-1 opacity-80">Baja popularidad + Bajo margen. Evaluar eliminar.</p>
+          <div id="dogs-list" class="mt-2 space-y-1"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DISH DETAIL MODAL -->
+<div id="modal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl" onclick="event.stopPropagation()">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="text-xl font-bold text-slate-800" id="modal-title">—</h2>
+        <p class="text-sm text-slate-500" id="modal-cat">—</p>
+      </div>
+      <button onclick="document.getElementById('modal').classList.remove('open')" class="text-slate-400 hover:text-slate-600 text-2xl font-light leading-none">&times;</button>
+    </div>
+    <!-- Stats row -->
+    <div class="grid grid-cols-3 gap-3 mb-5">
+      <div class="bg-slate-50 rounded-xl p-3 text-center">
+        <p class="text-xs text-slate-500 mb-1">Precio Venta</p>
+        <p class="font-bold text-slate-800" id="modal-price">—</p>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-3 text-center">
+        <p class="text-xs text-slate-500 mb-1">Costo Total</p>
+        <p class="font-bold text-slate-800" id="modal-cost">—</p>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-3 text-center">
+        <p class="text-xs text-slate-500 mb-1">Costo %</p>
+        <p class="font-bold" id="modal-pct">—</p>
+      </div>
+    </div>
+    <!-- Ingredients -->
+    <h4 class="font-semibold text-slate-700 mb-2">Ingredientes por porción</h4>
+    <div class="overflow-x-auto mb-5">
+      <table class="w-full text-sm" id="modal-ingr-table">
+        <thead><tr class="text-left text-slate-500 border-b border-slate-100">
+          <th class="pb-2 font-semibold">Ingrediente</th>
+          <th class="pb-2 font-semibold text-right">Cantidad</th>
+          <th class="pb-2 font-semibold text-right">P. unitario</th>
+          <th class="pb-2 font-semibold text-right">Subtotal</th>
+        </tr></thead>
+        <tbody id="modal-ingr-tbody"></tbody>
+      </table>
+    </div>
+    <!-- Historical chart -->
+    <h4 class="font-semibold text-slate-700 mb-2">Historial de Costo % — 6 meses</h4>
+    <canvas id="modal-chart" height="120" class="mb-4"></canvas>
+    <!-- Simulator -->
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+      <h4 class="font-semibold text-amber-800 mb-2">Simulador de Precio</h4>
+      <p class="text-xs text-amber-700 mb-2">¿Cuánto cambiaría el costo si subes el precio de venta?</p>
+      <div class="flex gap-2 items-end">
+        <div>
+          <label class="text-xs text-amber-700 font-medium">Nuevo precio (MXN)</label>
+          <input type="number" id="sim-price" class="block border border-amber-300 rounded-lg px-3 py-2 text-sm w-32 mt-1" placeholder="Ej: 180">
+        </div>
+        <button onclick="runSimulator()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700 transition">Simular</button>
+      </div>
+      <p class="text-sm font-semibold text-amber-800 mt-2" id="sim-result"></p>
+    </div>
+    <!-- Suggested actions -->
+    <div id="modal-suggestions" class="space-y-2"></div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 mb-8"></div>
+<footer class="text-center py-6 text-slate-400 text-xs no-print">
+  Powered by <span class="font-semibold text-slate-600">Novamente Studio</span> &copy; <span id="footer-year"></span>
+</footer>
+
+<script>
+document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+// ── DEMO DATA ──────────────────────────────────────────────────────────────
+const DISHES = [
+  {id:1,name:'Tacos al Pastor',cat:'Principales',price:165,ingredients:[
+    {name:'Tortilla de maíz',qty:3,unit:'pza',unitPrice:2.5},
+    {name:'Carne de cerdo',qty:120,unit:'g',unitPrice:0.12},
+    {name:'Piña',qty:30,unit:'g',unitPrice:0.04},
+    {name:'Cebolla',qty:20,unit:'g',unitPrice:0.025},
+    {name:'Cilantro',qty:5,unit:'g',unitPrice:0.08},
+    {name:'Salsa roja',qty:30,unit:'ml',unitPrice:0.06},
+  ],popularity:95},
+  {id:2,name:'Enchiladas Verdes',cat:'Principales',price:145,ingredients:[
+    {name:'Tortilla de maíz',qty:3,unit:'pza',unitPrice:2.5},
+    {name:'Pechuga de pollo',qty:100,unit:'g',unitPrice:0.14},
+    {name:'Salsa verde',qty:80,unit:'ml',unitPrice:0.07},
+    {name:'Crema ácida',qty:30,unit:'ml',unitPrice:0.09},
+    {name:'Queso cotija',qty:20,unit:'g',unitPrice:0.18},
+    {name:'Cebolla',qty:15,unit:'g',unitPrice:0.025},
+  ],popularity:72},
+  {id:3,name:'Chiles en Nogada',cat:'Principales',price:265,ingredients:[
+    {name:'Chile poblano',qty:1,unit:'pza',unitPrice:18},
+    {name:'Carne molida mixta',qty:150,unit:'g',unitPrice:0.16},
+    {name:'Nuez de castilla',qty:40,unit:'g',unitPrice:0.55},
+    {name:'Crema',qty:50,unit:'ml',unitPrice:0.09},
+    {name:'Granada',qty:30,unit:'g',unitPrice:0.12},
+    {name:'Perejil',qty:5,unit:'g',unitPrice:0.1},
+  ],popularity:38},
+  {id:4,name:'Pozole Rojo',cat:'Principales',price:185,ingredients:[
+    {name:'Hominy (maíz pozolero)',qty:120,unit:'g',unitPrice:0.06},
+    {name:'Cabeza de cerdo',qty:150,unit:'g',unitPrice:0.11},
+    {name:'Chile guajillo',qty:25,unit:'g',unitPrice:0.22},
+    {name:'Orégano',qty:3,unit:'g',unitPrice:0.4},
+    {name:'Tostadas',qty:2,unit:'pza',unitPrice:2},
+    {name:'Lechuga',qty:30,unit:'g',unitPrice:0.04},
+  ],popularity:61},
+  {id:5,name:'Quesadillas Especiales',cat:'Principales',price:130,ingredients:[
+    {name:'Tortilla de harina',qty:2,unit:'pza',unitPrice:3.5},
+    {name:'Queso Oaxaca',qty:80,unit:'g',unitPrice:0.22},
+    {name:'Flor de calabaza',qty:30,unit:'g',unitPrice:0.15},
+    {name:'Huitlacoche',qty:20,unit:'g',unitPrice:0.3},
+  ],popularity:55},
+  {id:6,name:'Tacos de Carnitas',cat:'Principales',price:155,ingredients:[
+    {name:'Tortilla de maíz',qty:3,unit:'pza',unitPrice:2.5},
+    {name:'Carnitas',qty:120,unit:'g',unitPrice:0.14},
+    {name:'Cebolla',qty:20,unit:'g',unitPrice:0.025},
+    {name:'Cilantro',qty:5,unit:'g',unitPrice:0.08},
+    {name:'Limón',qty:1,unit:'pza',unitPrice:2},
+  ],popularity:78},
+  {id:7,name:'Flautas de Pollo',cat:'Principales',price:145,ingredients:[
+    {name:'Tortilla de maíz',qty:4,unit:'pza',unitPrice:2.5},
+    {name:'Pechuga de pollo',qty:90,unit:'g',unitPrice:0.14},
+    {name:'Aceite para freír',qty:50,unit:'ml',unitPrice:0.03},
+    {name:'Crema',qty:30,unit:'ml',unitPrice:0.09},
+    {name:'Lechuga',qty:25,unit:'g',unitPrice:0.04},
+    {name:'Salsa',qty:30,unit:'ml',unitPrice:0.06},
+  ],popularity:68},
+  {id:8,name:'Tamales de Rajas',cat:'Principales',price:140,ingredients:[
+    {name:'Masa de maíz',qty:100,unit:'g',unitPrice:0.08},
+    {name:'Manteca',qty:30,unit:'g',unitPrice:0.12},
+    {name:'Chile poblano',qty:0.5,unit:'pza',unitPrice:18},
+    {name:'Queso panela',qty:30,unit:'g',unitPrice:0.16},
+    {name:'Hoja de maíz',qty:2,unit:'pza',unitPrice:0.5},
+  ],popularity:42},
+  {id:9,name:'Sopa de Lima',cat:'Entradas',price:95,ingredients:[
+    {name:'Caldo de pollo',qty:250,unit:'ml',unitPrice:0.02},
+    {name:'Lima',qty:0.5,unit:'pza',unitPrice:3},
+    {name:'Tortilla frita',qty:15,unit:'g',unitPrice:0.1},
+    {name:'Pechuga',qty:50,unit:'g',unitPrice:0.14},
+  ],popularity:65},
+  {id:10,name:'Guacamole con Tostadas',cat:'Entradas',price:115,ingredients:[
+    {name:'Aguacate',qty:1.5,unit:'pza',unitPrice:22},
+    {name:'Jitomate',qty:40,unit:'g',unitPrice:0.04},
+    {name:'Cebolla',qty:20,unit:'g',unitPrice:0.025},
+    {name:'Cilantro',qty:5,unit:'g',unitPrice:0.08},
+    {name:'Limón',qty:0.5,unit:'pza',unitPrice:2},
+    {name:'Tostadas',qty:4,unit:'pza',unitPrice:2},
+  ],popularity:80},
+  {id:11,name:'Sopa Azteca',cat:'Entradas',price:105,ingredients:[
+    {name:'Caldo de tomate',qty:250,unit:'ml',unitPrice:0.025},
+    {name:'Chile pasilla',qty:10,unit:'g',unitPrice:0.3},
+    {name:'Tortilla frita',qty:20,unit:'g',unitPrice:0.1},
+    {name:'Crema',qty:25,unit:'ml',unitPrice:0.09},
+    {name:'Queso panela',qty:20,unit:'g',unitPrice:0.16},
+  ],popularity:52},
+  {id:12,name:'Tostadas de Tinga',cat:'Entradas',price:120,ingredients:[
+    {name:'Tostadas',qty:2,unit:'pza',unitPrice:2},
+    {name:'Pechuga deshebrada',qty:80,unit:'g',unitPrice:0.14},
+    {name:'Chipotle',qty:15,unit:'g',unitPrice:0.2},
+    {name:'Frijoles',qty:30,unit:'g',unitPrice:0.045},
+    {name:'Crema',qty:20,unit:'ml',unitPrice:0.09},
+  ],popularity:58},
+  {id:13,name:'Elote Callejero',cat:'Entradas',price:75,ingredients:[
+    {name:'Elote',qty:1,unit:'pza',unitPrice:12},
+    {name:'Mayonesa',qty:30,unit:'g',unitPrice:0.1},
+    {name:'Queso cotija',qty:15,unit:'g',unitPrice:0.18},
+    {name:'Chile piquín',qty:2,unit:'g',unitPrice:0.5},
+    {name:'Limón',qty:0.5,unit:'pza',unitPrice:2},
+  ],popularity:70},
+  {id:14,name:'Agua de Jamaica',cat:'Bebidas',price:45,ingredients:[
+    {name:'Flor de jamaica',qty:10,unit:'g',unitPrice:0.25},
+    {name:'Azúcar',qty:30,unit:'g',unitPrice:0.02},
+    {name:'Agua purificada',qty:400,unit:'ml',unitPrice:0.003},
+  ],popularity:90},
+  {id:15,name:'Margarita Clásica',cat:'Bebidas',price:135,ingredients:[
+    {name:'Tequila blanco',qty:60,unit:'ml',unitPrice:0.28},
+    {name:'Triple sec',qty:20,unit:'ml',unitPrice:0.18},
+    {name:'Limón fresco',qty:30,unit:'ml',unitPrice:0.1},
+    {name:'Sal',qty:2,unit:'g',unitPrice:0.01},
+  ],popularity:75},
+  {id:16,name:'Cerveza Modelo',cat:'Bebidas',price:75,ingredients:[
+    {name:'Cerveza 355ml',qty:1,unit:'pza',unitPrice:28},
+  ],popularity:82},
+  {id:17,name:'Michelada',cat:'Bebidas',price:95,ingredients:[
+    {name:'Cerveza 355ml',qty:1,unit:'pza',unitPrice:28},
+    {name:'Jugo de limón',qty:20,unit:'ml',unitPrice:0.08},
+    {name:'Salsa inglesa',qty:5,unit:'ml',unitPrice:0.15},
+    {name:'Sal de Chile',qty:3,unit:'g',unitPrice:0.3},
+  ],popularity:65},
+  {id:18,name:'Flan Napolitano',cat:'Postres',price:85,ingredients:[
+    {name:'Huevo',qty:2,unit:'pza',unitPrice:3.5},
+    {name:'Leche',qty:150,unit:'ml',unitPrice:0.016},
+    {name:'Leche condensada',qty:50,unit:'ml',unitPrice:0.055},
+    {name:'Azúcar',qty:40,unit:'g',unitPrice:0.02},
+    {name:'Vainilla',qty:2,unit:'ml',unitPrice:0.4},
+  ],popularity:60},
+  {id:19,name:'Churros con Cajeta',cat:'Postres',price:95,ingredients:[
+    {name:'Harina',qty:60,unit:'g',unitPrice:0.015},
+    {name:'Aceite para freír',qty:40,unit:'ml',unitPrice:0.03},
+    {name:'Cajeta',qty:40,unit:'ml',unitPrice:0.12},
+    {name:'Azúcar + canela',qty:20,unit:'g',unitPrice:0.025},
+  ],popularity:55},
+  {id:20,name:'Tres Leches',cat:'Postres',price:110,ingredients:[
+    {name:'Bizcocho (porción)',qty:1,unit:'pza',unitPrice:12},
+    {name:'Leche condensada',qty:40,unit:'ml',unitPrice:0.055},
+    {name:'Crema de leche',qty:40,unit:'ml',unitPrice:0.09},
+    {name:'Leche entera',qty:40,unit:'ml',unitPrice:0.016},
+    {name:'Crema batida',qty:30,unit:'g',unitPrice:0.1},
+  ],popularity:45},
+];
+
+// Monthly food cost history (6 months, slight upward drift)
+const MONTHS = ['Nov','Dic','Ene','Feb','Mar','Abr'];
+function genHistory(basePct){
+  return MONTHS.map((_,i)=>+(basePct+(i*0.4)+(Math.random()*0.6-0.3)).toFixed(1));
+}
+
+function calcDishCost(dish){
+  return dish.ingredients.reduce((sum,ing)=>sum+ing.qty*ing.unitPrice,0);
+}
+function calcFoodCostPct(dish){
+  return calcDishCost(dish)/dish.price;
+}
+
+const LS_KEY='costos-plato-data';
+let DISHES_DATA;
+try {
+  const s=localStorage.getItem(LS_KEY);
+  if(s) DISHES_DATA=JSON.parse(s);
+} catch(e){}
+if(!DISHES_DATA){
+  DISHES_DATA=DISHES.map(d=>({...d,history:genHistory(calcFoodCostPct(d)*100-1.5)}));
+  localStorage.setItem(LS_KEY,JSON.stringify(DISHES_DATA));
+}
+
+let activeDish=null;
+let modalChart=null;
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function getStatus(pct){
+  if(pct<0.30) return {label:'🟢 Saludable',cls:'text-green-700 bg-green-50 px-2 py-0.5 rounded-full text-xs font-bold',key:'healthy'};
+  if(pct<0.35) return {label:'🟡 Atención',cls:'text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full text-xs font-bold',key:'warning'};
+  return {label:'🔴 Crítico',cls:'text-red-700 bg-red-50 px-2 py-0.5 rounded-full text-xs font-bold',key:'critical'};
+}
+
+function renderDishList(){
+  const catF=document.getElementById('cat-filter').value;
+  const statusF=document.getElementById('status-filter').value;
+  const dishes=DISHES_DATA.filter(d=>{
+    if(catF&&d.cat!==catF)return false;
+    if(statusF){const s=getStatus(calcFoodCostPct(d));if(s.key!==statusF)return false;}
+    return true;
+  });
+  document.getElementById('dish-list').innerHTML=dishes.map(d=>{
+    const cost=calcDishCost(d);
+    const pct=calcFoodCostPct(d);
+    const margin=d.price-cost;
+    const s=getStatus(pct);
+    return `<tr class="dish-row" onclick="openDish(${d.id})">
+      <td class="py-3 font-medium text-slate-800">${d.name}</td>
+      <td class="py-3 text-slate-500 text-xs">${d.cat}</td>
+      <td class="py-3 text-right">$${d.price}</td>
+      <td class="py-3 text-right">$${cost.toFixed(2)}</td>
+      <td class="py-3 text-right font-bold ${pct<0.30?'text-green-700':pct<0.35?'text-amber-700':'text-red-700'}">${(pct*100).toFixed(1)}%</td>
+      <td class="py-3 text-right font-semibold text-green-700">$${margin.toFixed(0)}</td>
+      <td class="py-3 text-center"><span class="${s.cls}">${s.label}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateKPIs(){
+  const costs=DISHES_DATA.map(calcFoodCostPct);
+  const avg=costs.reduce((a,b)=>a+b,0)/costs.length;
+  const critical=costs.filter(c=>c>=0.35).length;
+  const healthy=costs.filter(c=>c<0.30).length;
+  const margins=DISHES_DATA.map(d=>({name:d.name,margin:d.price-calcDishCost(d)})).sort((a,b)=>b.margin-a.margin);
+  document.getElementById('kpi-avg-cost').textContent=(avg*100).toFixed(1)+'%';
+  document.getElementById('kpi-avg-cost').className='text-2xl font-bold mt-1 '+(avg<0.30?'text-green-600':avg<0.35?'text-amber-600':'text-red-600');
+  document.getElementById('kpi-critical').textContent=critical;
+  document.getElementById('kpi-healthy').textContent=healthy;
+  document.getElementById('kpi-best-margin').textContent=margins[0].name;
+  document.getElementById('kpi-best-margin-val').textContent='$'+margins[0].margin.toFixed(0)+' de margen';
+}
+
+function renderTopLists(){
+  const sorted=DISHES_DATA.map(d=>({name:d.name,pct:calcFoodCostPct(d),margin:d.price-calcDishCost(d)}))
+    .sort((a,b)=>b.pct-a.pct);
+  const worst=sorted.slice(0,5);
+  const best=sorted.slice(-5).reverse();
+  document.getElementById('worst-list').innerHTML=worst.map(d=>`
+    <div class="flex justify-between items-center text-sm">
+      <span class="text-slate-700 truncate flex-1">${d.name}</span>
+      <span class="font-bold ml-2 ${d.pct>=0.35?'text-red-600':'text-amber-600'}">${(d.pct*100).toFixed(1)}%</span>
+    </div>`).join('');
+  document.getElementById('best-list').innerHTML=best.map(d=>`
+    <div class="flex justify-between items-center text-sm">
+      <span class="text-slate-700 truncate flex-1">${d.name}</span>
+      <span class="font-bold text-green-600 ml-2">$${d.margin.toFixed(0)}</span>
+    </div>`).join('');
+}
+
+function renderMonthlyChart(){
+  const avgByMonth=MONTHS.map((_,i)=>{
+    const vals=DISHES_DATA.map(d=>d.history[i]);
+    return +(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+  });
+  const ctx=document.getElementById('chartMonthly');
+  if(window._monthlyChart) window._monthlyChart.destroy();
+  window._monthlyChart=new Chart(ctx,{
+    type:'line',
+    data:{labels:MONTHS,datasets:[{
+      label:'Costo %',data:avgByMonth,borderColor:'#475569',backgroundColor:'rgba(71,85,105,0.08)',fill:true,tension:0.4,pointRadius:4
+    }]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{
+      y:{ticks:{callback:v=>v+'%'},min:24,max:40,grid:{color:'#f1f5f9'}},
+      x:{grid:{display:false}}
+    }}
+  });
+}
+
+function renderBoston(){
+  const avgPop=DISHES_DATA.reduce((a,b)=>a+b.popularity,0)/DISHES_DATA.length;
+  const avgMarginPct=DISHES_DATA.reduce((a,b)=>a+(b.price-calcDishCost(b))/b.price,0)/DISHES_DATA.length;
+  const datasets=[{
+    label:'Platillos',
+    data:DISHES_DATA.map(d=>({x:d.popularity,y:+((d.price-calcDishCost(d))/d.price*100).toFixed(1),name:d.name})),
+    backgroundColor:DISHES_DATA.map(d=>{
+      const highPop=d.popularity>=avgPop;
+      const highMargin=(d.price-calcDishCost(d))/d.price>=avgMarginPct;
+      if(highPop&&highMargin)return'rgba(37,99,235,0.7)';
+      if(!highPop&&highMargin)return'rgba(202,138,4,0.7)';
+      if(highPop&&!highMargin)return'rgba(157,23,77,0.7)';
+      return'rgba(100,116,139,0.5)';
+    }),
+    pointRadius:8,
+    pointHoverRadius:10,
+  }];
+  if(window._bostonChart) window._bostonChart.destroy();
+  window._bostonChart=new Chart(document.getElementById('chartBoston'),{
+    type:'scatter',
+    data:{datasets},
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>`${ctx.raw.name}: Pop ${ctx.raw.x} | Margen ${ctx.raw.y}%`}}
+      },
+      scales:{
+        x:{title:{display:true,text:'Popularidad (ventas)'},grid:{color:'#f1f5f9'}},
+        y:{title:{display:true,text:'Margen %'},grid:{color:'#f1f5f9'}}
+      }
+    }
+  });
+  // Quadrant lists
+  const avgM=avgMarginPct;
+  const stars=[],puzzles=[],horses=[],dogs=[];
+  DISHES_DATA.forEach(d=>{
+    const highPop=d.popularity>=avgPop;
+    const highM=(d.price-calcDishCost(d))/d.price>=avgM;
+    if(highPop&&highM)stars.push(d.name);
+    else if(!highPop&&highM)puzzles.push(d.name);
+    else if(highPop&&!highM)horses.push(d.name);
+    else dogs.push(d.name);
+  });
+  const listHtml=arr=>arr.slice(0,4).map(n=>`<p class="text-xs font-medium opacity-80">• ${n}</p>`).join('');
+  document.getElementById('stars-list').innerHTML=listHtml(stars);
+  document.getElementById('puzzles-list').innerHTML=listHtml(puzzles);
+  document.getElementById('horses-list').innerHTML=listHtml(horses);
+  document.getElementById('dogs-list').innerHTML=listHtml(dogs);
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────
+function openDish(id){
+  activeDish=DISHES_DATA.find(d=>d.id===id);
+  if(!activeDish)return;
+  const d=activeDish;
+  const cost=calcDishCost(d);
+  const pct=calcFoodCostPct(d);
+  const s=getStatus(pct);
+  document.getElementById('modal-title').textContent=d.name;
+  document.getElementById('modal-cat').textContent=d.cat;
+  document.getElementById('modal-price').textContent='$'+d.price;
+  document.getElementById('modal-cost').textContent='$'+cost.toFixed(2);
+  const pctEl=document.getElementById('modal-pct');
+  pctEl.textContent=(pct*100).toFixed(1)+'%';
+  pctEl.className='font-bold '+(pct<0.30?'text-green-600':pct<0.35?'text-amber-600':'text-red-600');
+  // Ingredients
+  document.getElementById('modal-ingr-tbody').innerHTML=d.ingredients.map(ing=>{
+    const sub=ing.qty*ing.unitPrice;
+    return `<tr class="border-b border-slate-50">
+      <td class="py-2 text-slate-800">${ing.name}</td>
+      <td class="py-2 text-right text-slate-600">${ing.qty} ${ing.unit}</td>
+      <td class="py-2 text-right text-slate-600">$${ing.unitPrice.toFixed(2)}</td>
+      <td class="py-2 text-right font-semibold">$${sub.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  // Chart
+  if(modalChart) modalChart.destroy();
+  modalChart=new Chart(document.getElementById('modal-chart'),{
+    type:'line',
+    data:{labels:MONTHS,datasets:[{
+      label:'Costo %',data:d.history,borderColor:pct>=0.35?'#dc2626':pct>=0.30?'#d97706':'#16a34a',
+      backgroundColor:'rgba(0,0,0,0.03)',fill:true,tension:0.4,pointRadius:4
+    }]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{
+      y:{ticks:{callback:v=>v+'%'},grid:{color:'#f1f5f9'}},x:{grid:{display:false}}
+    }}
+  });
+  // Suggestions
+  const sugg=[];
+  if(pct>=0.35) sugg.push({icon:'💰',text:'Considera subir el precio de venta en $15-25'});
+  if(pct>=0.30) sugg.push({icon:'⚖️',text:'Revisa si puedes reducir porciones de ingredientes costosos un 10%'});
+  sugg.push({icon:'🔄',text:'Evalúa ingredientes sustitutos de menor costo sin perder calidad'});
+  if(pct>=0.38) sugg.push({icon:'📋',text:'Este platillo podría removerse del menú o ser estacional'});
+  document.getElementById('modal-suggestions').innerHTML=sugg.map(s=>`
+    <div class="flex gap-2 items-start bg-slate-50 rounded-xl p-3 text-sm">
+      <span>${s.icon}</span>
+      <span class="text-slate-700">${s.text}</span>
+    </div>`).join('');
+  document.getElementById('sim-result').textContent='';
+  document.getElementById('sim-price').value='';
+  document.getElementById('modal').classList.add('open');
+}
+
+function runSimulator(){
+  if(!activeDish)return;
+  const newPrice=parseFloat(document.getElementById('sim-price').value);
+  if(!newPrice||newPrice<=0)return;
+  const cost=calcDishCost(activeDish);
+  const newPct=cost/newPrice;
+  const s=getStatus(newPct);
+  document.getElementById('sim-result').textContent=`Con $${newPrice}: Costo = ${(newPct*100).toFixed(1)}% ${s.label} | Margen = $${(newPrice-cost).toFixed(2)}`;
+}
+
+function closeModal(e){
+  if(e.target===document.getElementById('modal')){
+    document.getElementById('modal').classList.remove('open');
+  }
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+renderDishList();
+updateKPIs();
+renderTopLists();
+renderMonthlyChart();
+renderBoston();
+</script>
+</body>
+</html>

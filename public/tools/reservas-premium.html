@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservas Online | La Parrilla de Don Carlos</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: {
+            colors: { primary: '#dc2626', 'primary-dark': '#b91c1c', 'primary-light': '#fef2f2', secondary: '#0f172a', accent: '#f59e0b', success: '#16a34a' },
+            fontFamily: { sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'] }
+        }}}
+    </script>
+    <style>
+        * { scroll-behavior: smooth; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .tab-active { border-bottom: 3px solid #dc2626; color: #dc2626; font-weight: 700; }
+        .table-dot { cursor: pointer; transition: all 0.2s; }
+        .table-dot:hover { transform: scale(1.15); filter: brightness(1.2); }
+        .timeline-slot { min-height: 36px; border-bottom: 1px solid #f1f5f9; position: relative; }
+        .reservation-bar { position: absolute; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: white; cursor: pointer; z-index: 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity 0.2s; }
+        .reservation-bar:hover { opacity: 0.85; }
+        .status-confirmed { background: #16a34a; } .status-seated { background: #2563eb; }
+        .status-completed { background: #64748b; } .status-noshow { background: #dc2626; }
+        .status-pending { background: #f59e0b; } .status-cancelled { background: #94a3b8; }
+        .zone-badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+        @media print { .no-print { display: none !important; } }
+        .guest-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+    </style>
+</head>
+<body class="font-sans bg-gray-50 text-secondary min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-white border-b shadow-sm sticky top-0 z-50 no-print">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 8.25v-1.5m0 1.5c-1.355 0-2.697.056-4.024.166C6.845 8.51 6 9.473 6 10.608v2.513m6-4.871c1.355 0 2.697.056 4.024.166C17.155 8.51 18 9.473 18 10.608v2.513M15 8.25v-1.5m-6 1.5v-1.5m12 9.75l-1.5.75a3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0 3.354 3.354 0 00-3 0 3.354 3.354 0 01-3 0L3 16.5m15-3.379a48.474 48.474 0 00-6-.371c-2.032 0-4.034.126-6 .371m12 0c.39.049.777.102 1.163.16 1.07.16 1.837 1.094 1.837 2.175v5.169c0 .621-.504 1.125-1.125 1.125H4.125A1.125 1.125 0 013 20.625v-5.17c0-1.08.768-2.014 1.837-2.174A47.78 47.78 0 016 13.12"/></svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold" id="biz-name">La Parrilla de Don Carlos</h1>
+                <p class="text-xs text-gray-500">Sistema de Reservas</p>
+            </div>
+        </div>
+        <div class="flex gap-1 text-sm" id="nav-tabs">
+            <button onclick="showView('book')" class="px-3 py-1.5 rounded-lg hover:bg-gray-100 tab-active" data-tab="book">Reservar</button>
+            <button onclick="toggleAdmin()" class="px-3 py-1.5 rounded-lg hover:bg-gray-100" data-tab="admin">Admin</button>
+        </div>
+    </div>
+</header>
+
+<!-- ═══════════ PUBLIC: BOOKING WIDGET ═══════════ -->
+<div id="view-book" class="max-w-lg mx-auto px-4 py-8">
+    <!-- Step 1: Date & Time & Size -->
+    <div id="bk-step1" class="fade-in">
+        <h2 class="text-2xl font-bold mb-1">Reserva tu mesa</h2>
+        <p class="text-gray-500 mb-6">Selecciona fecha, horario y cantidad de personas</p>
+
+        <div class="bg-white rounded-2xl border p-6 space-y-5">
+            <div>
+                <label class="block text-sm font-semibold mb-1.5">Fecha</label>
+                <input type="date" id="bk-date" class="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary text-lg" onchange="updateAvailability()">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1.5">Horario</label>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <button onclick="selectShift('lunch')" class="shift-btn border rounded-xl py-3 text-center font-semibold hover:border-primary transition-all" data-shift="lunch">
+                        <div>Comida</div><div class="text-xs text-gray-400 font-normal">13:00 - 16:00</div>
+                    </button>
+                    <button onclick="selectShift('dinner')" class="shift-btn border rounded-xl py-3 text-center font-semibold hover:border-primary transition-all" data-shift="dinner">
+                        <div>Cena</div><div class="text-xs text-gray-400 font-normal">19:00 - 23:00</div>
+                    </button>
+                </div>
+                <div id="bk-times" class="grid grid-cols-4 gap-2 mt-3 hidden"></div>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1.5">Personas</label>
+                <div class="flex items-center gap-3">
+                    <button onclick="adjustGuests(-1)" class="w-12 h-12 border rounded-xl text-xl font-bold hover:bg-gray-50">-</button>
+                    <span class="text-3xl font-bold w-12 text-center" id="bk-guests">2</span>
+                    <button onclick="adjustGuests(1)" class="w-12 h-12 border rounded-xl text-xl font-bold hover:bg-gray-50">+</button>
+                </div>
+            </div>
+            <div id="bk-zone-select" class="hidden">
+                <label class="block text-sm font-semibold mb-1.5">Zona (opcional)</label>
+                <div class="flex gap-2 flex-wrap" id="bk-zones"></div>
+            </div>
+        </div>
+
+        <button onclick="proceedToDetails()" id="bk-next-btn" class="w-full mt-4 bg-primary hover:bg-primary-dark text-white py-4 rounded-xl font-bold text-lg transition-all hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+            Continuar
+        </button>
+
+        <div id="bk-availability-msg" class="text-center mt-3 text-sm text-gray-400"></div>
+    </div>
+
+    <!-- Step 2: Contact Details -->
+    <div id="bk-step2" class="hidden fade-in">
+        <button onclick="backToStep1()" class="text-primary text-sm mb-4 hover:underline">&larr; Cambiar fecha/hora</button>
+        <h2 class="text-2xl font-bold mb-1">Tus datos</h2>
+        <p class="text-gray-500 mb-6" id="bk-summary-text"></p>
+
+        <div class="bg-white rounded-2xl border p-6 space-y-4">
+            <input type="text" id="bk-name" placeholder="Nombre completo" class="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary">
+            <input type="tel" id="bk-phone" placeholder="Teléfono (10 dígitos)" class="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary">
+            <input type="email" id="bk-email" placeholder="Email (opcional)" class="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary">
+            <textarea id="bk-notes" placeholder="Notas especiales (cumpleaños, alergias, silla de bebé...)" rows="2" class="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary"></textarea>
+        </div>
+
+        <button onclick="submitReservation()" class="w-full mt-4 bg-primary hover:bg-primary-dark text-white py-4 rounded-xl font-bold text-lg transition-all hover:shadow-lg">
+            Confirmar Reserva
+        </button>
+    </div>
+
+    <!-- Step 3: Success -->
+    <div id="bk-step3" class="hidden fade-in text-center py-12">
+        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h2 class="text-2xl font-bold mb-2">¡Reserva confirmada!</h2>
+        <p class="text-gray-500 mb-6" id="bk-success-detail"></p>
+        <a id="bk-wa-link" target="_blank" class="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#20b858] text-white px-8 py-4 rounded-xl font-bold transition-all">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+            Enviar confirmación por WhatsApp
+        </a>
+        <button onclick="resetBooking()" class="block mx-auto mt-4 text-primary hover:underline text-sm">Hacer otra reserva</button>
+    </div>
+
+    <!-- Lookup -->
+    <details class="mt-8 pt-6 border-t">
+        <summary class="text-sm text-gray-500 cursor-pointer hover:text-primary">¿Ya tienes reserva? Consulta o cancela aquí</summary>
+        <div class="mt-3 flex gap-2">
+            <input type="tel" id="lookup-phone" placeholder="Tu teléfono" class="flex-1 border rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary">
+            <button onclick="lookupReservation()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-xl text-sm font-semibold">Buscar</button>
+        </div>
+        <div id="lookup-result" class="mt-3"></div>
+    </details>
+</div>
+
+<!-- ═══════════ ADMIN VIEW ═══════════ -->
+<div id="view-admin" class="hidden max-w-6xl mx-auto px-4 py-6">
+    <div class="flex gap-4 border-b mb-6 overflow-x-auto no-print">
+        <button onclick="showAdminTab('floor')" class="pb-2 text-sm whitespace-nowrap tab-active" data-atab="floor">Mapa de Mesas</button>
+        <button onclick="showAdminTab('timeline')" class="pb-2 text-sm whitespace-nowrap text-gray-500" data-atab="timeline">Timeline</button>
+        <button onclick="showAdminTab('list')" class="pb-2 text-sm whitespace-nowrap text-gray-500" data-atab="list">Reservas</button>
+        <button onclick="showAdminTab('waitlist')" class="pb-2 text-sm whitespace-nowrap text-gray-500" data-atab="waitlist">Lista de Espera</button>
+        <button onclick="showAdminTab('guests')" class="pb-2 text-sm whitespace-nowrap text-gray-500" data-atab="guests">Comensales</button>
+        <button onclick="showAdminTab('analytics')" class="pb-2 text-sm whitespace-nowrap text-gray-500" data-atab="analytics">Analytics</button>
+        <button onclick="showAdminTab('settings')" class="pb-2 text-sm whitespace-nowrap text-gray-500" data-atab="settings">Config</button>
+    </div>
+
+    <!-- FLOOR PLAN -->
+    <div id="admin-floor" class="fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h2 class="text-xl font-bold">Mapa del restaurante</h2>
+                <p class="text-sm text-gray-500">Hoy — <span id="floor-date"></span></p>
+            </div>
+            <div class="flex gap-2">
+                <select id="floor-shift" onchange="renderFloor()" class="border rounded-lg px-3 py-1.5 text-sm">
+                    <option value="lunch">Comida (13-16h)</option>
+                    <option value="dinner">Cena (19-23h)</option>
+                </select>
+                <button onclick="addWalkIn()" class="bg-accent text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-amber-600">+ Walk-in</button>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="flex gap-4 mb-4 text-xs flex-wrap">
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-success"></span> Disponible</span>
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-amber-500"></span> Reservada</span>
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-blue-500"></span> Sentados</span>
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-gray-400"></span> Limpiando</span>
+        </div>
+
+        <!-- Floor map -->
+        <div class="bg-white rounded-2xl border p-6 min-h-[400px] relative" id="floor-map">
+            <!-- Tables rendered by JS -->
+        </div>
+
+        <!-- Today's stats -->
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4" id="floor-stats"></div>
+    </div>
+
+    <!-- TIMELINE -->
+    <div id="admin-timeline" class="hidden fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">Timeline del día</h2>
+            <input type="date" id="timeline-date" onchange="renderTimeline()" class="border rounded-lg px-3 py-1.5 text-sm">
+        </div>
+        <div class="bg-white rounded-2xl border overflow-x-auto" id="timeline-container"></div>
+    </div>
+
+    <!-- RESERVATIONS LIST -->
+    <div id="admin-list" class="hidden fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">Reservas</h2>
+            <div class="flex gap-2">
+                <input type="date" id="list-date" onchange="renderList()" class="border rounded-lg px-3 py-1.5 text-sm">
+                <select id="list-status" onchange="renderList()" class="border rounded-lg px-3 py-1.5 text-sm">
+                    <option value="">Todos</option>
+                    <option value="confirmed">Confirmadas</option>
+                    <option value="seated">Sentados</option>
+                    <option value="completed">Completadas</option>
+                    <option value="noshow">No-shows</option>
+                </select>
+                <button onclick="addManualRes()" class="bg-primary text-white px-3 py-1.5 rounded-lg text-sm font-semibold">+ Nueva</button>
+            </div>
+        </div>
+        <div id="list-table" class="bg-white rounded-2xl border overflow-hidden"></div>
+    </div>
+
+    <!-- WAITLIST -->
+    <div id="admin-waitlist" class="hidden fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">Lista de espera</h2>
+            <button onclick="addToWaitlist()" class="bg-accent text-white px-3 py-1.5 rounded-lg text-sm font-semibold">+ Agregar</button>
+        </div>
+        <div id="waitlist-items"></div>
+    </div>
+
+    <!-- GUESTS CRM -->
+    <div id="admin-guests" class="hidden fade-in">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">Comensales</h2>
+            <input type="text" id="guest-search" placeholder="Buscar nombre o teléfono..." oninput="renderGuests()" class="border rounded-xl px-4 py-2 text-sm w-64 outline-none focus:ring-2 focus:ring-primary">
+        </div>
+        <div id="guests-grid"></div>
+    </div>
+
+    <!-- ANALYTICS -->
+    <div id="admin-analytics" class="hidden fade-in">
+        <h2 class="text-xl font-bold mb-4">Analytics</h2>
+        <div class="grid sm:grid-cols-4 gap-3 mb-6" id="analytics-cards"></div>
+        <div class="grid sm:grid-cols-2 gap-4">
+            <div class="bg-white rounded-2xl border p-4"><canvas id="chart-covers"></canvas></div>
+            <div class="bg-white rounded-2xl border p-4"><canvas id="chart-hours"></canvas></div>
+        </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="admin-settings" class="hidden fade-in">
+        <h2 class="text-xl font-bold mb-4">Configuración</h2>
+        <div class="grid sm:grid-cols-2 gap-6">
+            <div class="bg-white rounded-2xl border p-6">
+                <h3 class="font-bold mb-3">Datos del restaurante</h3>
+                <div class="space-y-3">
+                    <div><label class="text-sm font-semibold">Nombre</label><input type="text" id="s-name" class="w-full border rounded-xl px-3 py-2 mt-1 outline-none"></div>
+                    <div><label class="text-sm font-semibold">WhatsApp</label><input type="text" id="s-phone" class="w-full border rounded-xl px-3 py-2 mt-1 outline-none"></div>
+                    <div><label class="text-sm font-semibold">Duración promedio (min)</label><input type="number" id="s-duration" class="w-full border rounded-xl px-3 py-2 mt-1 outline-none" value="90"></div>
+                    <button onclick="saveSettings()" class="bg-primary text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-primary-dark w-full">Guardar</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border p-6">
+                <h3 class="font-bold mb-3">Mesas</h3>
+                <div class="text-sm text-gray-500 mb-3">Configura las mesas de tu restaurante</div>
+                <div id="s-tables" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                <button onclick="addTable()" class="mt-3 text-sm text-primary hover:underline font-semibold">+ Agregar mesa</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Manual reservation / Walk-in / Waitlist -->
+<div id="modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 no-print">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md fade-in max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-bold mb-4" id="modal-title">Nueva reserva</h3>
+        <div id="modal-body"></div>
+        <div class="flex gap-2 mt-4">
+            <button onclick="closeModal()" class="flex-1 border rounded-xl py-2.5 font-semibold hover:bg-gray-50">Cancelar</button>
+            <button onclick="modalSubmit()" class="flex-1 bg-primary text-white rounded-xl py-2.5 font-semibold hover:bg-primary-dark" id="modal-submit-btn">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="text-center py-4 text-xs text-gray-400 border-t mt-8 no-print">
+    <a href="https://novamentestudio.com" class="hover:text-gray-600">Powered by Novamente Studio</a>
+</footer>
+
+<script>
+// ═══════════ CONFIG & DATA ═══════════
+const DEF_CONFIG = {
+    name: "La Parrilla de Don Carlos",
+    phone: "5215512345678",
+    avgDuration: 90,
+    shifts: { lunch: { start: 13, end: 16, label: "Comida" }, dinner: { start: 19, end: 23, label: "Cena" } },
+    zones: [
+        { id: "salon", name: "Salón Principal", color: "#dc2626" },
+        { id: "terraza", name: "Terraza", color: "#16a34a" },
+        { id: "bar", name: "Barra", color: "#2563eb" },
+        { id: "privado", name: "Privado", color: "#7c3aed" }
+    ],
+    tables: [
+        { id: 1, name: "M1", zone: "salon", capacity: 2, x: 15, y: 20 },
+        { id: 2, name: "M2", zone: "salon", capacity: 2, x: 15, y: 40 },
+        { id: 3, name: "M3", zone: "salon", capacity: 4, x: 15, y: 60 },
+        { id: 4, name: "M4", zone: "salon", capacity: 4, x: 35, y: 20 },
+        { id: 5, name: "M5", zone: "salon", capacity: 6, x: 35, y: 45 },
+        { id: 6, name: "M6", zone: "salon", capacity: 8, x: 35, y: 70 },
+        { id: 7, name: "T1", zone: "terraza", capacity: 4, x: 60, y: 20 },
+        { id: 8, name: "T2", zone: "terraza", capacity: 4, x: 60, y: 40 },
+        { id: 9, name: "T3", zone: "terraza", capacity: 2, x: 60, y: 60 },
+        { id: 10, name: "B1", zone: "bar", capacity: 2, x: 80, y: 15 },
+        { id: 11, name: "B2", zone: "bar", capacity: 2, x: 80, y: 35 },
+        { id: 12, name: "P1", zone: "privado", capacity: 10, x: 80, y: 65 },
+    ]
+};
+
+let CFG = JSON.parse(localStorage.getItem('res_config')) || DEF_CONFIG;
+let reservations = JSON.parse(localStorage.getItem('res_data')) || [];
+let waitlist = JSON.parse(localStorage.getItem('res_waitlist')) || [];
+let guests = JSON.parse(localStorage.getItem('res_guests')) || {};
+let isAdmin = false;
+let booking = { date: null, shift: null, time: null, guests: 2, zone: null };
+let modalAction = null;
+
+// ── Demo data ──
+if (!reservations.length) {
+    const t = new Date().toISOString().split('T')[0];
+    reservations = [
+        { id: 1, date: t, time: "13:30", guests: 4, table: 3, name: "María García", phone: "5551234567", email: "", notes: "Cumpleaños", status: "confirmed", zone: "salon", tags: ["birthday"], created: new Date().toISOString() },
+        { id: 2, date: t, time: "14:00", guests: 2, table: 1, name: "Roberto López", phone: "5559876543", email: "rob@mail.com", notes: "", status: "seated", zone: "salon", tags: ["vip"], created: new Date().toISOString() },
+        { id: 3, date: t, time: "14:30", guests: 6, table: 5, name: "Familia Hernández", phone: "5554567890", email: "", notes: "Silla de bebé", status: "confirmed", zone: "salon", tags: [], created: new Date().toISOString() },
+        { id: 4, date: t, time: "13:00", guests: 4, table: 7, name: "Andrea Morales", phone: "5557654321", email: "", notes: "", status: "completed", zone: "terraza", tags: ["regular"], created: new Date().toISOString() },
+        { id: 5, date: t, time: "20:00", guests: 2, table: 10, name: "Carlos Ruiz", phone: "5552345678", email: "", notes: "", status: "confirmed", zone: "bar", tags: [], created: new Date().toISOString() },
+        { id: 6, date: t, time: "20:30", guests: 8, table: 12, name: "Empresa Tekton", phone: "5553456789", email: "info@tekton.mx", notes: "Cena corporativa, menú especial", status: "confirmed", zone: "privado", tags: ["corporate"], created: new Date().toISOString() },
+        { id: 7, date: t, time: "21:00", guests: 4, table: 8, name: "Valentina Díaz", phone: "5556789012", email: "", notes: "Alergia a mariscos", status: "pending", zone: "terraza", tags: ["allergy"], created: new Date().toISOString() },
+    ];
+    guests = {
+        "5551234567": { name: "María García", visits: 3, noShows: 0, tags: ["birthday"], preferences: "Mesa cerca de la ventana", lastVisit: t },
+        "5559876543": { name: "Roberto López", visits: 12, noShows: 0, tags: ["vip", "regular"], preferences: "Vino tinto Malbec", lastVisit: t },
+        "5554567890": { name: "Familia Hernández", visits: 5, noShows: 1, tags: [], preferences: "Silla de bebé", lastVisit: t },
+        "5557654321": { name: "Andrea Morales", visits: 8, noShows: 0, tags: ["regular"], preferences: "", lastVisit: t },
+    };
+    saveAll();
+}
+
+// ── Utils ──
+function today() { return new Date().toISOString().split('T')[0]; }
+function fmtDate(d) { return new Date(d+'T12:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'}); }
+function nextId() { return reservations.length ? Math.max(...reservations.map(r=>r.id))+1 : 1; }
+function saveAll() {
+    localStorage.setItem('res_config', JSON.stringify(CFG));
+    localStorage.setItem('res_data', JSON.stringify(reservations));
+    localStorage.setItem('res_waitlist', JSON.stringify(waitlist));
+    localStorage.setItem('res_guests', JSON.stringify(guests));
+}
+function zoneColor(zid) { return CFG.zones.find(z=>z.id===zid)?.color || '#64748b'; }
+function zoneName(zid) { return CFG.zones.find(z=>z.id===zid)?.name || zid; }
+
+// ═══════════ PUBLIC BOOKING ═══════════
+function selectShift(shift) {
+    booking.shift = shift;
+    document.querySelectorAll('.shift-btn').forEach(b => {
+        b.classList.toggle('border-primary', b.dataset.shift === shift);
+        b.classList.toggle('bg-primary-light', b.dataset.shift === shift);
+    });
+    renderTimeSlots();
+    updateAvailability();
+}
+
+function renderTimeSlots() {
+    const s = CFG.shifts[booking.shift]; if (!s) return;
+    const cont = document.getElementById('bk-times');
+    cont.classList.remove('hidden');
+    let html = '';
+    for (let h = s.start; h < s.end; h++) {
+        for (let m = 0; m < 60; m += 30) {
+            const t = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            const avail = getAvailableTables(booking.date, t, booking.guests).length > 0;
+            html += `<button onclick="selectTime('${t}')" class="py-2 rounded-lg text-sm font-semibold border transition-all ${booking.time===t ? 'bg-primary text-white border-primary' : avail ? 'hover:border-primary' : 'opacity-30 cursor-not-allowed'}" ${avail?'':'disabled'}>${t}</button>`;
+        }
+    }
+    cont.innerHTML = html;
+}
+
+function selectTime(t) { booking.time = t; renderTimeSlots(); updateAvailability(); }
+function adjustGuests(d) {
+    booking.guests = Math.max(1, Math.min(12, booking.guests + d));
+    document.getElementById('bk-guests').textContent = booking.guests;
+    if (booking.shift) renderTimeSlots();
+    updateAvailability();
+}
+
+function updateAvailability() {
+    const d = document.getElementById('bk-date').value;
+    booking.date = d;
+    const btn = document.getElementById('bk-next-btn');
+    const msg = document.getElementById('bk-availability-msg');
+    if (d && booking.shift && booking.time) {
+        const tables = getAvailableTables(d, booking.time, booking.guests);
+        if (tables.length > 0) {
+            btn.disabled = false;
+            msg.innerHTML = `<span class="text-green-600 font-semibold">${tables.length} mesa${tables.length>1?'s':''} disponible${tables.length>1?'s':''}</span>`;
+        } else {
+            btn.disabled = true;
+            msg.innerHTML = '<span class="text-red-500">No hay mesas disponibles para ese horario y cantidad. Prueba otro horario.</span>';
+        }
+    } else {
+        btn.disabled = true;
+        msg.textContent = '';
+    }
+    // Show zones
+    if (d && booking.shift) {
+        const zoneDiv = document.getElementById('bk-zone-select');
+        zoneDiv.classList.remove('hidden');
+        document.getElementById('bk-zones').innerHTML = `<button onclick="booking.zone=null;updateAvailability()" class="px-3 py-1.5 rounded-lg border text-sm ${!booking.zone?'bg-primary text-white border-primary':'hover:border-primary'}">Cualquiera</button>` +
+            CFG.zones.map(z => `<button onclick="booking.zone='${z.id}';updateAvailability()" class="px-3 py-1.5 rounded-lg border text-sm ${booking.zone===z.id?'text-white border-transparent':'hover:border-primary'}" style="${booking.zone===z.id?`background:${z.color}`:''}">${z.name}</button>`).join('');
+    }
+}
+
+function getAvailableTables(date, time, guestCount, zone=null) {
+    const zoneFilter = zone || booking.zone;
+    const occupied = reservations.filter(r => r.date === date && r.time === time && !['cancelled','completed','noshow'].includes(r.status)).map(r => r.table);
+    return CFG.tables.filter(t => t.capacity >= guestCount && !occupied.includes(t.id) && (!zoneFilter || t.zone === zoneFilter));
+}
+
+function autoAssignTable(date, time, guestCount) {
+    const avail = getAvailableTables(date, time, guestCount);
+    if (!avail.length) return null;
+    // Pick smallest table that fits (minimize wasted seats)
+    avail.sort((a,b) => a.capacity - b.capacity);
+    return avail[0];
+}
+
+function proceedToDetails() {
+    const table = autoAssignTable(booking.date, booking.time, booking.guests);
+    if (!table) { alert('No hay mesas disponibles'); return; }
+    booking.table = table;
+    document.getElementById('bk-summary-text').textContent = `${fmtDate(booking.date)} · ${booking.time} hrs · ${booking.guests} persona${booking.guests>1?'s':''} · ${zoneName(table.zone)} (${table.name})`;
+    document.getElementById('bk-step1').classList.add('hidden');
+    document.getElementById('bk-step2').classList.remove('hidden');
+}
+
+function backToStep1() { document.getElementById('bk-step2').classList.add('hidden'); document.getElementById('bk-step1').classList.remove('hidden'); }
+
+function submitReservation() {
+    const name = document.getElementById('bk-name').value.trim();
+    const phone = document.getElementById('bk-phone').value.trim();
+    if (!name || !phone) { alert('Completa tu nombre y teléfono'); return; }
+
+    const res = {
+        id: nextId(), date: booking.date, time: booking.time, guests: booking.guests,
+        table: booking.table.id, name, phone, email: document.getElementById('bk-email').value.trim(),
+        notes: document.getElementById('bk-notes').value.trim(), status: 'confirmed',
+        zone: booking.table.zone, tags: [], created: new Date().toISOString()
+    };
+    reservations.push(res);
+
+    // Update guest CRM
+    if (!guests[phone]) guests[phone] = { name, visits: 0, noShows: 0, tags: [], preferences: '', lastVisit: '' };
+    guests[phone].visits++;
+    guests[phone].lastVisit = booking.date;
+    guests[phone].name = name;
+    if (res.notes.toLowerCase().includes('alergia')) guests[phone].tags = [...new Set([...guests[phone].tags, 'allergy'])];
+    if (res.notes.toLowerCase().includes('cumple')) res.tags.push('birthday');
+
+    saveAll();
+
+    document.getElementById('bk-success-detail').textContent = `${fmtDate(res.date)} a las ${res.time} · ${res.guests} persona${res.guests>1?'s':''} · Mesa ${booking.table.name} (${zoneName(res.zone)})`;
+    const waMsg = encodeURIComponent(`Hola, confirmo mi reserva:\n🍽 ${CFG.name}\n📅 ${fmtDate(res.date)}\n🕐 ${res.time} hrs\n👥 ${res.guests} personas\n📍 ${zoneName(res.zone)}\n👤 ${name}\n📱 ${phone}${res.notes?'\n📝 '+res.notes:''}`);
+    document.getElementById('bk-wa-link').href = `https://wa.me/${CFG.phone}?text=${waMsg}`;
+    ['bk-step1','bk-step2'].forEach(s => document.getElementById(s).classList.add('hidden'));
+    document.getElementById('bk-step3').classList.remove('hidden');
+}
+
+function resetBooking() {
+    booking = { date: null, shift: null, time: null, guests: 2, zone: null };
+    document.getElementById('bk-date').value = '';
+    document.getElementById('bk-guests').textContent = '2';
+    document.querySelectorAll('.shift-btn').forEach(b => { b.classList.remove('border-primary','bg-primary-light'); });
+    document.getElementById('bk-times').classList.add('hidden');
+    document.getElementById('bk-zone-select').classList.add('hidden');
+    ['bk-step2','bk-step3'].forEach(s => document.getElementById(s).classList.add('hidden'));
+    document.getElementById('bk-step1').classList.remove('hidden');
+    document.getElementById('bk-availability-msg').textContent = '';
+    document.getElementById('bk-next-btn').disabled = true;
+    ['bk-name','bk-phone','bk-email','bk-notes'].forEach(id => document.getElementById(id).value = '');
+}
+
+function lookupReservation() {
+    const phone = document.getElementById('lookup-phone').value.trim();
+    const found = reservations.filter(r => r.phone === phone && !['cancelled','completed','noshow'].includes(r.status) && r.date >= today());
+    const el = document.getElementById('lookup-result');
+    el.innerHTML = found.length ? found.map(r => `
+        <div class="bg-white border rounded-xl p-4 mt-2 flex justify-between items-center">
+            <div><div class="font-semibold">${fmtDate(r.date)} · ${r.time}</div><div class="text-sm text-gray-500">${r.guests} personas · Mesa ${CFG.tables.find(t=>t.id===r.table)?.name||'?'}</div></div>
+            <button onclick="cancelRes(${r.id})" class="text-red-500 text-sm hover:underline">Cancelar</button>
+        </div>`).join('') : '<p class="text-sm text-gray-400 mt-2">No encontramos reservas con ese teléfono.</p>';
+}
+
+function cancelRes(id) {
+    if (!confirm('¿Cancelar esta reserva?')) return;
+    const r = reservations.find(x=>x.id===id);
+    if (r) { r.status = 'cancelled'; saveAll(); lookupReservation(); }
+}
+
+// ═══════════ ADMIN ═══════════
+function toggleAdmin() {
+    if (!isAdmin) { if (prompt('Contraseña:') !== 'admin') return; isAdmin = true; }
+    showView('admin');
+    showAdminTab('floor');
+}
+
+function showView(v) {
+    document.getElementById('view-book').classList.toggle('hidden', v!=='book');
+    document.getElementById('view-admin').classList.toggle('hidden', v!=='admin');
+    document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('tab-active', b.dataset.tab===v));
+    if (v === 'book') resetBooking();
+}
+
+function showAdminTab(tab) {
+    const tabs = ['floor','timeline','list','waitlist','guests','analytics','settings'];
+    tabs.forEach(t => {
+        const el = document.getElementById('admin-'+t); if(el) el.classList.toggle('hidden', t!==tab);
+        const btn = document.querySelector(`[data-atab="${t}"]`); if(btn) { btn.classList.toggle('tab-active', t===tab); btn.classList.toggle('text-gray-500', t!==tab); }
+    });
+    if (tab==='floor') renderFloor();
+    if (tab==='timeline') { document.getElementById('timeline-date').value = today(); renderTimeline(); }
+    if (tab==='list') { document.getElementById('list-date').value = today(); renderList(); }
+    if (tab==='waitlist') renderWaitlist();
+    if (tab==='guests') renderGuests();
+    if (tab==='analytics') renderAnalytics();
+    if (tab==='settings') renderSettings();
+}
+
+// ── Floor Plan ──
+function renderFloor() {
+    const d = today();
+    const shift = document.getElementById('floor-shift').value;
+    const shiftRes = reservations.filter(r => r.date === d && !['cancelled'].includes(r.status) && isInShift(r.time, shift));
+    const map = document.getElementById('floor-map');
+
+    document.getElementById('floor-date').textContent = fmtDate(d);
+
+    map.innerHTML = CFG.zones.map(z => `<div class="absolute text-[10px] font-bold uppercase tracking-wider" style="left:${getZoneX(z.id)}%;top:3%;color:${z.color}">${z.name}</div>`).join('') +
+        CFG.tables.map(t => {
+            const res = shiftRes.find(r => r.table === t.id);
+            const status = res ? res.status : 'available';
+            const colors = { available: '#16a34a', confirmed: '#f59e0b', pending: '#f59e0b', seated: '#2563eb', completed: '#64748b', noshow: '#dc2626' };
+            const size = Math.max(40, 30 + t.capacity * 5);
+            return `<div class="table-dot absolute flex flex-col items-center justify-center rounded-xl text-white text-xs font-bold shadow-lg"
+                style="left:${t.x}%;top:${t.y}%;width:${size}px;height:${size}px;background:${colors[status]||'#94a3b8'};transform:translate(-50%,-50%)"
+                onclick="tableClick(${t.id})" title="${t.name} · ${t.capacity} personas · ${zoneName(t.zone)}${res?' · '+res.name:''}">
+                <span>${t.name}</span>
+                <span class="text-[9px] opacity-80">${t.capacity}p</span>
+                ${res ? `<span class="text-[9px] mt-0.5 opacity-90">${res.name.split(' ')[0]}</span>` : ''}
+            </div>`;
+        }).join('');
+
+    // Stats
+    const total = CFG.tables.length;
+    const occupied = shiftRes.filter(r=>['confirmed','pending','seated'].includes(r.status)).length;
+    const covers = shiftRes.reduce((s,r)=>s+r.guests,0);
+    const noshows = reservations.filter(r=>r.date===d&&r.status==='noshow').length;
+    const completed = shiftRes.filter(r=>r.status==='completed').length;
+
+    document.getElementById('floor-stats').innerHTML = `
+        <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold">${total}</div><div class="text-[11px] text-gray-500">Mesas totales</div></div>
+        <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-amber-600">${occupied}</div><div class="text-[11px] text-gray-500">Reservadas</div></div>
+        <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-primary">${covers}</div><div class="text-[11px] text-gray-500">Cubiertos</div></div>
+        <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-green-600">${completed}</div><div class="text-[11px] text-gray-500">Completadas</div></div>
+        <div class="bg-white border rounded-xl p-3 text-center"><div class="text-xl font-bold text-red-500">${noshows}</div><div class="text-[11px] text-gray-500">No-shows</div></div>
+    `;
+}
+
+function getZoneX(zid) { const m = {salon:10, terraza:52, bar:75, privado:75}; return m[zid]||10; }
+function isInShift(time, shift) { const h = parseInt(time.split(':')[0]); const s = CFG.shifts[shift]; return h >= s.start && h < s.end; }
+
+function tableClick(tid) {
+    const t = CFG.tables.find(x=>x.id===tid);
+    const res = reservations.filter(r=>r.date===today()&&r.table===tid&&!['cancelled','completed','noshow'].includes(r.status));
+    if (res.length) {
+        const r = res[0];
+        const statusOpts = ['confirmed','seated','completed','noshow','cancelled'].map(s => `<option value="${s}" ${r.status===s?'selected':''}>${s}</option>`).join('');
+        openModal(`Mesa ${t.name} — ${r.name}`, `
+            <div class="space-y-3">
+                <div class="flex justify-between"><span class="text-gray-500">Hora:</span><span class="font-semibold">${r.time}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Personas:</span><span class="font-semibold">${r.guests}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Teléfono:</span><span class="font-semibold">${r.phone}</span></div>
+                ${r.notes?`<div class="bg-amber-50 rounded-lg p-2 text-sm">${r.notes}</div>`:''}
+                <div><label class="text-sm font-semibold">Estado:</label><select id="modal-status" class="w-full border rounded-xl px-3 py-2 mt-1">${statusOpts}</select></div>
+            </div>`, () => {
+            r.status = document.getElementById('modal-status').value;
+            if (r.status === 'noshow' && guests[r.phone]) guests[r.phone].noShows++;
+            saveAll(); closeModal(); renderFloor();
+        });
+    } else {
+        alert(`Mesa ${t.name} disponible (${t.capacity} personas, ${zoneName(t.zone)})`);
+    }
+}
+
+// ── Timeline ──
+function renderTimeline() {
+    const d = document.getElementById('timeline-date').value;
+    const cont = document.getElementById('timeline-container');
+    const tables = CFG.tables;
+    const dayRes = reservations.filter(r=>r.date===d&&r.status!=='cancelled');
+
+    let html = '<div style="display:grid;grid-template-columns:80px repeat('+tables.length+',1fr);font-size:12px">';
+    // Header
+    html += '<div class="p-2 font-semibold text-gray-500 border-b border-r">Hora</div>';
+    tables.forEach(t => { html += `<div class="p-2 text-center font-semibold border-b" style="color:${zoneColor(t.zone)}">${t.name}<br><span class="text-[10px] text-gray-400">${t.capacity}p</span></div>`; });
+
+    // Hours 12-24
+    for (let h = 12; h < 24; h++) {
+        for (let m = 0; m < 60; m += 30) {
+            const time = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            html += `<div class="timeline-slot p-1 text-[11px] text-gray-400 border-r">${m===0?time:''}</div>`;
+            tables.forEach(t => {
+                const res = dayRes.find(r => r.table === t.id && r.time === time);
+                const cls = res ? `status-${res.status}` : '';
+                html += `<div class="timeline-slot ${res?cls+' text-white px-2 py-1 cursor-pointer':''}  text-[11px]" ${res?`onclick="tableClick(${t.id})" title="${res.name} · ${res.guests}p"`:''}>${res?res.name.split(' ')[0]:''}</div>`;
+            });
+        }
+    }
+    html += '</div>';
+    cont.innerHTML = html;
+}
+
+// ── Reservations List ──
+function renderList() {
+    const d = document.getElementById('list-date').value;
+    const statusFilter = document.getElementById('list-status').value;
+    let list = reservations.filter(r => r.date === d);
+    if (statusFilter) list = list.filter(r => r.status === statusFilter);
+    list.sort((a,b) => a.time.localeCompare(b.time));
+
+    const statusColors = { confirmed:'bg-green-100 text-green-700', pending:'bg-yellow-100 text-yellow-700', seated:'bg-blue-100 text-blue-700', completed:'bg-gray-100 text-gray-600', noshow:'bg-red-100 text-red-700', cancelled:'bg-gray-100 text-gray-400' };
+    const statusLabels = { confirmed:'Confirmada', pending:'Pendiente', seated:'Sentados', completed:'Completada', noshow:'No-show', cancelled:'Cancelada' };
+
+    document.getElementById('list-table').innerHTML = list.length ? `<table class="w-full text-sm"><thead><tr class="bg-gray-50 text-gray-500 text-xs uppercase">
+        <th class="p-3 text-left">Hora</th><th class="p-3 text-left">Nombre</th><th class="p-3 text-left">Personas</th><th class="p-3 text-left">Mesa</th><th class="p-3 text-left">Zona</th><th class="p-3 text-left">Estado</th><th class="p-3 text-left">Acciones</th>
+    </tr></thead><tbody>${list.map(r => `<tr class="border-t hover:bg-gray-50">
+        <td class="p-3 font-semibold">${r.time}</td>
+        <td class="p-3"><div>${r.name}</div><div class="text-xs text-gray-400">${r.phone}</div>${r.notes?`<div class="text-xs text-amber-600">${r.notes}</div>`:''}</td>
+        <td class="p-3">${r.guests}</td>
+        <td class="p-3 font-semibold">${CFG.tables.find(t=>t.id===r.table)?.name||'?'}</td>
+        <td class="p-3"><span class="zone-badge text-white" style="background:${zoneColor(r.zone)}">${zoneName(r.zone)}</span></td>
+        <td class="p-3"><span class="text-xs px-2 py-1 rounded-full ${statusColors[r.status]||''}">${statusLabels[r.status]||r.status}</span></td>
+        <td class="p-3 flex gap-1">
+            <select onchange="if(this.value){updateResStatus(${r.id},this.value);this.value=''}" class="text-xs border rounded px-1 py-0.5"><option value="">...</option><option value="confirmed">Confirmar</option><option value="seated">Sentar</option><option value="completed">Completar</option><option value="noshow">No-show</option><option value="cancelled">Cancelar</option></select>
+            <button onclick="sendResReminder(${r.id})" class="text-xs bg-[#25D366] text-white px-2 py-0.5 rounded" title="WhatsApp">WA</button>
+        </td>
+    </tr>`).join('')}</tbody></table>` : '<div class="text-center py-8 text-gray-400">No hay reservas para este día</div>';
+}
+
+function updateResStatus(id, status) {
+    const r = reservations.find(x=>x.id===id);
+    if (r) { r.status = status; if (status==='noshow'&&guests[r.phone]) guests[r.phone].noShows++; saveAll(); renderList(); renderFloor(); }
+}
+
+function sendResReminder(id) {
+    const r = reservations.find(x=>x.id===id); if (!r) return;
+    const msg = encodeURIComponent(`Hola ${r.name}, te recordamos tu reserva en ${CFG.name}:\n📅 ${fmtDate(r.date)}\n🕐 ${r.time} hrs\n👥 ${r.guests} personas\n\n¡Te esperamos!`);
+    window.open(`https://wa.me/52${r.phone}?text=${msg}`, '_blank');
+}
+
+// ── Waitlist ──
+function renderWaitlist() {
+    const active = waitlist.filter(w => w.date === today() && w.status === 'waiting');
+    document.getElementById('waitlist-items').innerHTML = active.length ? active.map((w,i) => `
+        <div class="bg-white border rounded-xl p-4 mb-2 flex justify-between items-center">
+            <div>
+                <div class="font-semibold">${w.name} <span class="text-sm text-gray-400">(${w.guests}p)</span></div>
+                <div class="text-sm text-gray-500">${w.phone} · Esperando desde ${w.time}</div>
+                <div class="text-xs text-amber-600 font-semibold">~${(i+1)*15} min de espera estimada</div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="seatFromWaitlist(${w.id})" class="text-xs bg-success text-white px-3 py-1.5 rounded-lg">Sentar</button>
+                <button onclick="removeFromWaitlist(${w.id})" class="text-xs bg-gray-200 px-3 py-1.5 rounded-lg">Quitar</button>
+                <button onclick="waWaitlist(${w.id})" class="text-xs bg-[#25D366] text-white px-2 py-1.5 rounded-lg">WA</button>
+            </div>
+        </div>
+    `).join('') : '<div class="text-center py-8 text-gray-400">La lista de espera está vacía</div>';
+}
+
+function addToWaitlist() {
+    openModal('Agregar a lista de espera', `
+        <div class="space-y-3">
+            <input type="text" id="wl-name" placeholder="Nombre" class="w-full border rounded-xl px-4 py-2 outline-none">
+            <input type="tel" id="wl-phone" placeholder="Teléfono" class="w-full border rounded-xl px-4 py-2 outline-none">
+            <input type="number" id="wl-guests" value="2" min="1" max="12" class="w-full border rounded-xl px-4 py-2 outline-none">
+        </div>`, () => {
+        const w = { id: Date.now(), date: today(), time: new Date().toTimeString().slice(0,5), name: document.getElementById('wl-name').value, phone: document.getElementById('wl-phone').value, guests: parseInt(document.getElementById('wl-guests').value), status: 'waiting' };
+        waitlist.push(w); saveAll(); closeModal(); renderWaitlist();
+    });
+}
+
+function seatFromWaitlist(id) { const w = waitlist.find(x=>x.id===id); if(w) { w.status='seated'; saveAll(); renderWaitlist(); } }
+function removeFromWaitlist(id) { const w = waitlist.find(x=>x.id===id); if(w) { w.status='removed'; saveAll(); renderWaitlist(); } }
+function waWaitlist(id) { const w = waitlist.find(x=>x.id===id); if(!w) return; window.open(`https://wa.me/52${w.phone}?text=${encodeURIComponent(`Hola ${w.name}, tu mesa en ${CFG.name} ya está lista. ¡Te esperamos!`)}`, '_blank'); }
+
+// ── Guests CRM ──
+function renderGuests() {
+    const search = (document.getElementById('guest-search')?.value||'').toLowerCase();
+    const list = Object.entries(guests).map(([phone, g]) => ({...g, phone})).filter(g => !search || g.name.toLowerCase().includes(search) || g.phone.includes(search));
+    list.sort((a,b) => b.visits - a.visits);
+
+    document.getElementById('guests-grid').innerHTML = list.length ? list.map(g => {
+        const tagColors = { vip:'bg-amber-100 text-amber-700', regular:'bg-blue-100 text-blue-700', allergy:'bg-red-100 text-red-700', birthday:'bg-pink-100 text-pink-700', corporate:'bg-purple-100 text-purple-700' };
+        return `<div class="bg-white border rounded-xl p-4 mb-2 flex justify-between items-center">
+            <div>
+                <div class="font-semibold">${g.name} ${g.tags.map(t=>`<span class="guest-tag ${tagColors[t]||'bg-gray-100'}">${t}</span>`).join(' ')}</div>
+                <div class="text-sm text-gray-500">${g.phone} · ${g.visits} visita${g.visits!==1?'s':''} · ${g.noShows} no-show${g.noShows!==1?'s':''}</div>
+                ${g.preferences?`<div class="text-xs text-gray-400 mt-0.5">📝 ${g.preferences}</div>`:''}
+                ${g.lastVisit?`<div class="text-xs text-gray-400">Última visita: ${g.lastVisit}</div>`:''}
+            </div>
+            <div class="text-right">
+                ${g.noShows>=2?'<div class="text-xs text-red-500 font-semibold">⚠️ Frecuente no-show</div>':''}
+                ${g.visits>=5?'<div class="text-xs text-amber-600 font-semibold">⭐ Cliente frecuente</div>':''}
+            </div>
+        </div>`;
+    }).join('') : '<div class="text-center py-8 text-gray-400">No hay comensales registrados</div>';
+}
+
+// ── Analytics ──
+function renderAnalytics() {
+    const last30 = [];
+    for (let i = 29; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate()-i); last30.push(d.toISOString().split('T')[0]); }
+
+    const dailyCovers = last30.map(d => ({ date: d, covers: reservations.filter(r=>r.date===d&&['confirmed','seated','completed'].includes(r.status)).reduce((s,r)=>s+r.guests,0) }));
+    const totalCovers = dailyCovers.reduce((s,d)=>s+d.covers,0);
+    const totalRes = reservations.filter(r=>last30.includes(r.date)&&r.status!=='cancelled').length;
+    const noshows = reservations.filter(r=>last30.includes(r.date)&&r.status==='noshow').length;
+    const noshowRate = totalRes ? Math.round(noshows/totalRes*100) : 0;
+    const avgParty = totalRes ? (reservations.filter(r=>last30.includes(r.date)&&r.status!=='cancelled').reduce((s,r)=>s+r.guests,0)/totalRes).toFixed(1) : 0;
+
+    document.getElementById('analytics-cards').innerHTML = `
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold text-primary">${totalCovers}</div><div class="text-xs text-gray-500">Cubiertos (30 días)</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold">${totalRes}</div><div class="text-xs text-gray-500">Reservas</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold ${noshowRate>10?'text-red-500':'text-green-600'}">${noshowRate}%</div><div class="text-xs text-gray-500">No-show rate</div></div>
+        <div class="bg-white border rounded-xl p-4 text-center"><div class="text-2xl font-bold">${avgParty}</div><div class="text-xs text-gray-500">Promedio personas</div></div>
+    `;
+
+    // Covers chart
+    const ctx1 = document.getElementById('chart-covers');
+    if (window._chart1) window._chart1.destroy();
+    window._chart1 = new Chart(ctx1, {
+        type: 'bar', data: {
+            labels: dailyCovers.map(d=>d.date.slice(5)),
+            datasets: [{ label: 'Cubiertos', data: dailyCovers.map(d=>d.covers), backgroundColor: '#dc262644', borderColor: '#dc2626', borderWidth: 1 }]
+        }, options: { responsive: true, plugins: { legend: { display: false }, title: { display: true, text: 'Cubiertos por día (últimos 30 días)' } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    // Peak hours chart
+    const hourCounts = {};
+    reservations.filter(r=>last30.includes(r.date)&&r.status!=='cancelled').forEach(r => {
+        const h = r.time.split(':')[0]+':00';
+        hourCounts[h] = (hourCounts[h]||0) + r.guests;
+    });
+    const hours = Object.keys(hourCounts).sort();
+    const ctx2 = document.getElementById('chart-hours');
+    if (window._chart2) window._chart2.destroy();
+    window._chart2 = new Chart(ctx2, {
+        type: 'bar', data: {
+            labels: hours,
+            datasets: [{ label: 'Cubiertos por hora', data: hours.map(h=>hourCounts[h]), backgroundColor: '#f59e0b44', borderColor: '#f59e0b', borderWidth: 1 }]
+        }, options: { responsive: true, plugins: { legend: { display: false }, title: { display: true, text: 'Horarios más populares' } }, scales: { y: { beginAtZero: true } } }
+    });
+}
+
+// ── Settings ──
+function renderSettings() {
+    document.getElementById('s-name').value = CFG.name;
+    document.getElementById('s-phone').value = CFG.phone;
+    document.getElementById('s-duration').value = CFG.avgDuration;
+    document.getElementById('s-tables').innerHTML = CFG.tables.map(t => `
+        <div class="flex items-center gap-2 bg-gray-50 rounded-lg p-2 text-sm">
+            <span class="font-semibold w-10">${t.name}</span>
+            <span class="zone-badge text-white" style="background:${zoneColor(t.zone)}">${zoneName(t.zone)}</span>
+            <span>${t.capacity}p</span>
+            <button onclick="removeTable(${t.id})" class="ml-auto text-red-400 hover:text-red-600 text-xs">Eliminar</button>
+        </div>
+    `).join('');
+}
+
+function saveSettings() { CFG.name = document.getElementById('s-name').value; CFG.phone = document.getElementById('s-phone').value; CFG.avgDuration = parseInt(document.getElementById('s-duration').value); saveAll(); document.getElementById('biz-name').textContent = CFG.name; alert('Guardado'); }
+function addTable() { const name = prompt('Nombre de la mesa (ej: M7):'); if (!name) return; const zone = prompt('Zona (salon/terraza/bar/privado):') || 'salon'; const cap = parseInt(prompt('Capacidad (personas):'))||4; CFG.tables.push({id:Date.now(),name,zone,capacity:cap,x:50,y:50}); saveAll(); renderSettings(); }
+function removeTable(id) { if (!confirm('¿Eliminar esta mesa?')) return; CFG.tables = CFG.tables.filter(t=>t.id!==id); saveAll(); renderSettings(); }
+
+// ── Modal ──
+function openModal(title, bodyHtml, onSubmit) { document.getElementById('modal-title').textContent=title; document.getElementById('modal-body').innerHTML=bodyHtml; modalAction=onSubmit; document.getElementById('modal').classList.remove('hidden'); }
+function closeModal() { document.getElementById('modal').classList.add('hidden'); modalAction=null; }
+function modalSubmit() { if (modalAction) modalAction(); }
+
+function addManualRes() { openModal('Nueva reserva manual', `<div class="space-y-3"><input type="text" id="mr-name" placeholder="Nombre" class="w-full border rounded-xl px-4 py-2 outline-none"><input type="tel" id="mr-phone" placeholder="Teléfono" class="w-full border rounded-xl px-4 py-2 outline-none"><input type="number" id="mr-guests" value="2" class="w-full border rounded-xl px-4 py-2 outline-none"><input type="date" id="mr-date" value="${today()}" class="w-full border rounded-xl px-4 py-2 outline-none"><select id="mr-time" class="w-full border rounded-xl px-4 py-2">${Array.from({length:22},(_,i)=>{const h=Math.floor(i/2)+12;const m=i%2*30;const t=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;return`<option>${t}</option>`;}).join('')}</select><select id="mr-table" class="w-full border rounded-xl px-4 py-2">${CFG.tables.map(t=>`<option value="${t.id}">${t.name} (${t.capacity}p, ${zoneName(t.zone)})</option>`).join('')}</select><textarea id="mr-notes" placeholder="Notas" rows="2" class="w-full border rounded-xl px-4 py-2 outline-none"></textarea></div>`, () => { const t=CFG.tables.find(x=>x.id===parseInt(document.getElementById('mr-table').value)); reservations.push({id:nextId(),date:document.getElementById('mr-date').value,time:document.getElementById('mr-time').value,guests:parseInt(document.getElementById('mr-guests').value),table:t.id,name:document.getElementById('mr-name').value,phone:document.getElementById('mr-phone').value,email:'',notes:document.getElementById('mr-notes').value,status:'confirmed',zone:t.zone,tags:[],created:new Date().toISOString()}); saveAll(); closeModal(); renderList(); }); }
+
+function addWalkIn() { addManualRes(); document.getElementById('modal-title').textContent = 'Walk-in'; }
+
+// ── Init ──
+document.getElementById('bk-date').value = today();
+document.getElementById('bk-date').min = today();
+document.getElementById('biz-name').textContent = CFG.name;
+</script>
+</body>
+</html>

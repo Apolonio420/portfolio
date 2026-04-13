@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planificador de Menu Semanal — Novamente Studio</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { font-family: 'Plus Jakarta Sans', sans-serif; }
+.orange-grad { background: linear-gradient(135deg, #c2410c, #ea580c); }
+.cell-hover { transition: all .15s ease; }
+.cell-hover:hover { background: #fff7ed; border-color: #ea580c; }
+.meal-chip { font-size:11px;padding:3px 8px;border-radius:6px;cursor:pointer;transition:all .15s; }
+.meal-chip:hover { opacity:.8; }
+@media print {
+  .no-print { display:none!important; }
+  body { background:white!important; font-size:11px; }
+  table { width:100%!important; }
+  .print-break { page-break-before: always; }
+}
+</style>
+</head>
+<body class="bg-orange-50 min-h-screen">
+
+<header class="orange-grad text-white shadow-lg no-print">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <div class="bg-white/20 rounded-xl p-2">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold">Planificador de Menu Semanal</h1>
+        <p class="text-orange-100 text-xs">Restaurante — plan semanal con lista de compras</p>
+      </div>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button onclick="viewMode='menu';renderView()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all">Menu</button>
+      <button onclick="viewMode='shopping';renderView()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all">Lista de Compras</button>
+      <button onclick="viewMode='dishes';renderView()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all">Platillos</button>
+      <button onclick="printView()" class="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-xl text-sm font-semibold transition-all">Imprimir</button>
+    </div>
+  </div>
+</header>
+
+<!-- Stats bar -->
+<div class="bg-white border-b border-orange-100 no-print">
+  <div class="max-w-7xl mx-auto px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+    <div><div class="text-2xl font-bold text-orange-600" id="st-dishes">0</div><div class="text-xs text-gray-500">Platillos en catalogo</div></div>
+    <div><div class="text-2xl font-bold text-green-600" id="st-planned">0</div><div class="text-xs text-gray-500">Tiempos planificados</div></div>
+    <div><div class="text-2xl font-bold text-blue-600" id="st-ings">0</div><div class="text-xs text-gray-500">Ingredientes a comprar</div></div>
+    <div><div class="text-2xl font-bold text-amber-600" id="st-cost">$0</div><div class="text-xs text-gray-500">Costo estimado semana</div></div>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+  <div id="view-container"></div>
+</div>
+
+<!-- Dish Picker Modal -->
+<div id="dish-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto no-print">
+  <div class="bg-white rounded-2xl w-full max-w-lg my-4 shadow-2xl">
+    <div class="orange-grad text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-bold" id="dish-modal-title">Asignar platillo</h2>
+        <p class="text-orange-100 text-xs" id="dish-modal-sub"></p>
+      </div>
+      <button onclick="closeDishModal()" class="text-white/80 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="p-5">
+      <div class="relative mb-4">
+        <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
+        <input id="dish-search" onkeyup="filterDishes()" placeholder="Buscar platillo..." class="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+      </div>
+      <div id="dish-list" class="space-y-1 max-h-64 overflow-y-auto"></div>
+      <div class="border-t border-gray-100 pt-4 mt-4">
+        <p class="text-xs font-semibold text-gray-600 mb-2">O agregar platillo nuevo:</p>
+        <div class="flex gap-2">
+          <input id="new-dish-name" class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="Nombre del platillo">
+          <input id="new-dish-cost" type="number" class="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" placeholder="Costo $">
+          <button onclick="addAndSelectDish()" class="bg-orange-500 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-orange-600">Agregar</button>
+        </div>
+      </div>
+      <button onclick="clearCell()" class="mt-3 w-full border border-red-200 text-red-500 py-2 rounded-xl text-sm font-medium hover:bg-red-50">Limpiar celda</button>
+    </div>
+  </div>
+</div>
+
+<footer class="text-center py-6 text-xs text-orange-400/60 no-print">Powered by <span class="font-semibold text-orange-600">Novamente Studio</span></footer>
+
+<script>
+const SK='novadev_menu_v1', SKD='novadev_menu_dishes_v1';
+let menu={}, dishes=[], viewMode='menu', currentCell=null;
+
+const DAYS=['Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo'];
+const MEALS=['Desayuno','Comida','Cena'];
+const MEAL_COLORS={'Desayuno':'bg-amber-100 text-amber-800','Comida':'bg-orange-100 text-orange-800','Cena':'bg-red-100 text-red-800'};
+
+const DEMO_DISHES=[
+  {id:1,name:'Huevos Rancheros',cost:45,ings:[{n:'Huevos',q:2,u:'pzas',c:8},{n:'Tortillas',q:2,u:'pzas',c:4},{n:'Salsa roja',q:80,u:'ml',c:5},{n:'Frijoles',q:100,u:'g',c:6}]},
+  {id:2,name:'Chilaquiles Verdes',cost:55,ings:[{n:'Totopos',q:100,u:'g',c:10},{n:'Salsa verde',q:150,u:'ml',c:12},{n:'Crema',q:50,u:'ml',c:8},{n:'Queso fresco',q:40,u:'g',c:10}]},
+  {id:3,name:'Avena con Fruta',cost:30,ings:[{n:'Avena',q:80,u:'g',c:6},{n:'Leche',q:200,u:'ml',c:8},{n:'Fruta de temporada',q:100,u:'g',c:12}]},
+  {id:4,name:'Sopa de Fideo',cost:35,ings:[{n:'Fideo',q:80,u:'g',c:5},{n:'Jitomate',q:150,u:'g',c:8},{n:'Caldo',q:300,u:'ml',c:5}]},
+  {id:5,name:'Pollo a la Plancha',cost:95,ings:[{n:'Pechuga de pollo',q:200,u:'g',c:60},{n:'Limon',q:1,u:'pza',c:3},{n:'Especias',q:5,u:'g',c:3}]},
+  {id:6,name:'Tacos de Pastor',cost:80,ings:[{n:'Carne de cerdo marinada',q:150,u:'g',c:45},{n:'Tortillas',q:3,u:'pzas',c:6},{n:'Cebolla y cilantro',q:30,u:'g',c:4},{n:'Pina',q:50,u:'g',c:5}]},
+  {id:7,name:'Ensalada Cesar',cost:65,ings:[{n:'Lechuga romana',q:200,u:'g',c:15},{n:'Aderezo cesar',q:40,u:'ml',c:10},{n:'Crutones',q:30,u:'g',c:5},{n:'Queso parmesano',q:20,u:'g',c:12}]},
+  {id:8,name:'Caldo Tlalpeno',cost:75,ings:[{n:'Pollo',q:200,u:'g',c:40},{n:'Garbanzo',q:100,u:'g',c:10},{n:'Chipotles',q:2,u:'pzas',c:5},{n:'Verduras',q:150,u:'g',c:12}]},
+  {id:9,name:'Quesadillas',cost:55,ings:[{n:'Tortillas harina',q:2,u:'pzas',c:8},{n:'Queso Oaxaca',q:100,u:'g',c:25},{n:'Chile poblano',q:1,u:'pza',c:6}]},
+  {id:10,name:'Enchiladas Rojas',cost:70,ings:[{n:'Tortillas',q:3,u:'pzas',c:6},{n:'Salsa roja',q:150,u:'ml',c:10},{n:'Pollo deshebrado',q:100,u:'g',c:30},{n:'Crema y queso',q:60,u:'g',c:14}]},
+  {id:11,name:'Sopes de Frijoles',cost:50,ings:[{n:'Masa de maiz',q:150,u:'g',c:8},{n:'Frijoles refritos',q:100,u:'g',c:8},{n:'Chorizo',q:50,u:'g',c:12},{n:'Crema y queso',q:40,u:'g',c:8}]},
+  {id:12,name:'Cortes de Res',cost:180,ings:[{n:'Arrachera',q:200,u:'g',c:110},{n:'Papas fritas',q:150,u:'g',c:15},{n:'Ensalada',q:100,u:'g',c:10}]}
+];
+
+const DEMO_MENU = {
+  'Lunes':{'Desayuno':{dishId:1},'Comida':{dishId:8},'Cena':{dishId:9}},
+  'Martes':{'Desayuno':{dishId:3},'Comida':{dishId:5},'Cena':{dishId:10}},
+  'Miercoles':{'Desayuno':{dishId:2},'Comida':{dishId:6},'Cena':{dishId:11}},
+  'Jueves':{'Desayuno':{dishId:1},'Comida':{dishId:4},'Cena':{dishId:7}},
+  'Viernes':{'Desayuno':{dishId:3},'Comida':{dishId:12},'Cena':{dishId:9}},
+  'Sabado':{'Desayuno':{dishId:2},'Comida':{dishId:6},'Cena':{dishId:10}},
+  'Domingo':{'Desayuno':{dishId:1},'Comida':{dishId:5},'Cena':{dishId:11}}
+};
+
+function load(){
+  const sm=localStorage.getItem(SK), sd=localStorage.getItem(SKD);
+  menu=sm?JSON.parse(sm):DEMO_MENU; dishes=sd?JSON.parse(sd):DEMO_DISHES;
+  if(!sm){localStorage.setItem(SK,JSON.stringify(menu));localStorage.setItem(SKD,JSON.stringify(dishes));}
+}
+function saveAll(){localStorage.setItem(SK,JSON.stringify(menu));localStorage.setItem(SKD,JSON.stringify(dishes));}
+function mxn(n){return '$'+parseFloat(n).toFixed(2);}
+
+function getDish(id){return dishes.find(d=>d.id===id);}
+
+function calcWeekCost(){
+  let total=0;
+  DAYS.forEach(day=>MEALS.forEach(meal=>{
+    const cell=menu[day]?.[meal];
+    if(cell?.dishId){const d=getDish(cell.dishId);if(d)total+=d.cost||0;}
+  }));
+  return total;
+}
+
+function calcShoppingList(){
+  const agg={};
+  DAYS.forEach(day=>MEALS.forEach(meal=>{
+    const cell=menu[day]?.[meal];
+    if(cell?.dishId){
+      const d=getDish(cell.dishId);
+      if(d?.ings) d.ings.forEach(i=>{
+        const key=i.n+'||'+i.u;
+        if(!agg[key]) agg[key]={name:i.n,unit:i.u,qty:0,cost:0,count:0};
+        agg[key].qty+=parseFloat(i.q)||0;
+        agg[key].cost+=parseFloat(i.c)||0;
+        agg[key].count++;
+      });
+    }
+  }));
+  return Object.values(agg).sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+function updateStats(){
+  let planned=0;
+  DAYS.forEach(day=>MEALS.forEach(meal=>{if(menu[day]?.[meal]?.dishId) planned++;}));
+  const items=calcShoppingList();
+  document.getElementById('st-dishes').textContent=dishes.length;
+  document.getElementById('st-planned').textContent=planned+'/'+DAYS.length*MEALS.length;
+  document.getElementById('st-ings').textContent=items.length;
+  document.getElementById('st-cost').textContent=mxn(calcWeekCost());
+}
+
+function renderView(){
+  if(viewMode==='menu') renderMenu();
+  else if(viewMode==='shopping') renderShopping();
+  else renderDishes();
+  updateStats();
+}
+
+function renderMenu(){
+  const weekCost=calcWeekCost();
+  let html=`<div class="no-print mb-4 flex items-center justify-between flex-wrap gap-3">
+    <h2 class="text-lg font-bold text-gray-800">Menu de la Semana</h2>
+    <div class="flex items-center gap-3">
+      <span class="text-sm text-gray-600">Costo total estimado: <span class="font-bold text-orange-600">${mxn(weekCost)}</span></span>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="orange-grad text-white">
+            <th class="px-4 py-3 text-left font-bold">Tiempo</th>
+            ${DAYS.map(d=>`<th class="px-2 py-3 font-bold min-w-28">${d}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${MEALS.map(meal=>`<tr class="border-t border-orange-50">
+            <td class="px-4 py-2 font-bold text-orange-700 bg-orange-50 whitespace-nowrap text-xs">${meal}</td>
+            ${DAYS.map(day=>{
+              const cell=menu[day]?.[meal];
+              const dish=cell?.dishId?getDish(cell.dishId):null;
+              return `<td class="px-1 py-1 cell-hover border border-transparent cursor-pointer" onclick="openDishModal('${day}','${meal}')">
+                ${dish
+                  ? `<div class="meal-chip ${MEAL_COLORS[meal]||'bg-gray-100'} rounded-lg p-1.5 leading-tight">
+                      <div class="font-semibold truncate">${dish.name}</div>
+                      <div class="text-xs opacity-70">${mxn(dish.cost)}</div>
+                    </div>`
+                  : `<div class="h-10 flex items-center justify-center text-gray-300 hover:text-orange-400 text-lg">+</div>`
+                }
+              </td>`;
+            }).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+  document.getElementById('view-container').innerHTML=html;
+}
+
+function renderShopping(){
+  const items=calcShoppingList();
+  const totalCost=items.reduce((a,i)=>a+i.cost,0);
+  let html=`<div class="no-print mb-4 flex items-center justify-between flex-wrap gap-3">
+    <h2 class="text-lg font-bold text-gray-800">Lista de Compras — Semana</h2>
+    <div class="flex items-center gap-3">
+      <span class="text-sm text-gray-600">Costo estimado ingredientes: <span class="font-bold text-orange-600">$${totalCost.toFixed(2)}</span></span>
+      <button onclick="shareShoppingWA()" class="bg-green-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-green-700 font-semibold">WhatsApp</button>
+      <button onclick="printShopping()" class="bg-orange-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-orange-600 font-semibold">Imprimir lista</button>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="orange-grad text-white">
+        <tr><th class="px-4 py-3 text-left">Ingrediente</th><th class="px-4 py-3 text-center">Cantidad total</th><th class="px-4 py-3 text-center">Unidad</th><th class="px-4 py-3 text-right">Costo est.</th><th class="px-4 py-3 text-center no-print">Comprado</th></tr>
+      </thead>
+      <tbody>
+        ${items.map((item,i)=>`<tr class="border-t border-orange-50 ${i%2===0?'bg-orange-50/30':''}">
+          <td class="px-4 py-2 font-medium">${item.name}</td>
+          <td class="px-4 py-2 text-center font-semibold">${item.qty.toFixed(item.qty<1?2:1)}</td>
+          <td class="px-4 py-2 text-center text-gray-500">${item.unit}</td>
+          <td class="px-4 py-2 text-right text-orange-700 font-semibold">${mxn(item.cost)}</td>
+          <td class="px-4 py-2 text-center no-print"><input type="checkbox" class="w-4 h-4 rounded accent-orange-500"></td>
+        </tr>`).join('')}
+        <tr class="border-t-2 border-orange-300 bg-orange-50 font-bold">
+          <td class="px-4 py-2" colspan="3">TOTAL ESTIMADO</td>
+          <td class="px-4 py-2 text-right text-orange-700">$${totalCost.toFixed(2)}</td>
+          <td class="no-print"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>`;
+  document.getElementById('view-container').innerHTML=html;
+}
+
+function printView(){
+  if(viewMode==='shopping') { printShopping(); return; }
+  window.print();
+}
+
+function printShopping(){
+  const items=calcShoppingList();
+  const total=items.reduce((a,i)=>a+i.cost,0);
+  const orig=document.getElementById('view-container').innerHTML;
+  // print is handled by CSS — just switch to shopping view and print
+  viewMode='shopping'; renderView();
+  window.print();
+  setTimeout(()=>{ viewMode='shopping'; renderView(); },500);
+}
+
+function openDishModal(day,meal){
+  currentCell={day,meal};
+  document.getElementById('dish-modal-title').textContent='Asignar platillo';
+  document.getElementById('dish-modal-sub').textContent=`${day} — ${meal}`;
+  document.getElementById('dish-search').value='';
+  document.getElementById('new-dish-name').value='';
+  document.getElementById('new-dish-cost').value='';
+  filterDishes();
+  document.getElementById('dish-modal').classList.remove('hidden');
+}
+function closeDishModal(){ document.getElementById('dish-modal').classList.add('hidden'); currentCell=null; }
+
+function filterDishes(){
+  const q=(document.getElementById('dish-search')?.value||'').toLowerCase();
+  const list=dishes.filter(d=>!q||d.name.toLowerCase().includes(q));
+  document.getElementById('dish-list').innerHTML=list.map(d=>`
+    <button onclick="selectDish(${d.id})" class="w-full text-left flex items-center justify-between px-3 py-2 rounded-xl hover:bg-orange-50 transition-all">
+      <span class="font-medium text-sm">${d.name}</span>
+      <span class="text-orange-600 text-xs font-semibold">${mxn(d.cost)}</span>
+    </button>`).join('') || '<div class="text-center text-gray-400 text-sm py-4">Sin resultados</div>';
+}
+
+function selectDish(id){
+  if(!currentCell) return;
+  const {day,meal}=currentCell;
+  if(!menu[day]) menu[day]={};
+  menu[day][meal]={dishId:id};
+  saveAll(); closeDishModal(); renderView();
+}
+
+function clearCell(){
+  if(!currentCell) return;
+  const {day,meal}=currentCell;
+  if(menu[day]) delete menu[day][meal];
+  saveAll(); closeDishModal(); renderView();
+}
+
+function addAndSelectDish(){
+  const name=document.getElementById('new-dish-name').value.trim();
+  const cost=parseFloat(document.getElementById('new-dish-cost').value)||0;
+  if(!name){alert('Ingresa el nombre del platillo');return;}
+  const d={id:Date.now(),name,cost,ings:[]};
+  dishes.push(d); saveAll();
+  selectDish(d.id);
+}
+
+// ===================== DISHES VIEW =====================
+function renderDishes(){
+  const g=document.getElementById('view-container');
+  g.innerHTML=`<div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+    <h2 class="text-lg font-bold text-gray-800">Catalogo de Platillos (${dishes.length})</h2>
+    <button onclick="openDishEditor(null)" class="orange-grad text-white px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90">+ Nuevo Platillo</button>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="dishes-catalog"></div>
+  <div id="dish-editor-inline" class="mt-6"></div>`;
+  renderDishCatalog();
+}
+
+function renderDishCatalog(){
+  const g=document.getElementById('dishes-catalog');
+  if(!g) return;
+  if(!dishes.length){g.innerHTML='<div class="col-span-3 text-center py-12 text-gray-400 text-sm">Sin platillos en el catalogo</div>';return;}
+  g.innerHTML=dishes.map(d=>{
+    const menuCount=DAYS.reduce((c,day)=>c+MEALS.filter(m=>menu[day]?.[m]?.dishId===d.id).length,0);
+    return `<div class="bg-white rounded-2xl shadow-sm border border-orange-100 p-4">
+      <div class="flex items-start justify-between mb-2">
+        <div class="font-bold text-gray-800">${d.name}</div>
+        <span class="text-orange-600 font-bold text-sm">${mxn(d.cost)}</span>
+      </div>
+      ${d.ings&&d.ings.length?`<div class="text-xs text-gray-400 mb-2">${d.ings.length} ingredientes registrados</div>`:`<div class="text-xs text-gray-300 mb-2">Sin ingredientes</div>`}
+      ${menuCount>0?`<div class="text-xs text-green-600 font-medium mb-2">Usado ${menuCount}x esta semana</div>`:''}
+      <div class="flex gap-2">
+        <button onclick="openDishEditor(${d.id})" class="flex-1 text-xs bg-orange-50 text-orange-700 py-1.5 rounded-lg hover:bg-orange-100 font-medium">Editar</button>
+        <button onclick="deleteDish(${d.id})" class="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-100 font-medium">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let editDishId=null;
+function openDishEditor(id){
+  editDishId=id;
+  const d=id?dishes.find(x=>x.id===id):null;
+  const box=document.getElementById('dish-editor-inline');
+  if(!box) return;
+  box.innerHTML=`<div class="bg-white rounded-2xl shadow-sm border border-orange-200 p-5">
+    <h3 class="font-bold text-gray-800 mb-4">${id?'Editar':'Nuevo'} Platillo</h3>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="col-span-2 md:col-span-1"><label class="text-xs font-semibold text-gray-600 block mb-1">Nombre *</label><input id="de-name" value="${d?.name||''}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"></div>
+      <div><label class="text-xs font-semibold text-gray-600 block mb-1">Costo por porcion ($)</label><input id="de-cost" type="number" value="${d?.cost||''}" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"></div>
+    </div>
+    <div class="mb-3">
+      <div class="flex items-center justify-between mb-2"><label class="text-xs font-semibold text-gray-600">Ingredientes</label><button onclick="addIngEditor()" type="button" class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-lg hover:bg-orange-200">+ Ingrediente</button></div>
+      <div class="border border-gray-100 rounded-xl overflow-hidden">
+        <div class="grid grid-cols-12 bg-orange-50 px-2 py-1.5 text-xs font-semibold text-gray-500">
+          <div class="col-span-5">Ingrediente</div><div class="col-span-2 text-center">Cant.</div><div class="col-span-2 text-center">Unidad</div><div class="col-span-2 text-right">Costo $</div><div class="col-span-1"></div>
+        </div>
+        <div id="ing-editor"></div>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="saveDishEditor()" class="flex-1 orange-grad text-white py-2.5 rounded-xl font-semibold text-sm hover:opacity-90">Guardar Platillo</button>
+      <button onclick="document.getElementById('dish-editor-inline').innerHTML=''" class="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+    </div>
+  </div>`;
+  let ic=0;
+  window._addIngEditor=function(){
+    const idx=ic++;
+    const row=document.createElement('div');
+    row.id='der-'+idx;
+    row.className='grid grid-cols-12 gap-1 px-2 py-1 border-t border-gray-50 items-center';
+    row.innerHTML=`<input data-f="n" placeholder="Ingrediente" class="col-span-5 border border-gray-100 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400">
+      <input data-f="q" type="number" placeholder="0" class="col-span-2 border border-gray-100 rounded px-1 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-orange-400">
+      <input data-f="u" placeholder="g/ml" class="col-span-2 border border-gray-100 rounded px-1 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-orange-400">
+      <input data-f="c" type="number" placeholder="0" class="col-span-2 border border-gray-100 rounded px-1 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-orange-400">
+      <button type="button" onclick="document.getElementById('der-${idx}').remove()" class="col-span-1 text-red-400 hover:text-red-600 text-lg font-bold leading-none text-center">&times;</button>`;
+    document.getElementById('ing-editor').appendChild(row);
+  };
+  if(d?.ings) d.ings.forEach(i=>{window._addIngEditor();const rows=document.querySelectorAll('#ing-editor [id^=der-]');const last=rows[rows.length-1];if(last){last.querySelector('[data-f=n]').value=i.n||'';last.querySelector('[data-f=q]').value=i.q||'';last.querySelector('[data-f=u]').value=i.u||'';last.querySelector('[data-f=c]').value=i.c||'';}});
+  else {window._addIngEditor();window._addIngEditor();}
+}
+function addIngEditor(){if(window._addIngEditor)window._addIngEditor();}
+function saveDishEditor(){
+  const name=document.getElementById('de-name').value.trim();
+  if(!name){alert('Nombre requerido');return;}
+  const ings=[];
+  document.querySelectorAll('#ing-editor [id^=der-]').forEach(row=>{
+    const n=row.querySelector('[data-f=n]').value.trim();
+    if(n) ings.push({n,q:parseFloat(row.querySelector('[data-f=q]').value)||0,u:row.querySelector('[data-f=u]').value||'pza',c:parseFloat(row.querySelector('[data-f=c]').value)||0});
+  });
+  const d={id:editDishId||Date.now(),name,cost:parseFloat(document.getElementById('de-cost').value)||0,ings};
+  if(editDishId){const i=dishes.findIndex(x=>x.id===editDishId);if(i>=0)dishes[i]=d;}else dishes.push(d);
+  saveAll();document.getElementById('dish-editor-inline').innerHTML='';renderDishCatalog();updateStats();
+}
+function deleteDish(id){
+  if(!confirm('Eliminar este platillo?')) return;
+  dishes=dishes.filter(d=>d.id!==id);
+  DAYS.forEach(day=>MEALS.forEach(meal=>{if(menu[day]?.[meal]?.dishId===id) delete menu[day][meal];}));
+  saveAll();renderDishCatalog();updateStats();
+}
+
+// ===================== WHATSAPP LISTA DE COMPRAS =====================
+function shareShoppingWA(){
+  const items=calcShoppingList();
+  const total=items.reduce((a,i)=>a+i.cost,0);
+  const lines=items.slice(0,15).map(i=>`- ${i.name}: ${i.qty.toFixed(1)} ${i.unit}`).join('\n');
+  const weekCost=calcWeekCost();
+  const msg=`*Lista de Compras — Menu Semanal*\n\n${lines}${items.length>15?'\n...y '+(items.length-15)+' ingredientes mas':''}\n\nCosto estimado ingredientes: ${mxn(total)}\nCosto total menu semana: ${mxn(weekCost)}\n\n_Generado desde Planificador de Menu — Novamente Studio_`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+document.getElementById('dish-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeDishModal();});
+
+load(); renderView();
+</script>
+</body>
+</html>
