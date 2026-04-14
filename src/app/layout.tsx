@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     siteName: "Valentin Nunez Portfolio",
     images: [
       {
-        url: "/og-image.png",
+        url: "/opengraph-image",
         width: 1200,
         height: 630,
         alt: "Valentin Nunez — AI Agent & Full-Stack Engineer",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     title: "Valentin Nunez — AI Agent & Full-Stack Engineer",
     description:
       "Production AI systems: WhatsApp bots, RAG chatbots, 300+ tools. Talk to my AI assistant live.",
-    images: ["/og-image.png"],
+    images: ["/opengraph-image"],
   },
   robots: {
     index: true,

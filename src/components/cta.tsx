@@ -7,6 +7,11 @@ import { sections } from "@/lib/translations"
 
 const links = [
   {
+    icon: ExternalLink,
+    label: "LinkedIn",
+    href: "https://www.linkedin.com/in/valentin-nunez/",
+  },
+  {
     icon: Code2,
     label: "GitHub",
     href: "https://github.com/Apolonio420",
