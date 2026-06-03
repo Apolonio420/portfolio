@@ -286,7 +286,7 @@ export const techStack = {
     {
       name: "Gemini API",
       icon: "/icons/gemini.svg",
-      snippet: `const model = genai.getGenerativeModel(\n  { model: 'gemini-2.0-flash' });\nawait model.generateContent('Hello');`,
+      snippet: `const model = genai.getGenerativeModel(\n  { model: 'gemini-2.5-flash' });\nawait model.generateContent('Hello');`,
       fact: "Powers the AI Design Engine. 37 styles, zero cost.",
     },
     {
