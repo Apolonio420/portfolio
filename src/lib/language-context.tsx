@@ -18,8 +18,24 @@ const LanguageContext = createContext<LanguageContextValue>({
 
 function detectLang(): Lang {
   if (typeof window === "undefined") return "en"
-  const browserLang = navigator.language || ""
-  return browserLang.startsWith("es") ? "es" : "en"
+
+  // 1) Preferred browser language(s)
+  const langs = [navigator.language, ...(navigator.languages || [])].filter(Boolean)
+  if (langs.some((l) => l.toLowerCase().startsWith("es"))) return "es"
+
+  // 2) Physical location via timezone — covers a visitor whose browser is in
+  //    English but who is in a Spanish-speaking country (e.g. an AR recruiter
+  //    on an English-locale work laptop). This is the "de dónde sos" signal.
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+    const spanishTz =
+      /Argentina|Buenos_Aires|Montevideo|Asuncion|La_Paz|Santiago|Lima|Bogota|Caracas|Guayaquil|Mexico|Monterrey|Cancun|Merida|Matamoros|Ojinaga|Chihuahua|Hermosillo|Mazatlan|Tijuana|Guatemala|Tegucigalpa|Managua|Costa_Rica|Panama|El_Salvador|Havana|Santo_Domingo|Puerto_Rico|Madrid|Canary|Ceuta/i
+    if (spanishTz.test(tz)) return "es"
+  } catch {
+    // Intl unavailable — fall through to default
+  }
+
+  return "en"
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
